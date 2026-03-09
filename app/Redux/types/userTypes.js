@@ -1,0 +1,32 @@
+// 🔐 Login
+export const LOGIN_REQUEST = "LOGIN_REQUEST";
+export const LOGIN_SUCCESS = "LOGIN_SUCCESS";
+export const LOGIN_FAILURE = "LOGIN_FAILURE";
+
+// 👥 Fetch Users
+export const USERS_REQUEST = "USERS_REQUEST";
+export const USERS_SUCCESS = "USERS_SUCCESS";
+export const USERS_FAILURE = "USERS_FAILURE";
+// 👥 Fetch Users
+export const LOGOUT_REQUEST = "LOGOUT_REQUEST";
+
+
+// ➕ Create User
+export const CREATE_USER_REQUEST = "CREATE_USER_REQUEST";
+export const CREATE_USER_SUCCESS = "CREATE_USER_SUCCESS";
+export const CREATE_USER_FAILURE = "CREATE_USER_FAILURE";
+
+// 🔹 Get Single User
+export const SINGLE_USER_REQUEST = "SINGLE_USER_REQUEST";
+export const SINGLE_USER_SUCCESS = "SINGLE_USER_SUCCESS";
+export const SINGLE_USER_FAIL = "SINGLE_USER_FAIL";
+
+// 🔹 Edit User
+export const EDIT_USER_REQUEST = "EDIT_USER_REQUEST";
+export const EDIT_USER_SUCCESS = "EDIT_USER_SUCCESS";
+export const EDIT_USER_FAIL = "EDIT_USER_FAIL";
+
+// 🔹 Delete User
+export const DELETE_USER_REQUEST = "DELETE_USER_REQUEST";
+export const DELETE_USER_SUCCESS = "DELETE_USER_SUCCESS";
+export const DELETE_USER_FAIL = "DELETE_USER_FAIL";
