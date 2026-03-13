@@ -3,7 +3,7 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "https://tmindz-own-aisdr.technologymindz.com",
+  baseURL: "https://channelbeacon-11labs-agent2.technologymindz.com/",
   headers: {
     "Content-Type": "application/json",
   },

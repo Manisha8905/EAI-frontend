@@ -16,12 +16,12 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   return (
     <>
       <Navbar />
-      <div className="flex h-screen">
-        <div className="w-64 bg-gray-800 text-white">
+<div className="flex min-h-screen overflow-hidden">
+          <div className="w-64 shrink-0">
           <Sidebar />
         </div>
 
-        <div className="flex-1 bg-gray-100">
+        <div className="flex-1 min-w-0 overflow-x-auto bg-[#f4f5f7]">
           {children}
         </div>
       </div>

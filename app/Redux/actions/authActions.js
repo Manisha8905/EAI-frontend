@@ -37,6 +37,7 @@ export const loginUser = (values, router) => async (dispatch) => {
         "Content-Type": "application/x-www-form-urlencoded",
       },
     });
+    console.log()
 
     // ✅ SAVE TOKEN HERE
     localStorage.setItem("session_token", response.data.session_token);

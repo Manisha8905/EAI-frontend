@@ -1,9 +1,5 @@
-import Image from "next/image";
+import ModuleDashboard from "./Componets/Dashboard/ModuleDashboard";
 
 export default function Home() {
-  return (
-   <>
-   
-   </>
-  );
+  return <ModuleDashboard moduleName="Sales" />;
 }
