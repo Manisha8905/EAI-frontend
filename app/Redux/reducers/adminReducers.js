@@ -19,6 +19,18 @@ import {
   DELETE_USER_SUCCESS,
   DELETE_USER_FAIL,
 
+  OUTBOUND_CALLS_REQUEST,
+  OUTBOUND_CALLS_SUCCESS,
+  OUTBOUND_CALLS_FAILURE,
+
+  INBOUND_CALLS_REQUEST,
+  INBOUND_CALLS_SUCCESS,
+  INBOUND_CALLS_FAILURE,
+
+  EMAIL_CAMPAIGNS_REQUEST,
+  EMAIL_CAMPAIGNS_SUCCESS,
+  EMAIL_CAMPAIGNS_FAILURE,
+
 } from "../types/userTypes";
 
 const initialState = {
@@ -29,6 +41,18 @@ const initialState = {
   createSuccess: false,
   updateSuccess: false,
   deleteSuccess: false,
+  // 📊 Outbound Calls
+  outboundData: null,
+  outboundLoading: false,
+  outboundError: null,
+  // 📊 Inbound Calls
+  inboundData: null,
+  inboundLoading: false,
+  inboundError: null,
+  // 📊 Email Campaigns
+  emailData: null,
+  emailLoading: false,
+  emailError: null,
 };
 
 const adminReducers = (state = initialState, action) => {
@@ -99,6 +123,72 @@ const adminReducers = (state = initialState, action) => {
         ...state,
         loading: false,
         error: action.payload,
+      };
+
+    // 📊 Outbound Calls
+    case OUTBOUND_CALLS_REQUEST:
+      return {
+        ...state,
+        outboundLoading: true,
+        outboundError: null,
+      };
+
+    case OUTBOUND_CALLS_SUCCESS:
+      return {
+        ...state,
+        outboundLoading: false,
+        outboundData: action.payload,
+      };
+
+    case OUTBOUND_CALLS_FAILURE:
+      return {
+        ...state,
+        outboundLoading: false,
+        outboundError: action.payload,
+      };
+
+    // 📊 Inbound Calls
+    case INBOUND_CALLS_REQUEST:
+      return {
+        ...state,
+        inboundLoading: true,
+        inboundError: null,
+      };
+
+    case INBOUND_CALLS_SUCCESS:
+      return {
+        ...state,
+        inboundLoading: false,
+        inboundData: action.payload,
+      };
+
+    case INBOUND_CALLS_FAILURE:
+      return {
+        ...state,
+        inboundLoading: false,
+        inboundError: action.payload,
+      };
+
+    // 📊 Email Campaigns
+    case EMAIL_CAMPAIGNS_REQUEST:
+      return {
+        ...state,
+        emailLoading: true,
+        emailError: null,
+      };
+
+    case EMAIL_CAMPAIGNS_SUCCESS:
+      return {
+        ...state,
+        emailLoading: false,
+        emailData: action.payload,
+      };
+
+    case EMAIL_CAMPAIGNS_FAILURE:
+      return {
+        ...state,
+        emailLoading: false,
+        emailError: action.payload,
       };
 
     default:

@@ -19,6 +19,15 @@ import {
   SINGLE_USER_FAIL,
   SINGLE_USER_SUCCESS,
   LOGOUT_REQUEST,
+  OUTBOUND_CALLS_REQUEST,
+  OUTBOUND_CALLS_SUCCESS,
+  OUTBOUND_CALLS_FAILURE,
+  INBOUND_CALLS_REQUEST,
+  INBOUND_CALLS_SUCCESS,
+  INBOUND_CALLS_FAILURE,
+  EMAIL_CAMPAIGNS_REQUEST,
+  EMAIL_CAMPAIGNS_SUCCESS,
+  EMAIL_CAMPAIGNS_FAILURE,
 } from "../types/userTypes";
 
 import axiosInstance from "../axiosInstance";
@@ -201,5 +210,83 @@ export const deleteUser = (target_email) => async (dispatch) => {
     });
 
     toast.error(error.response?.data?.message ?? "Delete Failed");
+  }
+};
+
+// 📊 Outbound Calls Metrics
+// filter: "this_year" | "this_quarter" | "this_month" | "this_week" | "today"
+export const fetchOutboundCalls = (filter = "this_year") => async (dispatch) => {
+  dispatch({ type: OUTBOUND_CALLS_REQUEST });
+
+  try {
+    const response = await axiosInstance.post(
+      `/api/metrics/outbound-calls`,
+      { filter },
+      { headers: { "Content-Type": "application/json" } }
+    );
+
+    dispatch({
+      type: OUTBOUND_CALLS_SUCCESS,
+      payload: response.data,
+    });
+  } catch (error) {
+    dispatch({
+      type: OUTBOUND_CALLS_FAILURE,
+      payload: error.response?.data?.message || "Failed to fetch outbound calls",
+    });
+
+    toast.error(error.response?.data?.message || "Failed to fetch outbound calls");
+  }
+};
+
+// 📊 Inbound Calls Metrics
+// filter: "this_year" | "this_quarter" | "this_month" | "this_week" | "today"
+export const fetchInboundCalls = (filter = "this_year") => async (dispatch) => {
+  dispatch({ type: INBOUND_CALLS_REQUEST });
+
+  try {
+    const response = await axiosInstance.post(
+      `/api/metrics/inbound-calls`,
+      { filter },
+      { headers: { "Content-Type": "application/json" } }
+    );
+
+    dispatch({
+      type: INBOUND_CALLS_SUCCESS,
+      payload: response.data,
+    });
+  } catch (error) {
+    dispatch({
+      type: INBOUND_CALLS_FAILURE,
+      payload: error.response?.data?.message || "Failed to fetch inbound calls",
+    });
+
+    toast.error(error.response?.data?.message || "Failed to fetch inbound calls");
+  }
+};
+
+// 📊 Email Campaigns Metrics
+// filter: "this_year" | "this_quarter" | "this_month" | "this_week" | "today"
+export const fetchEmailCampaigns = (filter = "this_year") => async (dispatch) => {
+  dispatch({ type: EMAIL_CAMPAIGNS_REQUEST });
+
+  try {
+    const response = await axiosInstance.post(
+      `/api/metrics/email-campaigns`,
+      { filter },
+      { headers: { "Content-Type": "application/json" } }
+    );
+
+    dispatch({
+      type: EMAIL_CAMPAIGNS_SUCCESS,
+      payload: response.data,
+    });
+  } catch (error) {
+    dispatch({
+      type: EMAIL_CAMPAIGNS_FAILURE,
+      payload: error.response?.data?.message || "Failed to fetch email campaigns",
+    });
+
+    toast.error(error.response?.data?.message || "Failed to fetch email campaigns");
   }
 };
