@@ -3,7 +3,8 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "https://6b0f-2405-201-5c1a-80e7-6d4e-c18a-5ebc-2247.ngrok-free.app",
+  // baseURL: "https://channelbeacon-11labs-agent2.technologymindz.com/",
+  baseURL: "https://channelbeacon-11labs-agent2.technologymindz.com/",
   headers: {
     "Content-Type": "application/json",
   },
