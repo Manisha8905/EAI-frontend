@@ -160,7 +160,7 @@ const sections = [
     activeRoutes: ["/metrics", "/reporting", "/campaign"],
     links: [
       { href: "/metrics", label: "Metrics", img: Metrics },
-      { href: "/reporting", label: "Reporting", img: Reporting },
+      // { href: "/reporting", label: "Reporting", img: Reporting },
       { href: "/campaign", label: "Campaign", img: Logs },
     ],
   },
