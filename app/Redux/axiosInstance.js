@@ -7,6 +7,7 @@ const axiosInstance = axios.create({
   baseURL: "https://channelbeacon-11labs-agent2.technologymindz.com/",
   headers: {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
   },
 });
 
