@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import axiosInstance from "../../Redux/axiosInstance";
 import {
   Settings,
   ArrowLeft,
@@ -165,7 +166,7 @@ function PageHeader({ title, subtitle, onBack, action }) {
    SUB-PAGES
 ════════════════════════════════════════════════════════════ */
 
-/* ── Shared animation styles (injected once per sub-page render) ── */
+/* ── Shared animation styles ── */
 function AnimStyles() {
   return (
     <style>{`
@@ -237,10 +238,8 @@ function CRMPage({ onBack }) {
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* ── Main form (2/3 on xl) ── */}
         <div className="xl:col-span-2">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden crm-hover">
-            {/* Gradient banner */}
             <div className="relative bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 px-7 py-6 overflow-hidden">
               <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 blur-3xl pointer-events-none" />
               <div className="absolute right-24 bottom-0 h-24 w-24 rounded-full bg-white/10 pointer-events-none" />
@@ -296,7 +295,6 @@ function CRMPage({ onBack }) {
                 icon={Globe}
                 hint="Sandbox URL pre-filled — use login.salesforce.com for production."
               />
-
               <div className="pt-1">
                 <button
                   type="submit"
@@ -311,20 +309,11 @@ function CRMPage({ onBack }) {
                     }`}
                 >
                   {connecting ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Connecting…
-                    </>
+                    <><RefreshCw className="h-4 w-4 animate-spin" />Connecting…</>
                   ) : saved ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      Connected Successfully!
-                    </>
+                    <><CheckCircle2 className="h-4 w-4" />Connected Successfully!</>
                   ) : (
-                    <>
-                      <Link2 className="h-4 w-4" />
-                      Connect to CRM
-                    </>
+                    <><Link2 className="h-4 w-4" />Connect to CRM</>
                   )}
                 </button>
               </div>
@@ -332,25 +321,13 @@ function CRMPage({ onBack }) {
           </div>
         </div>
 
-        {/* ── Sidebar info (1/3 on xl) ── */}
         <div className="flex flex-col gap-4">
-          {/* Status card */}
-          <div
-            className={`info-card rounded-2xl border p-5 ${
-              saved
-                ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50"
-                : "border-gray-100 bg-white shadow-sm"
-            }`}
-          >
+          <div className={`info-card rounded-2xl border p-5 ${saved ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50" : "border-gray-100 bg-white shadow-sm"}`}>
             <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3">
               Connection Status
             </p>
             <div className="flex items-center gap-3">
-              <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-                  saved ? "bg-green-100" : "bg-amber-50"
-                }`}
-              >
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${saved ? "bg-green-100" : "bg-amber-50"}`}>
                 {saved ? (
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                 ) : (
@@ -358,11 +335,7 @@ function CRMPage({ onBack }) {
                 )}
               </div>
               <div>
-                <span
-                  className={`block text-[14px] font-[700] ${
-                    saved ? "text-green-700" : "text-amber-700"
-                  }`}
-                >
+                <span className={`block text-[14px] font-[700] ${saved ? "text-green-700" : "text-amber-700"}`}>
                   {saved ? "Connected" : "Not Connected"}
                 </span>
                 <span className="text-[11px] text-gray-400">
@@ -378,12 +351,9 @@ function CRMPage({ onBack }) {
             )}
           </div>
 
-          {/* How to find credentials */}
           <div className="info-card rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
             <p className="text-[12px] font-[700] text-gray-800 mb-3 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-100 text-[10px] font-[800] text-indigo-600">
-                ?
-              </span>
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-100 text-[10px] font-[800] text-indigo-600">?</span>
               Where to find credentials
             </p>
             <ol className="space-y-2">
@@ -394,10 +364,7 @@ function CRMPage({ onBack }) {
                 "Copy Consumer Key → Client ID",
                 "Reveal Consumer Secret → Client Secret",
               ].map((step, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2.5 text-[11px] text-gray-500"
-                >
+                <li key={i} className="flex items-start gap-2.5 text-[11px] text-gray-500">
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-[700] text-indigo-600 mt-px">
                     {i + 1}
                   </span>
@@ -407,19 +374,15 @@ function CRMPage({ onBack }) {
             </ol>
           </div>
 
-          {/* Security notice */}
           <div className="info-card rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
             <div className="flex items-start gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100">
                 <Shield className="h-4 w-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-[12px] font-[700] text-blue-800 mb-1">
-                  Security Notice
-                </p>
+                <p className="text-[12px] font-[700] text-blue-800 mb-1">Security Notice</p>
                 <p className="text-[11px] text-blue-600 leading-relaxed">
-                  Credentials encrypted with AES-256. Never share your Client
-                  Secret. Tokens auto-refresh via OAuth 2.0 flow.
+                  Credentials encrypted with AES-256. Never share your Client Secret. Tokens auto-refresh via OAuth 2.0 flow.
                 </p>
               </div>
             </div>
@@ -431,50 +394,102 @@ function CRMPage({ onBack }) {
 }
 
 /* ── Agents ── */
-const INIT_AGENTS = [
-  { id: 1, name: "David Kim", email: "david@techmindzdev.com", active: false },
-  { id: 2, name: "Mike Torres", email: "mike@techmindzdev.com", active: false },
-  {
-    id: 3,
-    name: "Shreyas Patel",
-    email: "shreyas@techmindzdev.com",
-    active: true,
-  },
-];
 function AgentsPage({ onBack }) {
-  const [agents, setAgents] = useState(INIT_AGENTS);
+  // ── All state declared at the top (no duplicates) ──
+  const [agents, setAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [fetchError, setFetchError] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [parallelCalls, setPC] = useState(0);
   const [search, setSearch] = useState("");
   const [pcSaved, setPcSaved] = useState(false);
+  const [pcSaving, setPcSaving] = useState(false);
+  const [pcError, setPcError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  /* ── Fetch agents from API ── */
+  const fetchAgents = async () => {
+    setLoadingAgents(true);
+    setFetchError("");
+    try {
+      const res = await axiosInstance.get("/my-agents");
+      const list = Array.isArray(res.data) ? res.data : (res.data.agents ?? []);
+      console.log("[my-agents] raw response:", res.data);
+      setAgents(
+        list.map((a) => ({
+          id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
+          name: a.agent_name ?? a.name ?? "—",
+          email: a.email ?? "—",
+          active: a.is_active ?? a.active ?? false,
+        }))
+      );
+    } catch (err) {
+      setFetchError(
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to load agents."
+      );
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  useEffect(() => { fetchAgents(); }, []);
 
   const filtered = agents.filter(
     (a) =>
       a.name.toLowerCase().includes(search.toLowerCase()) ||
-      a.email.toLowerCase().includes(search.toLowerCase()),
+      (a.email !== "—" && a.email.toLowerCase().includes(search.toLowerCase())),
   );
 
-  const createAgent = () => {
+  /* ── Create agent via API ── */
+  const createAgent = async () => {
     if (!newName.trim()) return;
-    setAgents((p) => [
-      ...p,
-      {
-        id: Date.now(),
-        name: newName.trim(),
-        email: newEmail.trim() || "—",
-        active: false,
-      },
-    ]);
-    setNewName("");
-    setNewEmail("");
+    setCreating(true);
+    setCreateError("");
+    try {
+      await axiosInstance.post("/create-agent", {
+        agent_name: newName.trim(),
+      });
+      setNewName("");
+      setNewEmail("");
+      await fetchAgents(); // refresh list from server
+    } catch (err) {
+      setCreateError(
+        err?.response?.data?.message ||
+        "Failed to create agent. Please try again."
+      );
+    } finally {
+      setCreating(false);
+    }
   };
+
   const del = (id) => setAgents((p) => p.filter((a) => a.id !== id));
   const swit = (id) =>
     setAgents((p) => p.map((a) => ({ ...a, active: a.id === id })));
-  const savePC = () => {
-    setPcSaved(true);
-    setTimeout(() => setPcSaved(false), 2000);
+
+  /* ── Save parallel calls via API ── */
+  const savePC = async () => {
+    setPcSaving(true);
+    setPcError("");
+    setPcSaved(false);
+    try {
+      await axiosInstance.put("/api/settings/global-parallel-calls", {
+        global_parallel_calls: parallelCalls,
+      });
+      setPcSaved(true);
+      setTimeout(() => setPcSaved(false), 2500);
+    } catch (err) {
+      setPcError(
+        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        "Failed to save. Please try again."
+      );
+    } finally {
+      setPcSaving(false);
+    }
   };
 
   return (
@@ -515,20 +530,22 @@ function AgentsPage({ onBack }) {
           </div>
           <button
             onClick={createAgent}
-            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm flex items-center gap-1.5 shrink-0"
+            disabled={creating}
+            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm flex items-center gap-1.5 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Plus className="h-4 w-4" />
-            Create
+            {creating ? "Creating…" : "Create"}
           </button>
         </div>
+        {createError && (
+          <p className="mt-2 text-[12px] text-red-500 font-[500]">{createError}</p>
+        )}
       </div>
 
       {/* Agents table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-          <span className="text-[13px] font-[600] text-gray-900">
-            Agent List
-          </span>
+          <span className="text-[13px] font-[600] text-gray-900">Agent List</span>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
             <input
@@ -536,9 +553,9 @@ function AgentsPage({ onBack }) {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search agents…"
               className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg
-                           bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
-                           focus:border-blue-400 focus:bg-white transition w-[190px]
-                           placeholder:text-gray-400"
+                         bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
+                         focus:border-blue-400 focus:bg-white transition w-[190px]
+                         placeholder:text-gray-400"
             />
           </div>
         </div>
@@ -546,22 +563,28 @@ function AgentsPage({ onBack }) {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
               {["Agent Name", "Email", "Status", "Action"].map((h) => (
-                <th
-                  key={h}
-                  className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
-                >
+                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {loadingAgents ? (
               <tr>
-                <td
-                  colSpan={4}
-                  className="px-5 py-10 text-center text-[13px] text-gray-400"
-                >
+                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                  Loading agents…
+                </td>
+              </tr>
+            ) : fetchError ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-red-500">
+                  {fetchError}
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
                   No agents found
                 </td>
               </tr>
@@ -571,19 +594,11 @@ function AgentsPage({ onBack }) {
                   key={a.id}
                   className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                 >
-                  <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-900">
-                    {a.name}
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] text-indigo-600 font-[500]">
-                    {a.email}
-                  </td>
+                  <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-900">{a.name}</td>
+                  <td className="px-5 py-3.5 text-[13px] text-indigo-600 font-[500]">{a.email}</td>
                   <td className="px-5 py-3.5">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${a.active ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${a.active ? "bg-green-500" : "bg-gray-400"}`}
-                      />
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${a.active ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${a.active ? "bg-green-500" : "bg-gray-400"}`} />
                       {a.active ? "Active" : "Inactive"}
                     </span>
                   </td>
@@ -622,12 +637,8 @@ function AgentsPage({ onBack }) {
             <Zap className="h-4 w-4 text-violet-600" />
           </div>
           <div>
-            <p className="text-[13px] font-[600] text-gray-900">
-              Global Parallel Calls
-            </p>
-            <p className="text-[11px] text-gray-400">
-              Max simultaneous calls across all agents
-            </p>
+            <p className="text-[13px] font-[600] text-gray-900">Global Parallel Calls</p>
+            <p className="text-[11px] text-gray-400">Max simultaneous calls across all agents</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -641,11 +652,15 @@ function AgentsPage({ onBack }) {
           />
           <button
             onClick={savePC}
-            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition"
+            disabled={pcSaving}
+            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {pcSaved ? "✓ Saved!" : "Submit"}
+            {pcSaving ? "Saving…" : pcSaved ? "✓ Saved!" : "Submit"}
           </button>
         </div>
+        {pcError && (
+          <p className="mt-2 text-[12px] text-red-500 font-[500]">{pcError}</p>
+        )}
       </div>
     </div>
   );
@@ -672,6 +687,7 @@ const INIT_TEMPLATES = [
     preview: "We'd love to give you a personalized demo...",
   },
 ];
+
 function EmailTemplatesPage({ onBack }) {
   const [templates, setTemplates] = useState(INIT_TEMPLATES);
   const [showModal, setShowModal] = useState(false);
@@ -716,25 +732,18 @@ function EmailTemplatesPage({ onBack }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {["Name", "Subject", "Preview", "Preview", "Delete"].map(
-                (h, i) => (
-                  <th
-                    key={i}
-                    className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
+              {/* FIX: Removed duplicate "Preview" header */}
+              {["Name", "Subject", "Preview", "View", "Delete"].map((h, i) => (
+                <th key={i} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {templates.length === 0 ? (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-5 py-10 text-center text-[13px] text-gray-400"
-                >
+                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">
                   No templates yet
                 </td>
               </tr>
@@ -744,15 +753,9 @@ function EmailTemplatesPage({ onBack }) {
                   key={t.id}
                   className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                 >
-                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">
-                    {t.name}
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] text-gray-600">
-                    {t.subject}
-                  </td>
-                  <td className="px-5 py-3.5 text-[12px] text-gray-400 max-w-[220px] truncate">
-                    {t.preview}
-                  </td>
+                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{t.name}</td>
+                  <td className="px-5 py-3.5 text-[13px] text-gray-600">{t.subject}</td>
+                  <td className="px-5 py-3.5 text-[12px] text-gray-400 max-w-[220px] truncate">{t.preview}</td>
                   <td className="px-5 py-3.5">
                     <button
                       onClick={() => setPreview(t)}
@@ -764,9 +767,7 @@ function EmailTemplatesPage({ onBack }) {
                   </td>
                   <td className="px-5 py-3.5">
                     <button
-                      onClick={() =>
-                        setTemplates((p) => p.filter((x) => x.id !== t.id))
-                      }
+                      onClick={() => setTemplates((p) => p.filter((x) => x.id !== t.id))}
                       className="text-red-400 hover:text-red-600 transition"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -797,9 +798,7 @@ function EmailTemplatesPage({ onBack }) {
               required
               placeholder="Email subject line…"
               value={form.subject}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, subject: e.target.value }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
             />
             <div>
               <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
@@ -809,9 +808,7 @@ function EmailTemplatesPage({ onBack }) {
                 rows={4}
                 placeholder="Write your email body, or upload an HTML file below…"
                 value={form.body}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, body: e.target.value }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none mb-2"
               />
               <div className="flex items-center gap-3">
@@ -829,9 +826,7 @@ function EmailTemplatesPage({ onBack }) {
                   type="file"
                   accept=".html,.htm,.txt"
                   className="hidden"
-                  onChange={(e) =>
-                    setFileName(e.target.files?.[0]?.name ?? "No file selected")
-                  }
+                  onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "No file selected")}
                 />
               </div>
             </div>
@@ -854,20 +849,10 @@ function EmailTemplatesPage({ onBack }) {
       )}
 
       {preview && (
-        <Modal
-          title={preview.name}
-          onClose={() => setPreview(null)}
-          width="max-w-xl"
-        >
-          <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wide mb-1">
-            Subject
-          </p>
-          <p className="text-[14px] font-[500] text-gray-800 mb-4">
-            {preview.subject}
-          </p>
-          <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wide mb-1">
-            Body
-          </p>
+        <Modal title={preview.name} onClose={() => setPreview(null)} width="max-w-xl">
+          <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wide mb-1">Subject</p>
+          <p className="text-[14px] font-[500] text-gray-800 mb-4">{preview.subject}</p>
+          <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wide mb-1">Body</p>
           <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-[13px] text-gray-700 whitespace-pre-line">
             {preview.preview}
           </div>
@@ -900,27 +885,9 @@ function GraphConfigPage({ onBack }) {
   };
 
   const services = [
-    {
-      icon: Mail,
-      label: "Mail Sync",
-      desc: "Read & send emails via Graph",
-      color: "bg-sky-50",
-      iconColor: "text-sky-600",
-    },
-    {
-      icon: Globe,
-      label: "Calendar",
-      desc: "Calendar event read/write",
-      color: "bg-violet-50",
-      iconColor: "text-violet-600",
-    },
-    {
-      icon: Users,
-      label: "Contacts",
-      desc: "Sync Azure contact directory",
-      color: "bg-teal-50",
-      iconColor: "text-teal-600",
-    },
+    { icon: Mail, label: "Mail Sync", desc: "Read & send emails via Graph", color: "bg-sky-50", iconColor: "text-sky-600" },
+    { icon: Globe, label: "Calendar", desc: "Calendar event read/write", color: "bg-violet-50", iconColor: "text-violet-600" },
+    { icon: Users, label: "Contacts", desc: "Sync Azure contact directory", color: "bg-teal-50", iconColor: "text-teal-600" },
   ];
 
   return (
@@ -933,10 +900,8 @@ function GraphConfigPage({ onBack }) {
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* ── Main form (2/3 on xl) ── */}
         <div className="xl:col-span-2">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden crm-hover">
-            {/* Azure-themed gradient banner */}
             <div className="relative bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 px-7 py-6 overflow-hidden">
               <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 blur-3xl pointer-events-none" />
               <div className="absolute right-24 bottom-0 h-24 w-24 rounded-full bg-white/10 pointer-events-none" />
@@ -945,131 +910,60 @@ function GraphConfigPage({ onBack }) {
                   <Shield className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-[16px] font-[700] text-white">
-                    Microsoft Azure AD App
-                  </h3>
-                  <p className="text-[12px] text-sky-200 mt-0.5">
-                    Azure Active Directory app credentials for Graph API access
-                  </p>
+                  <h3 className="text-[16px] font-[700] text-white">Microsoft Azure AD App</h3>
+                  <p className="text-[12px] text-sky-200 mt-0.5">Azure Active Directory app credentials for Graph API access</p>
                 </div>
               </div>
             </div>
 
             <form onSubmit={submit} className="p-7 space-y-5">
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field
-                  label="Graph Client ID"
-                  required
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  value={form.clientId}
-                  onChange={set("clientId")}
-                  icon={Key}
-                />
-                <Field
-                  label="Graph Client Secret"
-                  required
-                  type="password"
-                  placeholder="••••••••••••••••••"
-                  value={form.clientSecret}
-                  onChange={set("clientSecret")}
-                  icon={Shield}
-                />
+                <Field label="Graph Client ID" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={form.clientId} onChange={set("clientId")} icon={Key} />
+                <Field label="Graph Client Secret" required type="password" placeholder="••••••••••••••••••" value={form.clientSecret} onChange={set("clientSecret")} icon={Shield} />
               </div>
-              <Field
-                label="Graph Tenant ID"
-                required
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                value={form.tenantId}
-                onChange={set("tenantId")}
-                icon={Globe}
-                hint="Azure Portal → Azure Active Directory → Overview → Directory (tenant) ID"
-              />
-              <Field
-                label="Graph Target Email"
-                required
-                type="email"
-                placeholder="calendar-sync@yourcompany.com"
-                value={form.targetEmail}
-                onChange={set("targetEmail")}
-                icon={AtSign}
-                hint="Mailbox used for calendar and mail synchronisation."
-              />
+              <Field label="Graph Tenant ID" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={form.tenantId} onChange={set("tenantId")} icon={Globe} hint="Azure Portal → Azure Active Directory → Overview → Directory (tenant) ID" />
+              <Field label="Graph Target Email" required type="email" placeholder="calendar-sync@yourcompany.com" value={form.targetEmail} onChange={set("targetEmail")} icon={AtSign} hint="Mailbox used for calendar and mail synchronisation." />
 
               <div className="pt-1">
                 <button
                   type="submit"
                   disabled={saving}
                   className={`action-btn w-full rounded-xl py-3.5 text-[14px] font-[600] text-white flex items-center justify-center gap-2 shadow-lg
-                    ${
-                      saved
-                        ? "bg-gradient-to-r from-green-500 to-emerald-600 shadow-green-200/70"
-                        : saving
-                          ? "bg-gradient-to-r from-blue-400 to-sky-400 shadow-blue-200/60 cursor-wait"
-                          : "bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-blue-200/60"
-                    }`}
+                    ${saved ? "bg-gradient-to-r from-green-500 to-emerald-600 shadow-green-200/70"
+                      : saving ? "bg-gradient-to-r from-blue-400 to-sky-400 shadow-blue-200/60 cursor-wait"
+                      : "bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-blue-200/60"}`}
                 >
-                  {saving ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Saving…
-                    </>
-                  ) : saved ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      Configuration Saved!
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Save Configuration
-                    </>
-                  )}
+                  {saving ? <><RefreshCw className="h-4 w-4 animate-spin" />Saving…</>
+                    : saved ? <><CheckCircle2 className="h-4 w-4" />Configuration Saved!</>
+                    : <><Zap className="h-4 w-4" />Save Configuration</>}
                 </button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* ── Sidebar (1/3 on xl) ── */}
         <div className="flex flex-col gap-4">
-          {/* API permissions granted */}
           <div className="info-card rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-            <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-4">
-              API Permissions
-            </p>
+            <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-4">API Permissions</p>
             <div className="space-y-2.5">
               {services.map(({ icon: Icon, label, desc, color, iconColor }) => (
-                <div
-                  key={label}
-                  className="svc-row flex items-center gap-3 rounded-xl border border-gray-100 p-3 cursor-default"
-                >
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color}`}
-                  >
+                <div key={label} className="svc-row flex items-center gap-3 rounded-xl border border-gray-100 p-3 cursor-default">
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color}`}>
                     <Icon className={`h-4 w-4 ${iconColor}`} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[12px] font-[600] text-gray-800">
-                      {label}
-                    </p>
+                    <p className="text-[12px] font-[600] text-gray-800">{label}</p>
                     <p className="text-[11px] text-gray-400 truncate">{desc}</p>
                   </div>
-                  <CheckCircle2
-                    className={`h-4 w-4 shrink-0 transition-colors duration-300 ${
-                      saved ? "text-green-500" : "text-gray-200"
-                    }`}
-                  />
+                  <CheckCircle2 className={`h-4 w-4 shrink-0 transition-colors duration-300 ${saved ? "text-green-500" : "text-gray-200"}`} />
                 </div>
               ))}
             </div>
           </div>
 
-          {/* How to find */}
           <div className="info-card rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
             <p className="text-[12px] font-[700] text-gray-800 mb-3 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-100 text-[10px] font-[800] text-blue-600">
-                ?
-              </span>
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-100 text-[10px] font-[800] text-blue-600">?</span>
               How to find credentials
             </p>
             <ol className="space-y-2">
@@ -1081,41 +975,24 @@ function GraphConfigPage({ onBack }) {
                 "Certificates & secrets → New secret",
                 "Copy Directory (tenant) ID",
               ].map((step, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-2.5 text-[11px] text-gray-500"
-                >
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-[700] text-blue-600 mt-px">
-                    {i + 1}
-                  </span>
+                <li key={i} className="flex items-start gap-2.5 text-[11px] text-gray-500">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-[700] text-blue-600 mt-px">{i + 1}</span>
                   {step}
                 </li>
               ))}
             </ol>
           </div>
 
-          {/* Scope note */}
           <div className="info-card rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-blue-50 p-5">
             <div className="flex items-start gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100">
                 <Globe className="h-4 w-4 text-sky-600" />
               </div>
               <div>
-                <p className="text-[12px] font-[700] text-sky-800 mb-1">
-                  Required API Scopes
-                </p>
+                <p className="text-[12px] font-[700] text-sky-800 mb-1">Required API Scopes</p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {[
-                    "Mail.ReadWrite",
-                    "Calendars.ReadWrite",
-                    "Contacts.Read",
-                  ].map((s) => (
-                    <span
-                      key={s}
-                      className="inline-block rounded-md bg-sky-100 px-2 py-0.5 text-[10px] font-[600] text-sky-700"
-                    >
-                      {s}
-                    </span>
+                  {["Mail.ReadWrite", "Calendars.ReadWrite", "Contacts.Read"].map((s) => (
+                    <span key={s} className="inline-block rounded-md bg-sky-100 px-2 py-0.5 text-[10px] font-[600] text-sky-700">{s}</span>
                   ))}
                 </div>
               </div>
@@ -1129,36 +1006,11 @@ function GraphConfigPage({ onBack }) {
 
 /* ── SMTP Providers ── */
 const INIT_SMTP = [
-  {
-    id: 1,
-    name: "Mailgun Production",
-    provider: "Mailgun",
-    domain: "mg.mycompany.com",
-    ready: true,
-  },
-  {
-    id: 2,
-    name: "SendGrid Backup",
-    provider: "SendGrid",
-    domain: "sg.mycompany.com",
-    ready: false,
-  },
+  { id: 1, name: "Mailgun Production", provider: "Mailgun", domain: "mg.mycompany.com", ready: true },
+  { id: 2, name: "SendGrid Backup", provider: "SendGrid", domain: "sg.mycompany.com", ready: false },
 ];
-const SMTP_PROVIDERS = [
-  "Mailgun",
-  "SendGrid",
-  "Amazon SES",
-  "Postmark",
-  "Custom SMTP",
-];
-const EMPTY_SMTP = {
-  name: "",
-  provider: SMTP_PROVIDERS[0],
-  apiKey: "",
-  domain: "",
-  fromEmail: "",
-  fromName: "",
-};
+const SMTP_PROVIDERS = ["Mailgun", "SendGrid", "Amazon SES", "Postmark", "Custom SMTP"];
+const EMPTY_SMTP = { name: "", provider: SMTP_PROVIDERS[0], apiKey: "", domain: "", fromEmail: "", fromName: "" };
 
 function SMTPProvidersPage({ onBack }) {
   const [list, setList] = useState(INIT_SMTP);
@@ -1168,22 +1020,12 @@ function SMTPProvidersPage({ onBack }) {
 
   const create = () => {
     if (!form.name || !form.apiKey || !form.domain) return;
-    setList((p) => [
-      ...p,
-      {
-        id: Date.now(),
-        name: form.name,
-        provider: form.provider,
-        domain: form.domain,
-        ready: false,
-      },
-    ]);
+    setList((p) => [...p, { id: Date.now(), name: form.name, provider: form.provider, domain: form.domain, ready: false }]);
     setForm(EMPTY_SMTP);
     setShow(false);
   };
   const del = (id) => setList((p) => p.filter((x) => x.id !== id));
-  const toggle = (id) =>
-    setList((p) => p.map((x) => (x.id === id ? { ...x, ready: !x.ready } : x)));
+  const toggle = (id) => setList((p) => p.map((x) => (x.id === id ? { ...x, ready: !x.ready } : x)));
 
   return (
     <div>
@@ -1205,65 +1047,33 @@ function SMTPProvidersPage({ onBack }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {["Name", "Provider", "Domain", "Ready to Use", "Actions"].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
+              {["Name", "Provider", "Domain", "Ready to Use", "Actions"].map((h) => (
+                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {list.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-5 py-10 text-center text-[13px] text-gray-400"
-                >
-                  No SMTP providers yet
-                </td>
-              </tr>
+              <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">No SMTP providers yet</td></tr>
             ) : (
               list.map((s, i) => (
-                <tr
-                  key={s.id}
-                  className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
-                >
-                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">
-                    {s.name}
-                  </td>
+                <tr key={s.id} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{s.name}</td>
                   <td className="px-5 py-3.5 text-[13px] text-gray-600">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[11px] font-[600]">
-                      {s.provider}
-                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[11px] font-[600]">{s.provider}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-[13px] text-gray-500 font-mono text-[12px]">
-                    {s.domain}
-                  </td>
+                  <td className="px-5 py-3.5 text-[13px] text-gray-500 font-mono text-[12px]">{s.domain}</td>
                   <td className="px-5 py-3.5">
                     <button onClick={() => toggle(s.id)}>
                       {s.ready ? (
-                        <span className="inline-flex items-center gap-1.5 text-[12px] font-[600] text-green-700">
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          Ready
-                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-[12px] font-[600] text-green-700"><CheckCircle2 className="h-4 w-4 text-green-500" />Ready</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[12px] text-gray-400">
-                          <Circle className="h-4 w-4" />
-                          Not ready
-                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-gray-400"><Circle className="h-4 w-4" />Not ready</span>
                       )}
                     </button>
                   </td>
                   <td className="px-5 py-3.5">
-                    <button
-                      onClick={() => del(s.id)}
-                      className="text-red-400 hover:text-red-600 transition"
-                    >
+                    <button onClick={() => del(s.id)} className="text-red-400 hover:text-red-600 transition">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -1280,64 +1090,17 @@ function SMTPProvidersPage({ onBack }) {
       {showModal && (
         <Modal title="Create SMTP Configuration" onClose={() => setShow(false)}>
           <div className="space-y-4">
-            <Field
-              label="Configuration Name"
-              required
-              placeholder="e.g. Mailgun Production"
-              value={form.name}
-              onChange={set("name")}
-            />
-            <SelectField
-              label="Provider"
-              options={SMTP_PROVIDERS}
-              value={form.provider}
-              onChange={set("provider")}
-            />
-            <Field
-              label="API Key"
-              required
-              placeholder="Enter your provider API key"
-              type="password"
-              value={form.apiKey}
-              onChange={set("apiKey")}
-              icon={Key}
-            />
+            <Field label="Configuration Name" required placeholder="e.g. Mailgun Production" value={form.name} onChange={set("name")} />
+            <SelectField label="Provider" options={SMTP_PROVIDERS} value={form.provider} onChange={set("provider")} />
+            <Field label="API Key" required placeholder="Enter your provider API key" type="password" value={form.apiKey} onChange={set("apiKey")} icon={Key} />
             <div className="grid grid-cols-2 gap-3">
-              <Field
-                label="Domain"
-                required
-                placeholder="mg.yourdomain.com"
-                value={form.domain}
-                onChange={set("domain")}
-                icon={Globe}
-              />
-              <Field
-                label="From Email"
-                placeholder="noreply@yourdomain.com"
-                value={form.fromEmail}
-                onChange={set("fromEmail")}
-                icon={AtSign}
-              />
+              <Field label="Domain" required placeholder="mg.yourdomain.com" value={form.domain} onChange={set("domain")} icon={Globe} />
+              <Field label="From Email" placeholder="noreply@yourdomain.com" value={form.fromEmail} onChange={set("fromEmail")} icon={AtSign} />
             </div>
-            <Field
-              label="From Name"
-              placeholder="Your Company Name"
-              value={form.fromName}
-              onChange={set("fromName")}
-            />
+            <Field label="From Name" placeholder="Your Company Name" value={form.fromName} onChange={set("fromName")} />
             <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
-              <button
-                onClick={() => setShow(false)}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={create}
-                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition"
-              >
-                Submit
-              </button>
+              <button onClick={() => setShow(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={create} className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition">Submit</button>
             </div>
           </div>
         </Modal>
@@ -1353,6 +1116,7 @@ const INIT_LEADS = [
   { id: 3, name: "APAC Director List", type: "CRM", total: 234 },
 ];
 const LEAD_TYPES = ["CRM", "Manual", "CSV Import", "API"];
+
 function LeadsPage({ onBack }) {
   const [leads, setLeads] = useState(INIT_LEADS);
   const [showModal, setShow] = useState(false);
@@ -1360,15 +1124,10 @@ function LeadsPage({ onBack }) {
   const [search, setSearch] = useState("");
   const [viewItem, setView] = useState(null);
 
-  const filtered = leads.filter((l) =>
-    l.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = leads.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()));
   const create = () => {
     if (!form.name.trim()) return;
-    setLeads((p) => [
-      ...p,
-      { id: Date.now(), name: form.name.trim(), type: form.type, total: 0 },
-    ]);
+    setLeads((p) => [...p, { id: Date.now(), name: form.name.trim(), type: form.type, total: 0 }]);
     setForm({ name: "", type: "CRM" });
     setShow(false);
   };
@@ -1381,91 +1140,48 @@ function LeadsPage({ onBack }) {
         subtitle="Manage lead sources and lists for your campaigns"
         onBack={onBack}
         action={
-          <button
-            onClick={() => setShow(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Create
+          <button onClick={() => setShow(true)} className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm">
+            <Plus className="h-4 w-4" />Create
           </button>
         }
       />
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-          <span className="text-[13px] font-[600] text-gray-900">
-            All Lead Lists
-          </span>
+          <span className="text-[13px] font-[600] text-gray-900">All Lead Lists</span>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search leads…"
-              className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg
-                           bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
-                           focus:border-blue-400 focus:bg-white transition w-[190px]
-                           placeholder:text-gray-400"
-            />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads…"
+              className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400" />
           </div>
         </div>
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {["Name", "Source Type", "Total Leads", "View", "Delete"].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
+              {["Name", "Source Type", "Total Leads", "View", "Delete"].map((h) => (
+                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-5 py-10 text-center text-[13px] text-gray-400"
-                >
-                  No lead lists found
-                </td>
-              </tr>
+              <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">No lead lists found</td></tr>
             ) : (
               filtered.map((l, i) => (
-                <tr
-                  key={l.id}
-                  className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
-                >
-                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">
-                    {l.name}
-                  </td>
+                <tr key={l.id} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{l.name}</td>
                   <td className="px-5 py-3.5">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-[600] ${l.type === "CRM" ? "bg-blue-50 text-blue-700" : l.type === "Manual" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"}`}
-                    >
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-[600] ${l.type === "CRM" ? "bg-blue-50 text-blue-700" : l.type === "Manual" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"}`}>
                       {l.type}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-[13px] font-[700] text-gray-800">
-                    {l.total.toLocaleString()}
-                  </td>
+                  <td className="px-5 py-3.5 text-[13px] font-[700] text-gray-800">{l.total.toLocaleString()}</td>
                   <td className="px-5 py-3.5">
-                    <button
-                      onClick={() => setView(l)}
-                      className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      View
+                    <button onClick={() => setView(l)} className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition">
+                      <Eye className="h-3.5 w-3.5" />View
                     </button>
                   </td>
                   <td className="px-5 py-3.5">
-                    <button
-                      onClick={() => del(l.id)}
-                      className="text-red-400 hover:text-red-600 transition"
-                    >
+                    <button onClick={() => del(l.id)} className="text-red-400 hover:text-red-600 transition">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
@@ -1474,40 +1190,17 @@ function LeadsPage({ onBack }) {
             )}
           </tbody>
         </table>
-        <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
-          {leads.length} results
-        </div>
+        <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">{leads.length} results</div>
       </div>
 
       {showModal && (
         <Modal title="Create Lead List" onClose={() => setShow(false)}>
           <div className="space-y-4">
-            <Field
-              label="Name"
-              required
-              placeholder="e.g. Q2 Enterprise Targets"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <SelectField
-              label="Type"
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              options={LEAD_TYPES}
-            />
+            <Field label="Name" required placeholder="e.g. Q2 Enterprise Targets" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            <SelectField label="Type" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} options={LEAD_TYPES} />
             <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
-              <button
-                onClick={() => setShow(false)}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={create}
-                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition"
-              >
-                Submit
-              </button>
+              <button onClick={() => setShow(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={create} className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition">Submit</button>
             </div>
           </div>
         </Modal>
@@ -1518,25 +1211,16 @@ function LeadsPage({ onBack }) {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl bg-gray-50 p-4">
-                <p className="text-[11px] font-[600] uppercase tracking-wide text-gray-400 mb-1">
-                  Source Type
-                </p>
-                <p className="text-[16px] font-[700] text-gray-800">
-                  {viewItem.type}
-                </p>
+                <p className="text-[11px] font-[600] uppercase tracking-wide text-gray-400 mb-1">Source Type</p>
+                <p className="text-[16px] font-[700] text-gray-800">{viewItem.type}</p>
               </div>
               <div className="rounded-xl bg-gray-50 p-4">
-                <p className="text-[11px] font-[600] uppercase tracking-wide text-gray-400 mb-1">
-                  Total Leads
-                </p>
-                <p className="text-[16px] font-[700] text-indigo-700">
-                  {viewItem.total.toLocaleString()}
-                </p>
+                <p className="text-[11px] font-[600] uppercase tracking-wide text-gray-400 mb-1">Total Leads</p>
+                <p className="text-[16px] font-[700] text-indigo-700">{viewItem.total.toLocaleString()}</p>
               </div>
             </div>
             <p className="text-[13px] text-gray-500 text-center py-4">
-              Detailed lead records will display here when connected to a live
-              data source.
+              Detailed lead records will display here when connected to a live data source.
             </p>
           </div>
         </Modal>
@@ -1566,20 +1250,14 @@ function MappingsPage({ onBack }) {
   const [search, setSearch] = useState("");
 
   const filtered = mappings.filter(
-    (m) =>
-      m.crm.includes(search.toLowerCase()) ||
-      m.local.toLowerCase().includes(search.toLowerCase()),
+    (m) => m.crm.includes(search.toLowerCase()) || m.local.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const update = (id, val) =>
-    setMappings((p) => p.map((m) => (m.id === id ? { ...m, local: val } : m)));
+  const update = (id, val) => setMappings((p) => p.map((m) => (m.id === id ? { ...m, local: val } : m)));
   const remove = (id) => setMappings((p) => p.filter((m) => m.id !== id));
   const addMapping = () => {
     if (!newMap.crm.trim() || !newMap.local.trim()) return;
-    setMappings((p) => [
-      ...p,
-      { id: Date.now(), crm: newMap.crm.trim(), local: newMap.local.trim() },
-    ]);
+    setMappings((p) => [...p, { id: Date.now(), crm: newMap.crm.trim(), local: newMap.local.trim() }]);
     setNewMap({ crm: "", local: "" });
     setShowAdd(false);
   };
@@ -1596,44 +1274,26 @@ function MappingsPage({ onBack }) {
         subtitle="Map CRM fields to system fields for data sync"
         onBack={onBack}
         action={
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Add Field
+          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm">
+            <Plus className="h-4 w-4" />Add Field
           </button>
         }
       />
 
       <form onSubmit={submit} className="flex flex-col flex-1 gap-4">
-        {/* ── Full-width table card ── */}
         <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full">
-          {/* Table toolbar */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-[13px] font-[600] text-gray-800">
-                All Mappings
-              </span>
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-[600] text-gray-500">
-                {mappings.length} fields
-              </span>
+              <span className="text-[13px] font-[600] text-gray-800">All Mappings</span>
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-[600] text-gray-500">{mappings.length} fields</span>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search fields…"
-                className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg
-                           bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
-                           focus:border-blue-400 focus:bg-white transition w-[190px]
-                           placeholder:text-gray-400"
-              />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fields…"
+                className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400" />
             </div>
           </div>
 
-          {/* Table */}
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left table-fixed">
               <colgroup>
@@ -1645,86 +1305,40 @@ function MappingsPage({ onBack }) {
               </colgroup>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">
-                    #
-                  </th>
+                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">#</th>
                   <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400 flex items-center gap-1.5">
-                    <Database className="h-3 w-3" />
-                    CRM Field
+                    <Database className="h-3 w-3" />CRM Field
                   </th>
                   <th className="px-2 py-3" />
-                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">
-                    System Field
-                  </th>
-                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400 text-center">
-                    Del
-                  </th>
+                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">System Field</th>
+                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400 text-center">Del</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-5 py-14 text-center text-[13px] text-gray-400"
-                    >
-                      {search
-                        ? "No matching fields."
-                        : 'No mappings yet. Click "Add Field" to get started.'}
+                    <td colSpan={5} className="px-5 py-14 text-center text-[13px] text-gray-400">
+                      {search ? "No matching fields." : 'No mappings yet. Click "Add Field" to get started.'}
                     </td>
                   </tr>
                 ) : (
                   filtered.map((m, i) => (
-                    <tr
-                      key={m.id}
-                      className="border-b border-gray-50 hover:bg-violet-50/40 transition-colors group"
-                    >
-                      {/* # */}
-                      <td className="px-5 py-3.5 text-[12px] text-gray-400 font-mono">
-                        {i + 1}
-                      </td>
-
-                      {/* CRM field — read-only */}
+                    <tr key={m.id} className="border-b border-gray-50 hover:bg-violet-50/40 transition-colors group">
+                      <td className="px-5 py-3.5 text-[12px] text-gray-400 font-mono">{i + 1}</td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-[12px] text-gray-600 font-mono">
-                          {m.crm}
-                        </span>
+                        <span className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-[12px] text-gray-600 font-mono">{m.crm}</span>
                       </td>
-
-                      {/* Arrow */}
                       <td className="px-2 py-3.5 text-center text-gray-300 group-hover:text-violet-400 transition-colors">
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={1.8}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                           <path d="M2 8h12M9 4l4 4-4 4" />
                         </svg>
                       </td>
-
-                      {/* System field — editable */}
                       <td className="px-5 py-3">
-                        <input
-                          value={m.local}
-                          onChange={(e) => update(m.id, e.target.value)}
-                          className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2 text-[13px] text-gray-800 outline-none transition
-                          focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-400/20
-                          hover:border-gray-300"
-                        />
+                        <input value={m.local} onChange={(e) => update(m.id, e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2 text-[13px] text-gray-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-400/20 hover:border-gray-300" />
                       </td>
-
-                      {/* Delete */}
                       <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => remove(m.id)}
-                          className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-90 transition"
-                        >
+                        <button type="button" onClick={() => remove(m.id)} className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-90 transition">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </td>
@@ -1736,16 +1350,11 @@ function MappingsPage({ onBack }) {
           </div>
         </div>
 
-        {/* ── Sticky save footer ── */}
         <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 w-full">
           <p className="text-[12px] text-gray-400">
-            <span className="font-[600] text-gray-700">{mappings.length}</span>{" "}
-            mappings configured
+            <span className="font-[600] text-gray-700">{mappings.length}</span> mappings configured
           </p>
-          <button
-            type="submit"
-            className="rounded-xl bg-[#0a0a0a] px-7 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm"
-          >
+          <button type="submit" className="rounded-xl bg-[#0a0a0a] px-7 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm">
             {saved ? "✓ Saved!" : "Save Mappings"}
           </button>
         </div>
@@ -1754,38 +1363,11 @@ function MappingsPage({ onBack }) {
       {showAdd && (
         <Modal title="Add Field Mapping" onClose={() => setShowAdd(false)}>
           <div className="space-y-4">
-            <Field
-              label="CRM Field Key"
-              required
-              placeholder="e.g. lead_owner"
-              value={newMap.crm}
-              onChange={(e) =>
-                setNewMap((p) => ({ ...p, crm: e.target.value }))
-              }
-              icon={Database}
-            />
-            <Field
-              label="System Field Label"
-              required
-              placeholder="e.g. Lead Owner"
-              value={newMap.local}
-              onChange={(e) =>
-                setNewMap((p) => ({ ...p, local: e.target.value }))
-              }
-            />
+            <Field label="CRM Field Key" required placeholder="e.g. lead_owner" value={newMap.crm} onChange={(e) => setNewMap((p) => ({ ...p, crm: e.target.value }))} icon={Database} />
+            <Field label="System Field Label" required placeholder="e.g. Lead Owner" value={newMap.local} onChange={(e) => setNewMap((p) => ({ ...p, local: e.target.value }))} />
             <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
-              <button
-                onClick={() => setShowAdd(false)}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addMapping}
-                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition"
-              >
-                Add
-              </button>
+              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+              <button onClick={addMapping} className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition">Add</button>
             </div>
           </div>
         </Modal>
@@ -1804,73 +1386,23 @@ export default function Setting() {
   const [crmConnected, setCRM] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  /* render sub-page */
-  if (activePage === "crm")
-    return (
-      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <CRMPage onBack={() => setActivePage(null)} />
-      </div>
-    );
-  if (activePage === "agents")
-    return (
-      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <AgentsPage onBack={() => setActivePage(null)} />
-      </div>
-    );
-  if (activePage === "email-templates")
-    return (
-      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <EmailTemplatesPage onBack={() => setActivePage(null)} />
-      </div>
-    );
-  if (activePage === "graph-config")
-    return (
-      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <GraphConfigPage onBack={() => setActivePage(null)} />
-      </div>
-    );
-  if (activePage === "smtp-providers")
-    return (
-      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <SMTPProvidersPage onBack={() => setActivePage(null)} />
-      </div>
-    );
-  if (activePage === "leads")
-    return (
-      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <LeadsPage onBack={() => setActivePage(null)} />
-      </div>
-    );
-  if (activePage === "mappings")
-    return (
-      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <MappingsPage onBack={() => setActivePage(null)} />
-      </div>
-    );
+  if (activePage === "crm") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><CRMPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "agents") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><AgentsPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "email-templates") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><EmailTemplatesPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "graph-config") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><GraphConfigPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "smtp-providers") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><SMTPProvidersPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "leads") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><LeadsPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "mappings") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><MappingsPage onBack={() => setActivePage(null)} /></div>;
 
-  /* setting card component */
-  const SettingCard = ({
-    icon: Icon,
-    iconBg,
-    iconColor,
-    title,
-    desc,
-    action,
-  }) => (
+  const SettingCard = ({ icon: Icon, iconBg, iconColor, title, desc, action }) => (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col gap-4">
       <div className="flex items-start gap-3">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}
-        >
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
           <Icon className={`h-5 w-5 ${iconColor}`} />
         </div>
         <div className="min-w-0">
-          <p className="text-[13px] font-[700] text-gray-900 leading-snug">
-            {title}
-          </p>
-          <p className="text-[11px] text-gray-400 mt-0.5 leading-tight">
-            {desc}
-          </p>
+          <p className="text-[13px] font-[700] text-gray-900 leading-snug">{title}</p>
+          <p className="text-[11px] text-gray-400 mt-0.5 leading-tight">{desc}</p>
         </div>
       </div>
       <div className="mt-auto">{action}</div>
@@ -1892,140 +1424,77 @@ export default function Setting() {
 
   return (
     <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-6">
-      {/* ── page header ── */}
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#7c3aed] shadow-md shadow-violet-400/30">
             <Wrench className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="font-poppins text-[20px] font-[700] text-[#0a0a0a]">
-              Settings
-            </h1>
-            <p className="text-[12px] text-gray-400 mt-0.5">
-              Manage integrations, agents, email, and system preferences
-            </p>
+            <h1 className="font-poppins text-[20px] font-[700] text-[#0a0a0a]">Settings</h1>
+            <p className="text-[12px] text-gray-400 mt-0.5">Manage integrations, agents, email, and system preferences</p>
           </div>
         </div>
         <button
           type="button"
-          onClick={() => {
-            setRefreshing(true);
-            setTimeout(() => setRefreshing(false), 700);
-          }}
+          onClick={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 700); }}
           className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
         >
-          <RefreshCw
-            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-          />
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
         </button>
       </div>
 
-      {/* ═══════════ SECTION 1 — CONNECTION ═══════════ */}
+      {/* ═══ SECTION 1 — CONNECTION ═══ */}
       <div className="mb-2">
-        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">
-          Connection & Integration
-        </p>
+        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Connection & Integration</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        {/* Configure CRM */}
         <SettingCard
-          icon={Database}
-          iconBg="bg-indigo-50"
-          iconColor="text-indigo-600"
-          title="Configure CRM"
-          desc="Connect & authorise your CRM via OAuth2 credentials"
+          icon={Database} iconBg="bg-indigo-50" iconColor="text-indigo-600"
+          title="Configure CRM" desc="Connect & authorise your CRM via OAuth2 credentials"
           action={
             <div className="flex flex-col gap-2">
-              <button
-                onClick={() => setActivePage("crm")}
-                className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#0a0a0a] py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"
-              >
+              <button onClick={() => setActivePage("crm")} className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#0a0a0a] py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition">
                 <Link2 className="h-3.5 w-3.5" />
                 {crmConnected ? "Manage CRM" : "+ Connect CRM"}
               </button>
               {crmConnected ? (
-                <button
-                  onClick={() => setCRM(false)}
-                  className="w-full rounded-xl bg-red-500 py-2 text-[12px] font-[600] text-white hover:bg-red-600 transition flex items-center justify-center gap-1.5"
-                >
-                  <Link2Off className="h-3.5 w-3.5" />
-                  Disconnect
+                <button onClick={() => setCRM(false)} className="w-full rounded-xl bg-red-500 py-2 text-[12px] font-[600] text-white hover:bg-red-600 transition flex items-center justify-center gap-1.5">
+                  <Link2Off className="h-3.5 w-3.5" />Disconnect
                 </button>
               ) : (
                 <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                  <AlertCircle className="h-3 w-3 text-amber-400" />
-                  Not connected
+                  <AlertCircle className="h-3 w-3 text-amber-400" />Not connected
                 </div>
               )}
             </div>
           }
         />
-
-        {/* Leads */}
-        <SettingCard
-          icon={Users}
-          iconBg="bg-violet-50"
-          iconColor="text-violet-600"
-          title="Leads"
-          desc="Manage lead lists and data sources for your campaigns"
-          action={<GearBtn page="leads" />}
-        />
-
-        {/* Mappings */}
-        <SettingCard
-          icon={Map}
-          iconBg="bg-orange-50"
-          iconColor="text-orange-600"
-          title="Field Mappings"
-          desc="Map CRM fields to internal system fields for data sync"
-          action={<GearBtn page="mappings" />}
-        />
+        <SettingCard icon={Users} iconBg="bg-violet-50" iconColor="text-violet-600" title="Leads" desc="Manage lead lists and data sources for your campaigns" action={<GearBtn page="leads" />} />
+        <SettingCard icon={Map} iconBg="bg-orange-50" iconColor="text-orange-600" title="Field Mappings" desc="Map CRM fields to internal system fields for data sync" action={<GearBtn page="mappings" />} />
       </div>
 
-      {/* ═══════════ SECTION 2 — AI & AUTOMATION ═══════════ */}
+      {/* ═══ SECTION 2 — AI & AUTOMATION ═══ */}
       <div className="mb-2">
-        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">
-          AI & Automation
-        </p>
+        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">AI & Automation</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        {/* Agent */}
-        <SettingCard
-          icon={Zap}
-          iconBg="bg-amber-50"
-          iconColor="text-amber-600"
-          title="Agent"
-          desc="Manage AI SDR agents, switching, and parallel call limits"
-          action={<GearBtn page="agents" />}
-        />
+        <SettingCard icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600" title="Agent" desc="Manage AI SDR agents, switching, and parallel call limits" action={<GearBtn page="agents" />} />
       </div>
 
-      {/* ═══════════ SECTION 3 — EMAIL DELIVERY ═══════════ */}
+      {/* ═══ SECTION 3 — EMAIL DELIVERY ═══ */}
       <div className="mb-2">
-        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">
-          Email Delivery
-        </p>
+        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Email Delivery</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {/* Email Sender Platform */}
         <SettingCard
-          icon={Mail}
-          iconBg="bg-sky-50"
-          iconColor="text-sky-600"
-          title="Email Sender Platform"
-          desc="Choose whether email is sent via SMTP or your CRM"
+          icon={Mail} iconBg="bg-sky-50" iconColor="text-sky-600"
+          title="Email Sender Platform" desc="Choose whether email is sent via SMTP or your CRM"
           action={
             <div>
-              <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">
-                Platform
-              </label>
+              <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Platform</label>
               <div className="relative">
-                <select
-                  value={emailPlatform}
-                  onChange={(e) => setEP(e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
-                >
+                <select value={emailPlatform} onChange={(e) => setEP(e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer">
                   <option>SMTP</option>
                   <option>CRM</option>
                 </select>
@@ -2035,30 +1504,17 @@ export default function Setting() {
           }
         />
 
-        {/* Default SMTP Provider */}
         {emailPlatform === "SMTP" && (
           <SettingCard
-            icon={Server}
-            iconBg="bg-teal-50"
-            iconColor="text-teal-600"
-            title="Default SMTP Provider"
-            desc="Select the active provider for outbound email delivery"
+            icon={Server} iconBg="bg-teal-50" iconColor="text-teal-600"
+            title="Default SMTP Provider" desc="Select the active provider for outbound email delivery"
             action={
               <div>
-                <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">
-                  Provider
-                </label>
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Provider</label>
                 <div className="relative">
-                  <select
-                    value={smtpProvider}
-                    onChange={(e) => setSMTP(e.target.value)}
-                    className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
-                  >
-                    {["Mailgun", "SendGrid", "Amazon SES", "Postmark"].map(
-                      (o) => (
-                        <option key={o}>{o}</option>
-                      ),
-                    )}
+                  <select value={smtpProvider} onChange={(e) => setSMTP(e.target.value)}
+                    className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer">
+                    {["Mailgun", "SendGrid", "Amazon SES", "Postmark"].map((o) => <option key={o}>{o}</option>)}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 </div>
@@ -2066,34 +1522,10 @@ export default function Setting() {
             }
           />
         )}
-        {/* SMTP Providers */}
-        <SettingCard
-          icon={Server}
-          iconBg="bg-green-50"
-          iconColor="text-green-600"
-          title="SMTP Providers Configuration"
-          desc="Add, configure and test your SMTP delivery providers"
-          action={<GearBtn page="smtp-providers" />}
-        />
-        {/* Email Templates */}
-        <SettingCard
-          icon={FileText}
-          iconBg="bg-pink-50"
-          iconColor="text-pink-600"
-          title="Email Templates"
-          desc="Create and manage reusable email templates for automation"
-          action={<GearBtn page="email-templates" />}
-        />
 
-        {/* Graph Configuration */}
-        <SettingCard
-          icon={Shield}
-          iconBg="bg-blue-50"
-          iconColor="text-blue-600"
-          title="Graph Configuration"
-          desc="Microsoft Graph API credentials for calendar and mail sync"
-          action={<GearBtn page="graph-config" />}
-        />
+        <SettingCard icon={Server} iconBg="bg-green-50" iconColor="text-green-600" title="SMTP Providers Configuration" desc="Add, configure and test your SMTP delivery providers" action={<GearBtn page="smtp-providers" />} />
+        <SettingCard icon={FileText} iconBg="bg-pink-50" iconColor="text-pink-600" title="Email Templates" desc="Create and manage reusable email templates for automation" action={<GearBtn page="email-templates" />} />
+        <SettingCard icon={Shield} iconBg="bg-blue-50" iconColor="text-blue-600" title="Graph Configuration" desc="Microsoft Graph API credentials for calendar and mail sync" action={<GearBtn page="graph-config" />} />
       </div>
     </main>
   );
