@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import axiosInstance from "../../Redux/axiosInstance";
 import {
   Settings,
   ArrowLeft,
@@ -431,50 +432,87 @@ function CRMPage({ onBack }) {
 }
 
 /* ── Agents ── */
-const INIT_AGENTS = [
-  { id: 1, name: "David Kim", email: "david@techmindzdev.com", active: false },
-  { id: 2, name: "Mike Torres", email: "mike@techmindzdev.com", active: false },
-  {
-    id: 3,
-    name: "Shreyas Patel",
-    email: "shreyas@techmindzdev.com",
-    active: true,
-  },
-];
 function AgentsPage({ onBack }) {
-  const [agents, setAgents] = useState(INIT_AGENTS);
+  const [agents, setAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [fetchError, setFetchError] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [parallelCalls, setPC] = useState(0);
   const [search, setSearch] = useState("");
   const [pcSaved, setPcSaved] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  const fetchAgents = async () => {
+    setLoadingAgents(true);
+    setFetchError("");
+    try {
+      const res = await axiosInstance.get("/my-agents");
+      // API returns array or { agents: [...] } — normalise both shapes
+      const list = Array.isArray(res.data) ? res.data : (res.data.agents ?? []);
+      console.log("[my-agents] raw response:", res.data); // inspect fields in browser console
+      setAgents(
+        list.map((a) => ({
+          id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
+          name: a.agent_name ?? a.name ?? "—",
+          email: a.email ?? "—",
+          active: a.is_active ?? a.active ?? false,
+        }))
+      );
+    } catch (err) {
+      setFetchError(err?.response?.data?.detail || err?.response?.data?.message || "Failed to load agents.");
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  useEffect(() => { fetchAgents(); }, []);
 
   const filtered = agents.filter(
     (a) =>
       a.name.toLowerCase().includes(search.toLowerCase()) ||
-      a.email.toLowerCase().includes(search.toLowerCase()),
+      (a.email !== "—" && a.email.toLowerCase().includes(search.toLowerCase())),
   );
 
-  const createAgent = () => {
+  const createAgent = async () => {
     if (!newName.trim()) return;
-    setAgents((p) => [
-      ...p,
-      {
-        id: Date.now(),
-        name: newName.trim(),
-        email: newEmail.trim() || "—",
-        active: false,
-      },
-    ]);
-    setNewName("");
-    setNewEmail("");
+    setCreating(true);
+    setCreateError("");
+    try {
+      await axiosInstance.post("/create-agent", {
+        agent_name: newName.trim(),
+      });
+      setNewName("");
+      setNewEmail("");
+      await fetchAgents(); // refresh list from server after creation
+    } catch (err) {
+      setCreateError(err?.response?.data?.message || "Failed to create agent. Please try again.");
+    } finally {
+      setCreating(false);
+    }
   };
   const del = (id) => setAgents((p) => p.filter((a) => a.id !== id));
   const swit = (id) =>
     setAgents((p) => p.map((a) => ({ ...a, active: a.id === id })));
-  const savePC = () => {
-    setPcSaved(true);
-    setTimeout(() => setPcSaved(false), 2000);
+  const [pcSaving, setPcSaving] = useState(false);
+  const [pcError, setPcError] = useState("");
+
+  const savePC = async () => {
+    setPcSaving(true);
+    setPcError("");
+    setPcSaved(false);
+    try {
+      await axiosInstance.put("/api/settings/global-parallel-calls", {
+        global_parallel_calls: parallelCalls,
+      });
+      setPcSaved(true);
+      setTimeout(() => setPcSaved(false), 2500);
+    } catch (err) {
+      setPcError(err?.response?.data?.message || err?.response?.data?.detail || "Failed to save. Please try again.");
+    } finally {
+      setPcSaving(false);
+    }
   };
 
   return (
@@ -515,12 +553,16 @@ function AgentsPage({ onBack }) {
           </div>
           <button
             onClick={createAgent}
-            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm flex items-center gap-1.5 shrink-0"
+            disabled={creating}
+            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm flex items-center gap-1.5 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Plus className="h-4 w-4" />
-            Create
+            {creating ? "Creating…" : "Create"}
           </button>
         </div>
+        {createError && (
+          <p className="mt-2 text-[12px] text-red-500 font-[500]">{createError}</p>
+        )}
       </div>
 
       {/* Agents table */}
@@ -556,7 +598,19 @@ function AgentsPage({ onBack }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {loadingAgents ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                  Loading agents…
+                </td>
+              </tr>
+            ) : fetchError ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-red-500">
+                  {fetchError}
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
               <tr>
                 <td
                   colSpan={4}
@@ -641,11 +695,15 @@ function AgentsPage({ onBack }) {
           />
           <button
             onClick={savePC}
-            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition"
+            disabled={pcSaving}
+            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {pcSaved ? "✓ Saved!" : "Submit"}
+            {pcSaving ? "Saving…" : pcSaved ? "✓ Saved!" : "Submit"}
           </button>
         </div>
+        {pcError && (
+          <p className="mt-2 text-[12px] text-red-500 font-[500]">{pcError}</p>
+        )}
       </div>
     </div>
   );
