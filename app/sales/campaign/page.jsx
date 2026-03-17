@@ -82,7 +82,7 @@ export default function CampaignPage() {
     re_engage_days: 7,
     max_attempts: 3,
     start_date: "",
-    channel_order: "Email",
+    channel_order: [],
     wait_duration_hours: 24,
     wait_duration_minutes: 0,
     campaign_prompt: "",
@@ -279,14 +279,52 @@ export default function CampaignPage() {
               <Field label="Start Date">
                 <input type="date" name="start_date" value={form.start_date} onChange={handleFormChange} className={inputCls} />
               </Field>
-              <Field label="Channel Order">
-                <div className="relative">
-                  <select name="channel_order" value={form.channel_order} onChange={handleFormChange} className={selectCls}>
-                    {["Email","Call","LinkedIn","WhatsApp"].map(o => <option key={o}>{o}</option>)}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            </div>
+            {/* Channel Order — multi-select ordered chips (spans full row) */}
+            <div className="mt-4">
+              <label className="block text-[12px] font-[600] text-[#1e293b] mb-1">Channel Order</label>
+              <div className="rounded-xl border border-gray-200 bg-white px-3.5 py-3 min-h-[52px]">
+                {/* Selected chips showing step number */}
+                {form.channel_order.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2.5">
+                    {form.channel_order.map((ch, idx) => {
+                      const chipBg = { Email: "#0ea5e9", Call: "#6366f1", LinkedIn: "#0284c7", WhatsApp: "#22c55e" }[ch] ?? "#6b7280";
+                      return (
+                        <span key={ch} className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full text-[12px] font-[600] text-white" style={{ background: chipBg }}>
+                          <span className="w-5 h-5 rounded-full bg-white/25 text-[10px] font-[800] inline-flex items-center justify-center shrink-0">{idx + 1}</span>
+                          {ch}
+                          <button type="button"
+                            onClick={() => setForm(p => ({ ...p, channel_order: p.channel_order.filter(c => c !== ch) }))}
+                            className="ml-0.5 rounded-full p-0.5 hover:bg-white/30 transition">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Available unselected channel pills */}
+                <div className="flex flex-wrap gap-2">
+                  {["Email", "Call", "LinkedIn", "WhatsApp"]
+                    .filter(ch => !form.channel_order.includes(ch))
+                    .map(ch => {
+                      const pillCls = { Email: "border-sky-200 text-sky-600 hover:bg-sky-50", Call: "border-indigo-200 text-indigo-600 hover:bg-indigo-50", LinkedIn: "border-blue-200 text-blue-600 hover:bg-blue-50", WhatsApp: "border-green-200 text-green-600 hover:bg-green-50" }[ch] ?? "border-gray-200 text-gray-600 hover:bg-gray-50";
+                      return (
+                        <button key={ch} type="button"
+                          onClick={() => setForm(p => ({ ...p, channel_order: [...p.channel_order, ch] }))}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-[600] border bg-white transition ${pillCls}`}>
+                          <Plus className="h-3 w-3" />{ch}
+                        </button>
+                      );
+                    })}
+                  {form.channel_order.length === 0 && (
+                    <span className="text-[12px] text-gray-400 self-center">Click a channel to add it to the sequence</span>
+                  )}
+                  {form.channel_order.length === 4 && (
+                    <span className="text-[11px] text-gray-400 italic self-center">All channels selected — remove one to reorder.</span>
+                  )}
                 </div>
-              </Field>
+              </div>
             </div>
           </section>
 
