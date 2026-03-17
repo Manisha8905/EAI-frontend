@@ -1,5 +1,5 @@
-import CampaignDashboard from "../Componets/Dashboard/CampaignDashboard";
+import CampaignPage from "../sales/campaign/page";
 
 export default function Page() {
-  return <CampaignDashboard />;
+  return <CampaignPage />;
 }

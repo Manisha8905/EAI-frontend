@@ -28,6 +28,9 @@ import {
   EMAIL_CAMPAIGNS_REQUEST,
   EMAIL_CAMPAIGNS_SUCCESS,
   EMAIL_CAMPAIGNS_FAILURE,
+  CAMPAIGN_LIST_REQUEST,
+  CAMPAIGN_LIST_SUCCESS,
+  CAMPAIGN_LIST_FAILURE,
 } from "../types/userTypes";
 
 import axiosInstance from "../axiosInstance";
@@ -288,5 +291,94 @@ export const fetchEmailCampaigns = (filter = "this_year") => async (dispatch) =>
     });
 
     toast.error(error.response?.data?.message || "Failed to fetch email campaigns");
+  }
+};
+
+// 📋 Campaign List
+// params: { page, page_size, status, communication_type }  — all optional
+export const listCampaigns = (params = {}) => async (dispatch) => {
+  dispatch({ type: CAMPAIGN_LIST_REQUEST });
+  try {
+    // Build query string from only the params that have a value
+    const query = {};
+    if (params.page)               query.page               = params.page;
+    if (params.page_size)          query.page_size          = params.page_size;
+    if (params.status)             query.status             = params.status;
+    if (params.communication_type) query.communication_type = params.communication_type;
+
+    const res = await axiosInstance.get("/list-campaigns", { params: query });
+
+    // Handle all common response shapes
+    let raw;
+    if (Array.isArray(res.data)) {
+      raw = res.data;
+    } else if (Array.isArray(res.data?.campaigns)) {
+      raw = res.data.campaigns;
+    } else if (Array.isArray(res.data?.data)) {
+      raw = res.data.data;
+    } else if (Array.isArray(res.data?.result)) {
+      raw = res.data.result;
+    } else if (Array.isArray(res.data?.campaign_list)) {
+      raw = res.data.campaign_list;
+    } else {
+      const firstArr = Object.values(res.data ?? {}).find(Array.isArray);
+      raw = firstArr ?? [];
+    }
+
+    const campaigns = raw.map((c) => ({
+      id:                c.campaign_id                  ?? Math.random(),
+      name:              c.campaign_name                ?? "—",
+      campaignType:      c.campaign_type                ?? "",
+      communicationType: c.communication_type           ?? "",
+      status:            c.status                       ?? "COMPLETED",
+      agentName:         c.agent_name                   ?? "—",
+      ownerEmail:        c.logged_in_user_email          ?? "",
+      startDate:         c.start_date                   ?? "",
+      createdAt:         c.created_at                   ?? "",
+      lastRun:           c.last_run_datetime             ?? "",
+      totalLeads:        c.total_leads                  ?? 0,
+      queued:            c.queued                       ?? 0,
+      called:            c.called                       ?? 0,
+      completed:         c.completed                    ?? 0,
+      failed:            c.failed                       ?? 0,
+      noAnswer:          c.no_answer                    ?? 0,
+      completionPct:     c.completion_percentage        ?? 0,
+      emailsSent:        c.emails_sent_count             ?? 0,
+      emailsFailed:      c.emails_failed_count           ?? 0,
+      emailsPending:     c.emails_pending_count          ?? 0,
+      meetings:          c.meetings_scheduled_count      ?? 0,
+      convRate:          c.campaign_conversion_rate      ?? 0,
+      agentPerf:         c.agent_performance_percentage  ?? 0,
+      fromName:          c.from_name                    ?? "",
+      fromEmail:         c.from_email                   ?? "",
+      isSmtp:            c.is_smtp                      ?? false,
+      isProcessing:      c.is_processing                ?? false,
+      parallelCalls:     c.campaign_parallel_calls      ?? 1,
+    }));
+
+    // store total count if API returns it (for pagination display)
+    const total = res.data?.total ?? res.data?.total_count ?? raw.length;
+    dispatch({ type: CAMPAIGN_LIST_SUCCESS, payload: { campaigns, total } });
+  } catch (err) {
+    dispatch({
+      type: CAMPAIGN_LIST_FAILURE,
+      payload:
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to load campaigns.",
+    });
+    toast.error(err?.response?.data?.message || "Failed to load campaigns.");
+  }
+};
+
+// 📋 Create Campaign
+export const createCampaign = (formData, onSuccess) => async (dispatch) => {
+  try {
+    const res = await axiosInstance.post("/create-campaign", formData);
+    toast.success(res?.data?.message ?? "Campaign created successfully!");
+    dispatch(listCampaigns({ page: 1, page_size: 20 }));
+    if (onSuccess) onSuccess();
+  } catch (err) {
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to create campaign.");
   }
 };

@@ -31,6 +31,10 @@ import {
   EMAIL_CAMPAIGNS_SUCCESS,
   EMAIL_CAMPAIGNS_FAILURE,
 
+  CAMPAIGN_LIST_REQUEST,
+  CAMPAIGN_LIST_SUCCESS,
+  CAMPAIGN_LIST_FAILURE,
+
 } from "../types/userTypes";
 
 const initialState = {
@@ -53,6 +57,11 @@ const initialState = {
   emailData: null,
   emailLoading: false,
   emailError: null,
+  // 📋 Campaign List
+  campaigns: [],
+  campaignTotal: 0,
+  campaignLoading: false,
+  campaignError: null,
 };
 
 const adminReducers = (state = initialState, action) => {
@@ -190,6 +199,19 @@ const adminReducers = (state = initialState, action) => {
         emailLoading: false,
         emailError: action.payload,
       };
+
+    // 📋 Campaign List
+    case CAMPAIGN_LIST_REQUEST:
+      return { ...state, campaignLoading: true, campaignError: null };
+    case CAMPAIGN_LIST_SUCCESS:
+      return {
+        ...state,
+        campaignLoading: false,
+        campaigns: action.payload.campaigns,
+        campaignTotal: action.payload.total,
+      };
+    case CAMPAIGN_LIST_FAILURE:
+      return { ...state, campaignLoading: false, campaignError: action.payload };
 
     default:
       return state;

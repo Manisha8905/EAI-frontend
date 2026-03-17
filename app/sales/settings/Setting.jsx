@@ -1,4 +1,66 @@
-"use client";
+// ...existing code...
+
+function EmailTemplatesPage({ onBack }) {
+  // ...existing code...
+  return (
+    <div>
+      // ...existing code...
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100">
+              {/* FIX: Removed duplicate "Preview" header — was ["Name","Subject","Preview","Preview","Delete"] */}
+              {["Name", "Subject", "Preview", "View", "Delete"].map(
+                (h, i) => (
+                  <th
+                    key={i}
+                    className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
+                  >
+                    {h}
+                  </th>
+                ),
+              )}
+            </tr>
+          </thead>
+          // ...existing code...
+        </table>
+        // ...existing code...
+      </div>
+      // ...existing code...
+    </div>
+  );
+}
+
+// ...existing code...
+
+function AgentsPage({ onBack }) {
+  const [agents, setAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [fetchError, setFetchError] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [parallelCalls, setPC] = useState(0);
+  const [search, setSearch] = useState("");
+  const [pcSaved, setPcSaved] = useState(false);    // FIX: kept here, removed duplicate below
+  const [pcSaving, setPcSaving] = useState(false);  // FIX: kept here, removed duplicate below
+  const [pcError, setPcError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  // ...existing code... (fetchAgents, useEffect, filtered, createAgent, del, swit)
+  // FIX: Removed the duplicate `const [pcSaving, setPcSaving] = useState(false);`
+  //      and `const [pcError, setPcError] = useState("");` that appeared mid-function
+
+  // ...existing code...
+}
+
+// ...existing code...
+
+export default function Setting() {
+  const [activePage, setActivePage] = useState(null);
+  const [emailPlatform, setEP] = useState("SMTP"); // default kept as SMTP
+  // ...existing code...
+}"use client";
 import { useState, useRef, useEffect } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
 import {
@@ -92,7 +154,7 @@ function SelectField({ label, required, value, onChange, options }) {
         <select
           value={value}
           onChange={onChange}
-          className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
+          className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
         >
           {options.map((o) => (
             <option key={o.value ?? o} value={o.value ?? o}>
@@ -365,9 +427,7 @@ function CRMPage({ onBack }) {
                 "Reveal Consumer Secret → Client Secret",
               ].map((step, i) => (
                 <li key={i} className="flex items-start gap-2.5 text-[11px] text-gray-500">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-[700] text-indigo-600 mt-px">
-                    {i + 1}
-                  </span>
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-[700] text-indigo-600 mt-px">{i + 1}</span>
                   {step}
                 </li>
               ))}
@@ -395,7 +455,6 @@ function CRMPage({ onBack }) {
 
 /* ── Agents ── */
 function AgentsPage({ onBack }) {
-  // ── All state declared at the top (no duplicates) ──
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [fetchError, setFetchError] = useState("");
@@ -409,14 +468,12 @@ function AgentsPage({ onBack }) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
-  /* ── Fetch agents from API ── */
   const fetchAgents = async () => {
     setLoadingAgents(true);
     setFetchError("");
     try {
       const res = await axiosInstance.get("/my-agents");
       const list = Array.isArray(res.data) ? res.data : (res.data.agents ?? []);
-      console.log("[my-agents] raw response:", res.data);
       setAgents(
         list.map((a) => ({
           id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
@@ -444,7 +501,6 @@ function AgentsPage({ onBack }) {
       (a.email !== "—" && a.email.toLowerCase().includes(search.toLowerCase())),
   );
 
-  /* ── Create agent via API ── */
   const createAgent = async () => {
     if (!newName.trim()) return;
     setCreating(true);
@@ -455,7 +511,7 @@ function AgentsPage({ onBack }) {
       });
       setNewName("");
       setNewEmail("");
-      await fetchAgents(); // refresh list from server
+      await fetchAgents();
     } catch (err) {
       setCreateError(
         err?.response?.data?.message ||
@@ -470,7 +526,6 @@ function AgentsPage({ onBack }) {
   const swit = (id) =>
     setAgents((p) => p.map((a) => ({ ...a, active: a.id === id })));
 
-  /* ── Save parallel calls via API ── */
   const savePC = async () => {
     setPcSaving(true);
     setPcError("");
@@ -553,9 +608,9 @@ function AgentsPage({ onBack }) {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search agents…"
               className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg
-                         bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
-                         focus:border-blue-400 focus:bg-white transition w-[190px]
-                         placeholder:text-gray-400"
+                           bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
+                           focus:border-blue-400 focus:bg-white transition w-[190px]
+                           placeholder:text-gray-400"
             />
           </div>
         </div>
@@ -563,9 +618,7 @@ function AgentsPage({ onBack }) {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
               {["Agent Name", "Email", "Status", "Action"].map((h) => (
-                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">
-                  {h}
-                </th>
+                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
@@ -605,17 +658,11 @@ function AgentsPage({ onBack }) {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       {!a.active && (
-                        <button
-                          onClick={() => swit(a.id)}
-                          className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition"
-                        >
+                        <button onClick={() => swit(a.id)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition">
                           Switch
                         </button>
                       )}
-                      <button
-                        onClick={() => del(a.id)}
-                        className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-600 hover:bg-red-100 transition"
-                      >
+                      <button onClick={() => del(a.id)} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-600 hover:bg-red-100 transition">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -732,11 +779,8 @@ function EmailTemplatesPage({ onBack }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {/* FIX: Removed duplicate "Preview" header */}
               {["Name", "Subject", "Preview", "View", "Delete"].map((h, i) => (
-                <th key={i} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">
-                  {h}
-                </th>
+                <th key={i} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
@@ -1060,7 +1104,7 @@ function SMTPProvidersPage({ onBack }) {
                 <tr key={s.id} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
                   <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{s.name}</td>
                   <td className="px-5 py-3.5 text-[13px] text-gray-600">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[11px] font-[600]">{s.provider}</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-[600]">{s.provider}</span>
                   </td>
                   <td className="px-5 py-3.5 text-[13px] text-gray-500 font-mono text-[12px]">{s.domain}</td>
                   <td className="px-5 py-3.5">
