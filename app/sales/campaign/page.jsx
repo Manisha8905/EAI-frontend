@@ -7,6 +7,8 @@ import {
   updateCampaign,
   deleteCampaign,
   toggleActivateCampaign,
+  pauseCampaign,
+  resumeCampaign,
   fetchCallHistory,
   fetchEmailHistory,
   fetchLinkedinHistory,
@@ -165,6 +167,10 @@ export default function CampaignPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // { id, name }
   const [deleting, setDeleting] = useState(false);
 
+  /* ── Lead lists & email templates for selectors ── */
+  const [leadLists, setLeadLists] = useState([]);
+  const [emailTemplates, setEmailTemplates] = useState([]);
+
   /* ── Activity sub-view search/filter state (must be unconditional) ── */
   const [callSearch, setCallSearch] = useState("");
   const [callStatus, setCallStatus] = useState("All Status");
@@ -175,6 +181,10 @@ export default function CampaignPage() {
   const [liStatus, setLiStatus] = useState("All Status");
   const [waSearch, setWaSearch] = useState("");
   const [waStatus, setWaStatus] = useState("All Status");
+
+  /* ── Lead list leads for Lead Activity tab ── */
+  const [leadListLeads, setLeadListLeads] = useState([]);
+  const [leadListLoading, setLeadListLoading] = useState(false);
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -378,6 +388,50 @@ export default function CampaignPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, commFilter, page]);
 
+  /* ── Fetch lead lists & email templates when create form opens ── */
+  useEffect(() => {
+    if (!showCreate) return;
+    axiosInstance
+      .get("/lead-lists")
+      .then((res) => {
+        const d = res.data;
+        setLeadLists(
+          Array.isArray(d?.lists)
+            ? d.lists
+            : Array.isArray(d)
+              ? d
+              : [],
+        );
+      })
+      .catch(() => {});
+    axiosInstance
+      .get("/api/email-templates")
+      .then((res) => {
+        const d = res.data;
+        const raw = Array.isArray(d)
+          ? d
+          : Array.isArray(d?.results)
+            ? d.results
+            : Array.isArray(d?.data)
+              ? d.data
+              : Array.isArray(d?.items)
+                ? d.items
+                : Array.isArray(d?.templates)
+                  ? d.templates
+                  : [];
+        // Normalize: map any field-name variant to { id, name }
+        const normalized = raw.map((t) => ({
+          id:   t.id ?? t.template_id ?? t.templateId ?? "",
+          name: t.name ?? t.template_name ?? t.templateName ?? t.subject ?? t.title ?? t.id ?? "Unnamed",
+        }));
+        console.log("[email-templates] raw:", raw, "normalized:", normalized);
+        setEmailTemplates(normalized);
+      })
+      .catch((err) => {
+        console.error("[email-templates] fetch error:", err);
+      });
+  }, [showCreate]);
+
   /* ── Fetch history data when a campaign activity tab is opened ── */
   useEffect(() => {
     if (!selectedCampaign) return;
@@ -387,6 +441,60 @@ export default function CampaignPage() {
       dispatch(fetchLinkedinHistory(selectedCampaign.id));
     if (activeTab === "WHATSAPP")
       dispatch(fetchWhatsappHistory(selectedCampaign.id));
+    if (activeTab === "ALL") {
+      setLeadListLoading(true);
+      setLeadListLeads([]);
+      const extractLeads = (d) =>
+        Array.isArray(d)
+          ? d
+          : Array.isArray(d?.leads)
+            ? d.leads
+            : Array.isArray(d?.data)
+              ? d.data
+              : Array.isArray(d?.items)
+                ? d.items
+                : Array.isArray(d?.results)
+                  ? d.results
+                  : null;
+
+      const tryFetch = (url) =>
+        axiosInstance.get(url).then((res) => {
+          const arr = extractLeads(res.data);
+          if (arr && arr.length > 0) {
+            setLeadListLeads(arr);
+            return true;
+          }
+          return false;
+        });
+
+      const listId = selectedCampaign.listId;
+      const campaignId = selectedCampaign.id;
+
+      // Try in order: list-specific endpoint → campaign leads endpoint
+      const urls = listId
+        ? [
+            `/lead-lists/${listId}/leads`,
+            `/lead-lists/${listId}`,
+            `/campaigns/${campaignId}/leads`,
+            `/get-campaigns/${campaignId}/leads`,
+          ]
+        : [
+            `/campaigns/${campaignId}/leads`,
+            `/get-campaigns/${campaignId}/leads`,
+          ];
+
+      (async () => {
+        for (const url of urls) {
+          try {
+            const found = await tryFetch(url);
+            if (found) break;
+          } catch {
+            // try next
+          }
+        }
+        setLeadListLoading(false);
+      })();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCampaign, activeTab]);
 
@@ -842,14 +950,23 @@ export default function CampaignPage() {
                   className={inputCls}
                 />
               </Field>
-              <Field label="List ID">
-                <input
-                  name="list_id"
-                  value={form.list_id}
-                  onChange={handleFormChange}
-                  placeholder="e.g. 550e8400-e29b-41d4-..."
-                  className={inputCls}
-                />
+              <Field label="Lead List">
+                <div className="relative">
+                  <select
+                    name="list_id"
+                    value={form.list_id}
+                    onChange={handleFormChange}
+                    className={selectCls}
+                  >
+                    <option value="">— Select a list —</option>
+                    {(leadLists ?? []).map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                </div>
               </Field>
             </div>
           </section>
@@ -873,14 +990,23 @@ export default function CampaignPage() {
                     className={inputCls}
                   />
                 </Field>
-                <Field label="Template ID">
-                  <input
-                    name="template_id"
-                    value={form.template_id}
-                    onChange={handleFormChange}
-                    placeholder="e.g. 550e8400-e29b-41d4-..."
-                    className={inputCls}
-                  />
+                <Field label="Email Template">
+                  <div className="relative">
+                    <select
+                      name="template_id"
+                      value={form.template_id}
+                      onChange={handleFormChange}
+                      className={selectCls}
+                    >
+                      <option value="">— Select a template —</option>
+                      {(emailTemplates ?? []).map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  </div>
                 </Field>
                 <Field label="From Name">
                   <input
@@ -1177,15 +1303,26 @@ export default function CampaignPage() {
 
     /* ─── ALL CAMPAIGN ACTIVITY ─── */
     if (activeTab === "ALL") {
-      const allData = c.allActivity ?? [];
+      // Use leads from API; fall back to c.allActivity (legacy mock)
+      const allData = leadListLeads.length > 0 ? leadListLeads : (c.allActivity ?? []);
+      // Dynamic channel columns from this campaign's channel_order
+      const channelCols = (c.channelOrder ?? []).map((key) => {
+        const map = {
+          CALL:     { label: "Call",     field: "call" },
+          EMAIL:    { label: "Email",    field: "email" },
+          LINKEDIN: { label: "LinkedIn", field: "linkedin" },
+          WHATSAPP: { label: "WhatsApp", field: "whatsapp" },
+        };
+        return map[key] ?? { label: key, field: key.toLowerCase() };
+      });
       const total = allData.length || c.totalLeads;
       const fullCoverage = allData.filter(
-        (r) => r.call && r.email && r.linkedin,
+        (r) => channelCols.every((col) => r[col.field]),
       ).length;
       const partialCoverage = allData.filter(
         (r) =>
-          (r.call || r.email || r.linkedin) &&
-          !(r.call && r.email && r.linkedin),
+          channelCols.some((col) => r[col.field]) &&
+          !channelCols.every((col) => r[col.field]),
       ).length;
       const noCoverage = allData.filter(
         (r) => !r.call && !r.email && !r.linkedin,
@@ -1225,7 +1362,7 @@ export default function CampaignPage() {
           </div>
           <div className="mb-5">
             <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
-              All Campaign Activity
+              Lead Activity
             </h1>
             <p className="text-[13px] text-gray-500 mt-0.5">
               Overview of all channel activities across campaigns
@@ -1266,7 +1403,7 @@ export default function CampaignPage() {
                 <p className="text-[11px] font-[600] uppercase tracking-widest text-gray-400">
                   {k.label}
                 </p>
-                <p className={`text-[32px] font-[800] leading-none ${k.color}`}>
+                <p className={`text-[22px] font-[800] leading-none text-sky-600 ${k.color}`}>
                   {k.value}
                 </p>
               </article>
@@ -1386,10 +1523,15 @@ export default function CampaignPage() {
                 Per-lead channel activity status
               </p>
             </div>
+            {leadListLoading ? (
+              <div className="px-5 py-12 text-center text-[13px] text-gray-400">
+                Loading leads…
+              </div>
+            ) : (
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-[#1e293b]">
-                  {["Serial No.", "Lead Name", "Call", "Email", "LinkedIn"].map(
+                  {["Serial No.", "Lead Name", ...channelCols.map((col) => col.label)].map(
                     (h) => (
                       <th
                         key={h}
@@ -1405,62 +1547,49 @@ export default function CampaignPage() {
                 {allData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={2 + channelCols.length}
                       className="px-5 py-12 text-center text-[13px] text-gray-400"
                     >
-                      No activity data available for this campaign.
+                      {c.listId
+                        ? `No leads returned from /lead-lists/${c.listId}/leads`
+                        : "No lead list assigned to this campaign (list_id is null)."}
                     </td>
                   </tr>
                 ) : (
                   allData.map((row, idx) => (
                     <tr
-                      key={row.serial ?? idx}
-                      className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
+                      key={row.id ?? row.serial ?? idx}
+                      className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${
+                        idx % 2 !== 0 ? "bg-gray-50/30" : ""
+                      }`}
                     >
                       <td className="px-5 py-3.5 text-[13px] text-gray-500">
-                        {row.serial ?? idx + 1}
+                        {idx + 1}
                       </td>
                       <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-800">
-                        {row.leadName}
+                        {row.first_name
+                          ? `${row.first_name} ${row.last_name ?? ""}`.trim()
+                          : row.leadName ?? row.name ?? "—"}
                       </td>
-                      <td className="px-5 py-3.5">
-                        {row.call ? (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50">
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50">
-                            <X className="h-4 w-4 text-red-400" />
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {row.email ? (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50">
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50">
-                            <X className="h-4 w-4 text-red-400" />
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {row.linkedin ? (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50">
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50">
-                            <X className="h-4 w-4 text-red-400" />
-                          </span>
-                        )}
-                      </td>
+                      {channelCols.map((col) => (
+                        <td key={col.field} className="px-5 py-3.5">
+                          {row[col.field] ? (
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50">
+                              <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100">
+                              <span className="text-[10px] text-gray-400 font-[600]">—</span>
+                            </span>
+                          )}
+                        </td>
+                      ))}
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+            )}
           </div>
         </main>
       );
@@ -2988,12 +3117,13 @@ export default function CampaignPage() {
     }
 
     /* ─── CAMPAIGN ACTIVITIES MENU (default) ─── */
-    const activities = [
+    const allActivities = [
       {
         key: "ALL",
-        label: "All Campaign",
+        label: "Lead Activity",
         Icon: TrendingUp,
         desc: "Overview of all activities across this campaign",
+        alwaysShow: true,
       },
       {
         key: "CALL",
@@ -3020,6 +3150,11 @@ export default function CampaignPage() {
         desc: "WhatsApp message delivery, reads, and replies",
       },
     ];
+    // Only show channel tabs that are in this campaign's channel_order
+    const campaignChannels = c.channelOrder ?? [];
+    const activities = allActivities.filter(
+      (a) => a.alwaysShow || campaignChannels.includes(a.key),
+    );
     return (
       <main className="min-h-screen bg-[#f4f5f7] p-4">
         {/* Back */}
@@ -3363,64 +3498,76 @@ export default function CampaignPage() {
 
               {/* Channel activity mini-graph */}
               {(() => {
-                const channels = [
-                  {
-                    label: "Call",
-                    value: c.called,
-                    fill: "#6366f1",
-                    icon: <Phone className="h-3 w-3" />,
-                  },
-                  {
-                    label: "Email",
-                    value: c.emailsSent,
-                    fill: "#0ea5e9",
-                    icon: <Mail className="h-3 w-3" />,
-                  },
-                  {
-                    label: "LinkedIn",
-                    value: c.meetings,
-                    fill: "#0284c7",
-                    icon: <Linkedin className="h-3 w-3" />,
-                  },
-                  {
-                    label: "WhatsApp",
-                    value: c.queued,
-                    fill: "#22c55e",
-                    icon: <MessageCircle className="h-3 w-3" />,
-                  },
+                // Per-channel counts from API
+                const countByKey = {
+                  CALL:     c.called      ?? 0,
+                  EMAIL:    c.emailsSent  ?? 0,
+                  LINKEDIN: c.meetings    ?? 0,
+                  WHATSAPP: 0,
+                };
+                const allChannels = [
+                  { label: "Call",     key: "CALL",     fill: "#6366f1", icon: <Phone className="h-3 w-3" /> },
+                  { label: "Email",    key: "EMAIL",    fill: "#0ea5e9", icon: <Mail className="h-3 w-3" /> },
+                  { label: "LinkedIn", key: "LINKEDIN", fill: "#0284c7", icon: <Linkedin className="h-3 w-3" /> },
+                  { label: "WhatsApp", key: "WHATSAPP", fill: "#22c55e", icon: <MessageCircle className="h-3 w-3" /> },
                 ];
-                const maxVal = Math.max(...channels.map((ch) => ch.value), 1);
+                // Only show channels in this campaign's channel_order
+                const order = c.channelOrder ?? [];
+                const channels =
+                  order.length > 0
+                    ? allChannels.filter((ch) => order.includes(ch.key))
+                    : allChannels;
+                // Build a lookup: channelType → step status
+                const stepStatus = {};
+                (c.channelSteps ?? []).forEach((s) => {
+                  stepStatus[s.channelType] = s.status;
+                });
+                const total = Math.max(c.totalLeads, 1);
+                // Status badge helpers
+                const statusLabel = (st) => {
+                  if (st === "COMPLETED")   return { text: "Done",      cls: "text-green-600 bg-green-50" };
+                  if (st === "IN_PROGRESS") return { text: "Running",   cls: "text-indigo-600 bg-indigo-50" };
+                  if (st === "FAILED")      return { text: "Failed",    cls: "text-red-500 bg-red-50" };
+                  return                          { text: "Not started", cls: "text-gray-400 bg-gray-100" };
+                };
                 return (
                   <div className="mb-4 bg-gray-50 rounded-xl px-3 py-2.5">
                     <p className="text-[9px] font-[700] text-gray-400 uppercase tracking-widest mb-2">
                       Channel Activity
                     </p>
-                    <div className="space-y-1.5">
-                      {channels.map((ch) => (
-                        <div key={ch.label} className="flex items-center gap-2">
-                          <div
-                            className="flex items-center gap-1 w-16 shrink-0"
-                            style={{ color: ch.fill }}
-                          >
-                            {ch.icon}
-                            <span className="text-[10px] font-[600]">
-                              {ch.label}
-                            </span>
+                    <div className="space-y-2">
+                      {channels.map((ch) => {
+                        const count = countByKey[ch.key] ?? 0;
+                        const pct   = Math.min((count / total) * 100, 100);
+                        const st    = stepStatus[ch.key];
+                        const badge = statusLabel(st);
+                        return (
+                          <div key={ch.label}>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <div className="flex items-center gap-1" style={{ color: ch.fill }}>
+                                {ch.icon}
+                                <span className="text-[10px] font-[600]">{ch.label}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {st && (
+                                  <span className={`text-[9px] font-[700] px-1.5 py-0.5 rounded-full ${badge.cls}`}>
+                                    {badge.text}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-[700] text-gray-600">
+                                  {count}/{c.totalLeads}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${pct}%`, background: ch.fill }}
+                              />
+                            </div>
                           </div>
-                          <div className="flex-1 h-2 rounded-full bg-gray-200 overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{
-                                width: `${(ch.value / maxVal) * 100}%`,
-                                background: ch.fill,
-                              }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-[700] text-gray-600 w-8 text-right shrink-0">
-                            {ch.value}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -3438,36 +3585,56 @@ export default function CampaignPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Active / Deactivate toggle */}
-                  <button
-                    onClick={() => {
-                      setTogglingId(c.id);
-                      dispatch(
-                        toggleActivateCampaign(c.id, c.status, () =>
-                          setTogglingId(null),
-                        ),
-                      );
-                    }}
-                    disabled={togglingId === c.id}
-                    className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed ${
-                      c.status === "ACTIVE"
-                        ? "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
-                        : "bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
-                    }`}
-                  >
-                    {togglingId === c.id ? (
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : c.status === "ACTIVE" ? (
-                      <Pause className="h-3.5 w-3.5" />
-                    ) : (
-                      <Play className="h-3.5 w-3.5" />
-                    )}
-                    {togglingId === c.id
-                      ? "..."
-                      : c.status === "ACTIVE"
-                        ? "Deactivate"
-                        : "Activate"}
-                  </button>
+                  {/* Pause / Resume / Activate button based on status */}
+                  {c.status === "ACTIVE" ? (
+                    <button
+                      onClick={() => {
+                        setTogglingId(c.id);
+                        dispatch(pauseCampaign(c.id, () => setTogglingId(null)));
+                      }}
+                      disabled={togglingId === c.id}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                    >
+                      {togglingId === c.id ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Pause className="h-3.5 w-3.5" />
+                      )}
+                      {togglingId === c.id ? "..." : "Pause"}
+                    </button>
+                  ) : c.status === "PAUSED" ? (
+                    <button
+                      onClick={() => {
+                        setTogglingId(c.id);
+                        dispatch(resumeCampaign(c.id, () => setTogglingId(null)));
+                      }}
+                      disabled={togglingId === c.id}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                    >
+                      {togglingId === c.id ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Play className="h-3.5 w-3.5" />
+                      )}
+                      {togglingId === c.id ? "..." : "Resume"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setTogglingId(c.id);
+                        dispatch(toggleActivateCampaign(c.id, c.status, () => setTogglingId(null)));
+                      }}
+                      disabled={togglingId === c.id}
+                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
+                    >
+                      {togglingId === c.id ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Play className="h-3.5 w-3.5" />
+                      )}
+                      {togglingId === c.id ? "..." : "Activate"}
+                    </button>
+                  )}
                   <button
                     onClick={() => setSelectedCampaign(c)}
                     className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"

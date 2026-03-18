@@ -599,7 +599,7 @@ function AllCampaignActivity({ campaign, onBack }) {
       </div>
 
       <div className="mb-5">
-        <h1 className="font-poppins text-[17px] font-[700] text-[#0a0a0a]">All Campaign Activity</h1>
+        <h1 className="font-poppins text-[17px] font-[700] text-[#0a0a0a]">Lead Activity</h1>
         <p className="text-[13px] text-gray-500 mt-0.5">Overview of all channel activities across campaigns</p>
       </div>
 

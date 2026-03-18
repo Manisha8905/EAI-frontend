@@ -376,6 +376,16 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
       isSmtp:            c.is_smtp                      ?? false,
       isProcessing:      c.is_processing                ?? false,
       parallelCalls:     c.campaign_parallel_calls      ?? 1,
+      listId:            c.list_id                      ?? null,
+      channelOrder:      Object.keys(c.channel_order ?? {})
+                           .sort((a, b) => Number(a) - Number(b))
+                           .map((k) => (c.channel_order[k] ?? "").toUpperCase()),
+      // channel_steps: [{ step_order, channel_type, status, ... }]
+      channelSteps:      (c.channel_steps ?? []).map((s) => ({
+                           order:       s.step_order,
+                           channelType: (s.channel_type ?? "").toUpperCase(),
+                           status:      (s.status ?? "NOT_STARTED").toUpperCase(),
+                         })),
     }));
 
     // store total count if API returns it (for pagination display)
@@ -405,17 +415,39 @@ export const createCampaign = (formData, onSuccess) => async (dispatch) => {
   }
 };
 
-// ▶️ Activate / Deactivate Campaign  —  POST /activate-campaign?campaign_id=<id>
+// ▶️ Activate Campaign  —  POST /activate-campaign
 export const toggleActivateCampaign = (campaignId, currentStatus, onDone) => async (dispatch) => {
   try {
     const res = await axiosInstance.post("/activate-campaign", { campaign_id: campaignId });
-    toast.success(res?.data?.message ?? (currentStatus === "ACTIVE" ? "Campaign deactivated!" : "Campaign activated!"));
-    // Patch the campaign status in redux immediately for instant UI feedback
-    const newStatus = currentStatus === "ACTIVE" ? "PAUSED" : "ACTIVE";
-    dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: newStatus } });
+    toast.success(res?.data?.message ?? "Campaign activated!");
+    dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "ACTIVE" } });
     if (onDone) onDone();
   } catch (err) {
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to toggle campaign.");
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to activate campaign.");
+  }
+};
+
+// ⏸️ Pause Campaign  —  POST /pause-campaign
+export const pauseCampaign = (campaignId, onDone) => async (dispatch) => {
+  try {
+    const res = await axiosInstance.post("/pause-campaign", { campaign_id: campaignId });
+    toast.success(res?.data?.message ?? "Campaign paused!");
+    dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "PAUSED" } });
+    if (onDone) onDone();
+  } catch (err) {
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to pause campaign.");
+  }
+};
+
+// ▶️ Resume Campaign  —  POST /resume-campaign
+export const resumeCampaign = (campaignId, onDone) => async (dispatch) => {
+  try {
+    const res = await axiosInstance.post("/resume-campaign", { campaign_id: campaignId });
+    toast.success(res?.data?.message ?? "Campaign resumed!");
+    dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "ACTIVE" } });
+    if (onDone) onDone();
+  } catch (err) {
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to resume campaign.");
   }
 };
 
