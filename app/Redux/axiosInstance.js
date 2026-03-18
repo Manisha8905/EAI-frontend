@@ -3,8 +3,8 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  // baseURL: "https://channelbeacon-11labs-agent2.technologymindz.com/",
-  baseURL: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/",
+  baseURL: "https://channelbeacon-11labs-agent2.technologymindz.com/",
+  // baseURL: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/",
   headers: {
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "true",

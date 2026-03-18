@@ -18,8 +18,8 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
     const campaigns = raw.map((c) => ({
       id:                c.campaign_id                  ?? Math.random(),
       name:              c.campaign_name                ?? "—",
-      campaignType:      c.campaign_type                ?? "",
-      communicationType: c.communication_type           ?? "",
+      // campaignType:      c.campaign_type                ?? "",
+      // communicationType: c.communication_type           ?? "",
       status:            c.status                       ?? "COMPLETED",
       agentName:         c.agent_name                   ?? "—",
       ownerEmail:        c.logged_in_user_email          ?? "",

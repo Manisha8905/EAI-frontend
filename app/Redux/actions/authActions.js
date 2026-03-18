@@ -31,6 +31,25 @@ import {
   CAMPAIGN_LIST_REQUEST,
   CAMPAIGN_LIST_SUCCESS,
   CAMPAIGN_LIST_FAILURE,
+  ACTIVATE_CAMPAIGN_SUCCESS,
+  CALL_HISTORY_REQUEST,
+  CALL_HISTORY_SUCCESS,
+  CALL_HISTORY_FAILURE,
+  EMAIL_HISTORY_REQUEST,
+  EMAIL_HISTORY_SUCCESS,
+  EMAIL_HISTORY_FAILURE,
+  LINKEDIN_HISTORY_REQUEST,
+  LINKEDIN_HISTORY_SUCCESS,
+  LINKEDIN_HISTORY_FAILURE,
+  WHATSAPP_HISTORY_REQUEST,
+  WHATSAPP_HISTORY_SUCCESS,
+  WHATSAPP_HISTORY_FAILURE,
+  UPDATE_CAMPAIGN_REQUEST,
+  UPDATE_CAMPAIGN_SUCCESS,
+  UPDATE_CAMPAIGN_FAILURE,
+  DELETE_CAMPAIGN_REQUEST,
+  DELETE_CAMPAIGN_SUCCESS,
+  DELETE_CAMPAIGN_FAILURE,
 } from "../types/userTypes";
 
 import axiosInstance from "../axiosInstance";
@@ -100,6 +119,7 @@ export const fetchUsers = () => async (dispatch) => {
       payload: response.data,
     });
     // toast.success(response?.data?.message ?? " User Successfully");
+    toast.success(response?.data?.message ?? "Users fetched successfully!");
   } catch (error) {
     toast.error(error.response?.data?.message ?? " User Failed");
   }
@@ -177,6 +197,7 @@ console.log("id", userData)
       type: "EDIT_USER_SUCCESS",
       payload: response.data,
     });
+    toast.success(response?.data?.message ?? "User updated successfully!");
 
   } catch (error) {
     console.log("EDIT ERROR:", error.response);
@@ -185,6 +206,7 @@ console.log("id", userData)
       type: "EDIT_USER_FAIL",
       payload: error.response?.data?.message || "Something went wrong",
     });
+    toast.error(error.response?.data?.message || "Failed to update user.");
   }
 };
 export const deleteUser = (target_email) => async (dispatch) => {
@@ -328,8 +350,8 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
     const campaigns = raw.map((c) => ({
       id:                c.campaign_id                  ?? Math.random(),
       name:              c.campaign_name                ?? "—",
-      campaignType:      c.campaign_type                ?? "",
-      communicationType: c.communication_type           ?? "",
+      // campaignType:      c.campaign_type                ?? "",
+      // communicationType: c.communication_type           ?? "",
       status:            c.status                       ?? "COMPLETED",
       agentName:         c.agent_name                   ?? "—",
       ownerEmail:        c.logged_in_user_email          ?? "",
@@ -380,5 +402,163 @@ export const createCampaign = (formData, onSuccess) => async (dispatch) => {
     if (onSuccess) onSuccess();
   } catch (err) {
     toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to create campaign.");
+  }
+};
+
+// ▶️ Activate / Deactivate Campaign  —  POST /activate-campaign?campaign_id=<id>
+export const toggleActivateCampaign = (campaignId, currentStatus, onDone) => async (dispatch) => {
+  try {
+    const res = await axiosInstance.post("/activate-campaign", { campaign_id: campaignId });
+    toast.success(res?.data?.message ?? (currentStatus === "ACTIVE" ? "Campaign deactivated!" : "Campaign activated!"));
+    // Patch the campaign status in redux immediately for instant UI feedback
+    const newStatus = currentStatus === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: newStatus } });
+    if (onDone) onDone();
+  } catch (err) {
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to toggle campaign.");
+  }
+};
+
+// ─── Helper: extract an array from any common response shape ───────────────
+const extractArray = (data) => {
+  if (Array.isArray(data)) return data;
+  const keys = ["data", "result", "results", "records", "history", "conversations", "items", "list"];
+  for (const k of keys) {
+    if (Array.isArray(data?.[k])) return data[k];
+  }
+  const first = Object.values(data ?? {}).find(Array.isArray);
+  return first ?? [];
+};
+
+// 📞 Call History  —  GET /users/call-history/?campaign_id=<id>
+export const fetchCallHistory = (campaignId) => async (dispatch) => {
+  dispatch({ type: CALL_HISTORY_REQUEST });
+  try {
+    const res = await axiosInstance.get("/users/call-history/", {
+      params: { campaign_id: campaignId },
+    });
+    const raw = extractArray(res.data);
+    const normalized = raw.map((r) => ({
+      name:       r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",
+      phone:      r.phone_number    ?? r.phone         ?? r.contact_phone ?? "—",
+      company:    r.company_name    ?? r.company       ?? r.organization  ?? "—",
+      dateTime:   r.call_time       ?? r.created_at    ?? r.date          ?? "—",
+      duration:   r.duration        ?? r.call_duration ?? "0",
+      status:     (r.call_status    ?? r.status        ?? "").toUpperCase(),
+      meeting:    r.meeting_scheduled ?? r.meeting     ?? r.is_meeting_scheduled ?? false,
+      transcript: r.transcript      ?? r.call_transcript ?? "",
+    }));
+    dispatch({ type: CALL_HISTORY_SUCCESS, payload: normalized });
+    toast.success(`Call history loaded (${normalized.length} records)`);
+  } catch (err) {
+    dispatch({ type: CALL_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load call history." });
+    toast.error(err?.response?.data?.message || "Failed to load call history.");
+  }
+};
+
+// 📧 Email History  —  GET /email-history/?campaign_id=<id>
+export const fetchEmailHistory = (campaignId) => async (dispatch) => {
+  dispatch({ type: EMAIL_HISTORY_REQUEST });
+  try {
+    const res = await axiosInstance.get("/email-history/", {
+      params: { campaign_id: campaignId },
+    });
+    const raw = extractArray(res.data);
+    const normalized = raw.map((r) => ({
+      name:      r.lead_name    ?? r.name          ?? r.contact_name  ?? "—",
+      emailAddr: r.email        ?? r.email_address  ?? r.contact_email ?? "—",
+      company:   r.company_name ?? r.company        ?? r.organization  ?? "—",
+      subject:   r.subject      ?? r.email_subject  ?? "—",
+      dateTime:  r.sent_at      ?? r.created_at     ?? r.date          ?? "—",
+      status:    (r.status      ?? r.email_status   ?? "").toUpperCase(),
+      clicked:   r.clicked      ?? r.is_clicked     ?? false,
+      meeting:   r.meeting_scheduled ?? r.meeting   ?? r.is_meeting_scheduled ?? false,
+    }));
+    dispatch({ type: EMAIL_HISTORY_SUCCESS, payload: normalized });
+    toast.success(`Email history loaded (${normalized.length} records)`);
+  } catch (err) {
+    dispatch({ type: EMAIL_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load email history." });
+    toast.error(err?.response?.data?.message || "Failed to load email history.");
+  }
+};
+
+// 💼 LinkedIn History  —  GET /api/admin/linkedin/conversations?campaign_id=<id>
+export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
+  dispatch({ type: LINKEDIN_HISTORY_REQUEST });
+  try {
+    const res = await axiosInstance.get("/api/admin/linkedin/conversations", {
+      params: { campaign_id: campaignId },
+    });
+    const raw = extractArray(res.data);
+    const normalized = raw.map((r) => ({
+      name:               r.lead_name           ?? r.name              ?? r.contact_name  ?? "—",
+      company:            r.company_name         ?? r.company           ?? r.organization  ?? "—",
+      connectionSent:     r.connection_sent      ?? r.is_connection_sent ?? false,
+      connectionAccepted: r.connection_accepted  ?? r.is_connection_accepted ?? r.action  ?? "—",
+      messageSent:        r.message_sent         ?? r.is_message_sent   ?? false,
+      replied:            r.replied              ?? r.is_replied        ?? false,
+      status:             (r.status              ?? r.linkedin_status   ?? "").toUpperCase(),
+      dateTime:           r.created_at           ?? r.date              ?? r.sent_at       ?? "—",
+      meeting:            r.meeting_scheduled    ?? r.meeting           ?? false,
+    }));
+    dispatch({ type: LINKEDIN_HISTORY_SUCCESS, payload: normalized });
+    toast.success(`LinkedIn history loaded (${normalized.length} records)`);
+  } catch (err) {
+    dispatch({ type: LINKEDIN_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load LinkedIn history." });
+    toast.error(err?.response?.data?.message || "Failed to load LinkedIn history.");
+  }
+};
+
+// 📱 WhatsApp History  —  GET /api/whatsapp/conversations?campaign_id=<id>
+export const fetchWhatsappHistory = (campaignId) => async (dispatch) => {
+  dispatch({ type: WHATSAPP_HISTORY_REQUEST });
+  try {
+    const res = await axiosInstance.get("/api/whatsapp/conversations", {
+      params: { campaign_id: campaignId },
+    });
+    const raw = extractArray(res.data);
+    const normalized = raw.map((r) => ({
+      name:           r.lead_name      ?? r.name         ?? r.contact_name  ?? "—",
+      phone:          r.phone_number   ?? r.phone         ?? r.contact_phone ?? "—",
+      company:        r.company_name   ?? r.company       ?? r.organization  ?? "—",
+      dateTime:       r.sent_at        ?? r.created_at    ?? r.date          ?? "—",
+      messagePreview: r.message_preview ?? r.message      ?? r.content       ?? "—",
+      status:         (r.status        ?? r.message_status ?? "").toUpperCase(),
+      meeting:        r.meeting_scheduled ?? r.meeting    ?? r.is_meeting_scheduled ?? false,
+    }));
+    dispatch({ type: WHATSAPP_HISTORY_SUCCESS, payload: normalized });
+    toast.success(`WhatsApp history loaded (${normalized.length} records)`);
+  } catch (err) {
+    dispatch({ type: WHATSAPP_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load WhatsApp history." });
+    toast.error(err?.response?.data?.message || "Failed to load WhatsApp history.");
+  }
+};
+
+// ✏️ Update Campaign  —  PATCH /update-campaign/{campaign_id}
+export const updateCampaign = (campaignId, formData, onSuccess) => async (dispatch) => {
+  dispatch({ type: UPDATE_CAMPAIGN_REQUEST });
+  try {
+    const res = await axiosInstance.patch(`/update-campaign/${campaignId}`, formData);
+    dispatch({ type: UPDATE_CAMPAIGN_SUCCESS });
+    toast.success(res?.data?.message ?? "Campaign updated successfully!");
+    dispatch(listCampaigns({ page: 1, page_size: 20 }));
+    if (onSuccess) onSuccess();
+  } catch (err) {
+    dispatch({ type: UPDATE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.message || "Failed to update campaign." });
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to update campaign.");
+  }
+};
+
+// 🗑️ Delete Campaign  —  DELETE /remove-campaign/{campaign_id}
+export const deleteCampaign = (campaignId, onSuccess) => async (dispatch) => {
+  dispatch({ type: DELETE_CAMPAIGN_REQUEST });
+  try {
+    const res = await axiosInstance.delete(`/remove-campaign/${campaignId}`);
+    dispatch({ type: DELETE_CAMPAIGN_SUCCESS, payload: campaignId });
+    toast.success(res?.data?.message ?? "Campaign deleted successfully!");
+    if (onSuccess) onSuccess();
+  } catch (err) {
+    dispatch({ type: DELETE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.message || "Failed to delete campaign." });
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to delete campaign.");
   }
 };

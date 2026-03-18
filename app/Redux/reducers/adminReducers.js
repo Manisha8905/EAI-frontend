@@ -35,6 +35,27 @@ import {
   CAMPAIGN_LIST_SUCCESS,
   CAMPAIGN_LIST_FAILURE,
 
+  CALL_HISTORY_REQUEST,
+  CALL_HISTORY_SUCCESS,
+  CALL_HISTORY_FAILURE,
+
+  EMAIL_HISTORY_REQUEST,
+  EMAIL_HISTORY_SUCCESS,
+  EMAIL_HISTORY_FAILURE,
+
+  LINKEDIN_HISTORY_REQUEST,
+  LINKEDIN_HISTORY_SUCCESS,
+  LINKEDIN_HISTORY_FAILURE,
+
+  WHATSAPP_HISTORY_REQUEST,
+  WHATSAPP_HISTORY_SUCCESS,
+  WHATSAPP_HISTORY_FAILURE,
+  UPDATE_CAMPAIGN_REQUEST,
+  UPDATE_CAMPAIGN_SUCCESS,
+  UPDATE_CAMPAIGN_FAILURE,
+  DELETE_CAMPAIGN_REQUEST,
+  DELETE_CAMPAIGN_SUCCESS,
+  DELETE_CAMPAIGN_FAILURE,
 } from "../types/userTypes";
 
 const initialState = {
@@ -62,6 +83,26 @@ const initialState = {
   campaignTotal: 0,
   campaignLoading: false,
   campaignError: null,
+  // 📞 Call History
+  callHistory: [],
+  callHistoryLoading: false,
+  callHistoryError: null,
+  // 📧 Email History
+  emailHistory: [],
+  emailHistoryLoading: false,
+  emailHistoryError: null,
+  // 💼 LinkedIn History
+  linkedinHistory: [],
+  linkedinHistoryLoading: false,
+  linkedinHistoryError: null,
+  // 📱 WhatsApp History
+  whatsappHistory: [],
+  whatsappHistoryLoading: false,
+  whatsappHistoryError: null,
+  // ✏️ Update Campaign
+  updatingCampaign: false,
+  // 🗑️ Delete Campaign
+  deletingCampaign: false,
 };
 
 const adminReducers = (state = initialState, action) => {
@@ -212,6 +253,68 @@ const adminReducers = (state = initialState, action) => {
       };
     case CAMPAIGN_LIST_FAILURE:
       return { ...state, campaignLoading: false, campaignError: action.payload };
+
+    // ▶️ Optimistic status patch after activate/deactivate
+    case "ACTIVATE_CAMPAIGN_SUCCESS":
+      return {
+        ...state,
+        campaigns: state.campaigns.map((c) =>
+          c.id === action.payload.id ? { ...c, status: action.payload.status } : c
+        ),
+      };
+
+    // 📞 Call History
+    case CALL_HISTORY_REQUEST:
+      return { ...state, callHistoryLoading: true, callHistoryError: null, callHistory: [] };
+    case CALL_HISTORY_SUCCESS:
+      return { ...state, callHistoryLoading: false, callHistory: action.payload };
+    case CALL_HISTORY_FAILURE:
+      return { ...state, callHistoryLoading: false, callHistoryError: action.payload };
+
+    // 📧 Email History
+    case EMAIL_HISTORY_REQUEST:
+      return { ...state, emailHistoryLoading: true, emailHistoryError: null, emailHistory: [] };
+    case EMAIL_HISTORY_SUCCESS:
+      return { ...state, emailHistoryLoading: false, emailHistory: action.payload };
+    case EMAIL_HISTORY_FAILURE:
+      return { ...state, emailHistoryLoading: false, emailHistoryError: action.payload };
+
+    // 💼 LinkedIn History
+    case LINKEDIN_HISTORY_REQUEST:
+      return { ...state, linkedinHistoryLoading: true, linkedinHistoryError: null, linkedinHistory: [] };
+    case LINKEDIN_HISTORY_SUCCESS:
+      return { ...state, linkedinHistoryLoading: false, linkedinHistory: action.payload };
+    case LINKEDIN_HISTORY_FAILURE:
+      return { ...state, linkedinHistoryLoading: false, linkedinHistoryError: action.payload };
+
+    // 📱 WhatsApp History
+    case WHATSAPP_HISTORY_REQUEST:
+      return { ...state, whatsappHistoryLoading: true, whatsappHistoryError: null, whatsappHistory: [] };
+    case WHATSAPP_HISTORY_SUCCESS:
+      return { ...state, whatsappHistoryLoading: false, whatsappHistory: action.payload };
+    case WHATSAPP_HISTORY_FAILURE:
+      return { ...state, whatsappHistoryLoading: false, whatsappHistoryError: action.payload };
+
+    // ✏️ Update Campaign
+    case UPDATE_CAMPAIGN_REQUEST:
+      return { ...state, updatingCampaign: true };
+    case UPDATE_CAMPAIGN_SUCCESS:
+      return { ...state, updatingCampaign: false };
+    case UPDATE_CAMPAIGN_FAILURE:
+      return { ...state, updatingCampaign: false };
+
+    // 🗑️ Delete Campaign
+    case DELETE_CAMPAIGN_REQUEST:
+      return { ...state, deletingCampaign: true };
+    case DELETE_CAMPAIGN_SUCCESS:
+      return {
+        ...state,
+        deletingCampaign: false,
+        campaigns: state.campaigns.filter((c) => c.id !== action.payload),
+        campaignTotal: Math.max(0, (state.campaignTotal ?? 0) - 1),
+      };
+    case DELETE_CAMPAIGN_FAILURE:
+      return { ...state, deletingCampaign: false };
 
     default:
       return state;
