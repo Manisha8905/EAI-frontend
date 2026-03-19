@@ -451,6 +451,17 @@ export const resumeCampaign = (campaignId, onDone) => async (dispatch) => {
   }
 };
 
+// 🛑 Stop All Multichannel Campaigns  —  POST /campaigns/stop-all-multichannel
+export const stopAllMultichannelCampaigns = (onDone) => async (dispatch) => {
+  try {
+    const res = await axiosInstance.post("/campaigns/stop-all-multichannel");
+    toast.success(res?.data?.message ?? "All campaigns stopped!");
+    if (onDone) onDone();
+  } catch (err) {
+    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to stop all campaigns.");
+  }
+};
+
 // ─── Helper: extract an array from any common response shape ───────────────
 const extractArray = (data) => {
   if (Array.isArray(data)) return data;

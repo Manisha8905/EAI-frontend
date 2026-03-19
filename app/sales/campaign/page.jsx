@@ -9,6 +9,7 @@ import {
   toggleActivateCampaign,
   pauseCampaign,
   resumeCampaign,
+  stopAllMultichannelCampaigns,
   fetchCallHistory,
   fetchEmailHistory,
   fetchLinkedinHistory,
@@ -38,6 +39,7 @@ import {
   Download,
   Pencil,
   Trash2,
+  StopCircle,
 } from "lucide-react";
 import {
   BarChart,
@@ -137,6 +139,7 @@ export default function CampaignPage() {
     campaign_prompt: "",
     vapi_voice_id: "11labs-emily",
     vapi_model: "gpt-4",
+    agent_id: "",
     agent_name: "",
     logged_in_user_email: "",
     campaign_parallel_calls: 1,
@@ -166,10 +169,12 @@ export default function CampaignPage() {
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // { id, name }
   const [deleting, setDeleting] = useState(false);
+  const [stoppingAll, setStoppingAll] = useState(false);
 
-  /* ── Lead lists & email templates for selectors ── */
+  /* ── Lead lists, email templates & agents for selectors ── */
   const [leadLists, setLeadLists] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
+  const [agents, setAgents] = useState([]);
 
   /* ── Activity sub-view search/filter state (must be unconditional) ── */
   const [callSearch, setCallSearch] = useState("");
@@ -208,6 +213,7 @@ export default function CampaignPage() {
   const handleCreate = async (mode = "run") => {
     if (!form.campaign_name.trim()) return;
     setCreating(true);
+    try {
 
     // Build channel_order as { "1": "EMAIL", "2": "CALL" }
     const channelOrderObj = {};
@@ -260,6 +266,7 @@ export default function CampaignPage() {
       campaign_prompt: form.campaign_prompt,
       vapi_voice_id: form.vapi_voice_id,
       vapi_model: form.vapi_model,
+      agent_id: form.agent_id || undefined,
       agent_name: form.agent_name,
       logged_in_user_email: form.logged_in_user_email,
       campaign_parallel_calls: Number(form.campaign_parallel_calls),
@@ -292,7 +299,12 @@ export default function CampaignPage() {
         }),
       );
     }
-    setCreating(false);
+    } catch (err) {
+      console.error("[handleCreate] unexpected error:", err);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setCreating(false);
+    }
   };
 
   /* ── Open edit form — fetch single campaign then pre-populate ── */
@@ -335,8 +347,9 @@ export default function CampaignPage() {
         channel_order: channelOrder,
         channel_steps: channelSteps,
         campaign_prompt: c.campaign_prompt ?? "",
-        vapi_voice_id: c.vapi_voice_id ?? "11labs-emily",
-        vapi_model: c.vapi_model ?? "gpt-4",
+        vapi_voice_id: c.vapi_voice_id ?? "",
+        vapi_model: c.vapi_model ?? "",
+        agent_id: c.agent_id ?? "",
         agent_name: c.agent_name ?? "",
         logged_in_user_email: c.logged_in_user_email ?? "",
         campaign_parallel_calls: c.campaign_parallel_calls ?? 1,
@@ -388,9 +401,22 @@ export default function CampaignPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, commFilter, page]);
 
-  /* ── Fetch lead lists & email templates when create form opens ── */
+  /* ── Fetch lead lists, email templates & agents when create form opens ── */
   useEffect(() => {
     if (!showCreate) return;
+    // Fetch agents from backend so we always use real agent_id
+    axiosInstance
+      .get("/my-agents")
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : (res.data.agents ?? []);
+        setAgents(
+          list.map((a) => ({
+            id:   a.agent_id ?? a.id ?? a._id ?? "",
+            name: a.agent_name ?? a.name ?? "—",
+          }))
+        );
+      })
+      .catch(() => {});
     axiosInstance
       .get("/lead-lists")
       .then((res) => {
@@ -905,7 +931,7 @@ export default function CampaignPage() {
                     onChange={handleFormChange}
                     className={selectCls}
                   >
-                    {["gpt-4", "gpt-4o", "gpt-3.5-turbo"].map((o) => (
+                    {[""].map((o) => (
                       <option key={o}>{o}</option>
                     ))}
                   </select>
@@ -921,14 +947,31 @@ export default function CampaignPage() {
                   className={inputCls}
                 />
               </Field>
-              <Field label="Agent Name">
-                <input
-                  name="agent_name"
-                  value={form.agent_name}
-                  onChange={handleFormChange}
-                  placeholder="e.g. Sarah"
-                  className={inputCls}
-                />
+              <Field label="Agent">
+                <div className="relative">
+                  <select
+                    name="agent_id"
+                    value={form.agent_id}
+                    onChange={(e) => {
+                      const selected = agents.find((a) => a.id === e.target.value);
+                      setForm((prev) => ({
+                        ...prev,
+                        agent_id: e.target.value,
+                        agent_name: selected?.name ?? "",
+                      }));
+                      console.log("AGENT ID SENT:", e.target.value);
+                    }}
+                    className={`${inputCls} appearance-none pr-8 cursor-pointer`}
+                  >
+                    <option value="">— Select Agent —</option>
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                </div>
               </Field>
               <Field label="Logged in User Email">
                 <input
@@ -3269,6 +3312,29 @@ export default function CampaignPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Stop All Campaigns — visible only when any campaign is ACTIVE or PAUSED */}
+          {campaigns.some((c) => c.status === "ACTIVE" || c.status === "PAUSED") && (
+            <button
+              onClick={async () => {
+                setStoppingAll(true);
+                await dispatch(
+                  stopAllMultichannelCampaigns(() =>
+                    dispatch(listCampaigns(page, PAGE_SIZE))
+                  )
+                );
+                setStoppingAll(false);
+              }}
+              disabled={stoppingAll}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-red-700 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {stoppingAll ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <StopCircle className="h-4 w-4" />
+              )}
+              Stop All Campaigns
+            </button>
+          )}
           {/* Refresh */}
           <button
             onClick={handleRefresh}
