@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "next/navigation";
 import { fetchOutboundCalls, fetchInboundCalls, fetchEmailCampaigns } from "../../Redux/actions/authActions";
 import {
+  ArrowUpRight,
   Calendar,
   CheckSquare,
   Clock,
@@ -97,8 +99,8 @@ const tabs = [
 ];
 
 function normalizeTab(initialTab) {
-  if (initialTab === "Inbound Calls")   return "inbound";
-  if (initialTab === "Email Campaign")  return "email";
+  if (initialTab === "inbound" || initialTab === "Inbound Calls")   return "inbound";
+  if (initialTab === "email"   || initialTab === "Email Campaign")  return "email";
   return "outbound";
 }
 
@@ -281,21 +283,35 @@ const AreaTooltip = ({ active, payload, label }) => {
 };
 
 /* ─── Shared chart card wrapper ──────────────────────────────────────── */
-function ChartCard({ title, subtitle, badge, children }) {
+function ChartCard({ title, subtitle, badge, children, onClick }) {
   return (
-    <article className="rounded-2xl bg-white border border-gray-100 shadow-md overflow-hidden">
+    <article
+      className={`rounded-2xl bg-white border shadow-md overflow-hidden transition-all${
+        onClick
+          ? " border-gray-200 hover:border-teal-300 hover:shadow-lg cursor-pointer group"
+          : " border-gray-100"
+      }`}
+      onClick={onClick}
+    >
       {/* Accent top stripe */}
       <div className="h-[3px] bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-400" />
       <div className="flex items-start justify-between px-5 pt-4 pb-3 border-b border-gray-100 bg-gradient-to-r from-slate-50/60 to-white">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-[13px] font-bold text-gray-800 leading-tight tracking-tight">{title}</h3>
           <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>
         </div>
-        {badge && (
-          <span className="shrink-0 rounded-full bg-indigo-50 border border-indigo-100 px-3 py-1 text-[10px] font-bold text-indigo-600 ml-3 tabular-nums">
-            {badge}
-          </span>
-        )}
+        <div className="flex items-center gap-2 ml-3 shrink-0">
+          {badge && (
+            <span className="rounded-full bg-indigo-50 border border-indigo-100 px-3 py-1 text-[10px] font-bold text-indigo-600 tabular-nums">
+              {badge}
+            </span>
+          )}
+          {onClick && (
+            <span className="flex items-center gap-1 rounded-full bg-teal-50 border border-teal-100 px-2.5 py-1 text-[10px] font-semibold text-teal-600 opacity-0 group-hover:opacity-100 transition-opacity">
+              View Report <ArrowUpRight className="h-3 w-3" />
+            </span>
+          )}
+        </div>
       </div>
       <div className="p-5">{children}</div>
     </article>
@@ -397,6 +413,8 @@ export default function ModuleDashboard({
 }) {
   const dispatch = useDispatch();
   const { outboundData, outboundLoading, inboundData, inboundLoading, emailData, emailLoading } = useSelector((state) => state.admin);
+
+  const router = useRouter();
 
   const [activeTab,    setActiveTab]    = useState(normalizeTab(initialTab));
   const [activeFilter, setActiveFilter] = useState("this_year");
@@ -985,7 +1003,7 @@ export default function ModuleDashboard({
           </ChartCard>
 
           {/* IB-3 ── Meetings Scheduled by Campaign */}
-          <ChartCard title="Meetings Scheduled" subtitle="Total calls vs meetings per campaign">
+          <ChartCard title="Meetings Scheduled" subtitle="Total calls vs meetings per campaign" onClick={() => router.push("/metrics/reporting")}>
             <div className="h-[240px] w-full">
               {inboundMeetingCampaign ? (
                 <ResponsiveContainer width="100%" height="100%">

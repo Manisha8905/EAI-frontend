@@ -40,6 +40,7 @@ import {
   Pencil,
   Trash2,
   StopCircle,
+  GitBranch,
 } from "lucide-react";
 import {
   BarChart,
@@ -137,8 +138,8 @@ export default function CampaignPage() {
     // Per-channel step config (keyed by channel name)
     channel_steps: {},
     campaign_prompt: "",
-    vapi_voice_id: "11labs-emily",
-    vapi_model: "gpt-4",
+    vapi_voice_id: "",
+    vapi_model: "",
     agent_id: "",
     agent_name: "",
     logged_in_user_email: "",
@@ -190,6 +191,11 @@ export default function CampaignPage() {
   /* ── Lead list leads for Lead Activity tab ── */
   const [leadListLeads, setLeadListLeads] = useState([]);
   const [leadListLoading, setLeadListLoading] = useState(false);
+
+  /* ── Campaign Journey Panel ── */
+  const [showJourneyPanel, setShowJourneyPanel] = useState(false);
+  const [journeyData, setJourneyData] = useState([]);
+  const [journeyLoading, setJourneyLoading] = useState(false);
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -266,7 +272,6 @@ export default function CampaignPage() {
       campaign_prompt: form.campaign_prompt,
       vapi_voice_id: form.vapi_voice_id,
       vapi_model: form.vapi_model,
-      agent_id: form.agent_id || undefined,
       agent_name: form.agent_name,
       logged_in_user_email: form.logged_in_user_email,
       campaign_parallel_calls: Number(form.campaign_parallel_calls),
@@ -285,7 +290,7 @@ export default function CampaignPage() {
 
     if (editingCampaignId) {
       await dispatch(
-        updateCampaign(editingCampaignId, payload, () => {
+        updateCampaign(editingCampaignId, payload, form.agent_id || undefined, () => {
           setShowCreate(false);
           setForm(blankForm);
           setEditingCampaignId(null);
@@ -293,7 +298,7 @@ export default function CampaignPage() {
       );
     } else {
       await dispatch(
-        createCampaign(payload, () => {
+        createCampaign(payload, form.agent_id || undefined, () => {
           setShowCreate(false);
           setForm(blankForm);
         }),
@@ -529,6 +534,25 @@ export default function CampaignPage() {
     setRefreshing(true);
     dispatch(listCampaigns(buildParams()));
     setTimeout(() => setRefreshing(false), 800);
+  };
+
+  /* ── Fetch campaign journey ── */
+  const fetchJourney = async (campaignId, pg = 1) => {
+    setJourneyLoading(true);
+    try {
+      const res = await axiosInstance.get(`/api/campaigns/${campaignId}/journey`, {
+        params: { status: "in_progress", page: pg, page_size: 20 },
+      });
+      const d = res.data;
+      const rows = Array.isArray(d)
+        ? d
+        : (d?.items ?? d?.data ?? d?.results ?? d?.leads ?? d?.journeys ?? []);
+      setJourneyData(rows);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to load campaign journey.");
+    } finally {
+      setJourneyLoading(false);
+    }
   };
 
   /* ── Client-side name search (against current page) ── */
@@ -1393,24 +1417,127 @@ export default function CampaignPage() {
         { name: "None", value: noCoverage, color: "#e5e7eb" },
       ].filter((s) => s.value > 0);
       return (
-        <main className="min-h-screen bg-[#f4f5f7] p-4">
-          <div className="mb-5">
-            <button
-              type="button"
-              onClick={() => setActiveTab(null)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
-            </button>
-          </div>
-          <div className="mb-5">
-            <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
-              Lead Activity
-            </h1>
-            <p className="text-[13px] text-gray-500 mt-0.5">
-              Overview of all channel activities across campaigns
-            </p>
-          </div>
+        <main className="min-h-screen bg-[#f4f5f7] flex">
+          {/* ── Campaign Journey Side Panel ── */}
+          {showJourneyPanel && (
+            <aside className="w-[340px] shrink-0 bg-white border-r border-gray-200 shadow-xl flex flex-col overflow-y-auto">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="h-4 w-4 text-[#6366f1]" />
+                  <h2 className="text-[14px] font-[700] text-gray-900">Campaign Journey</h2>
+                </div>
+                <button
+                  onClick={() => setShowJourneyPanel(false)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 transition"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {journeyLoading ? (
+                  <div className="py-16 text-center text-[13px] text-gray-400">Loading journey…</div>
+                ) : journeyData.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <GitBranch className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-[13px] text-gray-400">No journey data found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {journeyData.map((lead, idx) => {
+                      const steps = lead.steps ?? lead.channels ?? lead.journey_steps ?? lead.activities ?? [];
+                      const channelIcons = { CALL: Phone, EMAIL: Mail, LINKEDIN: Linkedin, WHATSAPP: MessageCircle };
+                      const stepStatusColor = (s) => {
+                        const st = (s ?? "").toUpperCase();
+                        if (["COMPLETED","DONE","SUCCESS","ANSWERED"].includes(st))     return "bg-green-100 text-green-700";
+                        if (["IN_PROGRESS","RUNNING","ACTIVE","PENDING"].includes(st)) return "bg-blue-100 text-blue-700";
+                        if (["FAILED","ERROR","REJECTED"].includes(st))               return "bg-red-100 text-red-700";
+                        return "bg-gray-100 text-gray-500";
+                      };
+                      return (
+                        <div key={lead.lead_id ?? lead.id ?? idx} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                          <p className="text-[12px] font-[700] text-gray-800 mb-2.5 truncate">
+                            {lead.lead_name ?? lead.name ?? `Lead ${idx + 1}`}
+                          </p>
+                          {steps.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                              {steps.map((step, si) => {
+                                const channel = (step.channel ?? step.type ?? step.channel_name ?? "").toUpperCase();
+                                const Icon = channelIcons[channel] ?? GitBranch;
+                                const status = step.status ?? step.state ?? "—";
+                                return (
+                                  <div key={si} className="flex items-center gap-2.5">
+                                    <span className="w-6 h-6 rounded-full bg-[#6366f1]/10 flex items-center justify-center shrink-0">
+                                      <Icon className="h-3 w-3 text-[#6366f1]" />
+                                    </span>
+                                    <div className="flex-1 flex items-center justify-between gap-1 min-w-0">
+                                      <span className="text-[11px] font-[600] text-gray-700 shrink-0">{channel || "Step " + (si + 1)}</span>
+                                      <span className={`text-[10px] font-[600] px-1.5 py-0.5 rounded-full shrink-0 ${stepStatusColor(status)}`}>
+                                        {status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {Object.entries(lead)
+                                .filter(([k]) => !["lead_id","id","lead_name","name"].includes(k))
+                                .slice(0, 6)
+                                .map(([key, val]) => (
+                                  <div key={key} className="flex justify-between items-start gap-2">
+                                    <span className="text-[10px] text-gray-400 capitalize">{key.replace(/_/g," ")}</span>
+                                    <span className="text-[10px] font-[500] text-gray-700 text-right max-w-[140px] truncate">{String(val ?? "—")}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </aside>
+          )}
+          {/* ── Main Content ── */}
+          <div className="flex-1 p-4 overflow-auto min-w-0">
+            <div className="mb-5">
+              <button
+                type="button"
+                onClick={() => setActiveTab(null)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
+              >
+                <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
+              </button>
+            </div>
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
+                  Lead Activity
+                </h1>
+                <p className="text-[13px] text-gray-500 mt-0.5">
+                  Overview of all channel activities across campaigns
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowJourneyPanel((prev) => {
+                    const next = !prev;
+                    if (next) fetchJourney(c.id);
+                    return next;
+                  });
+                }}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-[13px] font-[600] transition shadow-sm shrink-0 ${
+                  showJourneyPanel
+                    ? "bg-[#6366f1] text-white border-[#6366f1]"
+                    : "bg-white text-[#6366f1] border-[#6366f1]/30 hover:bg-[#6366f1]/5"
+                }`}
+              >
+                <GitBranch className="h-4 w-4" /> Journey
+              </button>
+            </div>
           {/* KPI strip */}
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
@@ -1634,6 +1761,7 @@ export default function CampaignPage() {
             </table>
             )}
           </div>
+          </div>{/* end flex-1 main content */}
         </main>
       );
     }

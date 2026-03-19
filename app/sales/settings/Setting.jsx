@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
+import { toast } from "react-toastify";
 import {
   Settings,
   ArrowLeft,
@@ -399,12 +400,14 @@ function AgentsPage({ onBack }) {
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [parallelCalls, setPC] = useState(0);
+  const [pcLoading, setPcLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [pcSaved, setPcSaved] = useState(false);
   const [pcSaving, setPcSaving] = useState(false);
   const [pcError, setPcError] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+  const [switchingId, setSwitchingId] = useState(null);
 
   const fetchAgents = async () => {
     setLoadingAgents(true);
@@ -417,7 +420,8 @@ function AgentsPage({ onBack }) {
           id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
           name: a.agent_name ?? a.name ?? "—",
           email: a.email ?? "—",
-          active: a.is_active ?? a.active ?? false,
+          is_active: a.is_active ?? false,
+          is_current: a.is_current ?? false,
         }))
       );
     } catch (err) {
@@ -431,13 +435,39 @@ function AgentsPage({ onBack }) {
     }
   };
 
-  useEffect(() => { fetchAgents(); }, []);
+  const fetchParallelCalls = async () => {
+    setPcLoading(true);
+    try {
+      const res = await axiosInstance.get("/api/settings/global-parallel-calls");
+      const val = res.data?.global_parallel_calls ?? res.data?.value ?? res.data?.parallel_calls ?? 0;
+      setPC(Number(val));
+    } catch {
+      // silently ignore — keep default 0
+    } finally {
+      setPcLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchAgents(); fetchParallelCalls(); }, []);
 
   const filtered = agents.filter(
     (a) =>
       a.name.toLowerCase().includes(search.toLowerCase()) ||
       (a.email !== "—" && a.email.toLowerCase().includes(search.toLowerCase())),
   );
+
+  const switchAgent = async (id) => {
+    setSwitchingId(id);
+    try {
+      await axiosInstance.post("/switch-agent", { agent_id: id });
+      toast.success("Agent switched successfully.");
+      await fetchAgents();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to switch agent.");
+    } finally {
+      setSwitchingId(null);
+    }
+  };
 
   const createAgent = async () => {
     if (!newName.trim()) return;
@@ -461,8 +491,6 @@ function AgentsPage({ onBack }) {
   };
 
   const del = (id) => setAgents((p) => p.filter((a) => a.id !== id));
-  const swit = (id) =>
-    setAgents((p) => p.map((a) => ({ ...a, active: a.id === id })));
 
   const savePC = async () => {
     setPcSaving(true);
@@ -588,16 +616,36 @@ function AgentsPage({ onBack }) {
                   <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-900">{a.name}</td>
                   <td className="px-5 py-3.5 text-[13px] text-indigo-600 font-[500]">{a.email}</td>
                   <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${a.active ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${a.active ? "bg-green-500" : "bg-gray-400"}`} />
-                      {a.active ? "Active" : "Inactive"}
-                    </span>
+                    {(() => {
+                      const isCurrent = a.is_active && a.is_current;
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${
+                          isCurrent
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-red-50 text-red-600 border-red-200"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isCurrent ? "bg-green-500" : "bg-red-400"}`} />
+                          {isCurrent ? "Active" : "Inactive"}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      {!a.active && (
-                        <button onClick={() => swit(a.id)} className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition">
-                          Switch
+                      {a.is_current ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-green-50 border border-green-200 text-[11px] font-[600] text-green-700">
+                          Current
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => switchAgent(a.id)}
+                          disabled={switchingId === a.id}
+                          className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        >
+                          {switchingId === a.id ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : null}
+                          {switchingId === a.id ? "Switching…" : (a.is_active ? "Switch" : "Activate")}
                         </button>
                       )}
                       <button onClick={() => del(a.id)} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-600 hover:bg-red-100 transition">
@@ -633,14 +681,16 @@ function AgentsPage({ onBack }) {
             max="100"
             value={parallelCalls}
             onChange={(e) => setPC(Number(e.target.value))}
-            className="w-24 rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[14px] font-[600] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 text-center"
+            disabled={pcLoading}
+            className="w-24 rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[14px] font-[600] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 text-center disabled:opacity-50"
           />
           <button
             onClick={savePC}
-            disabled={pcSaving}
-            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={pcSaving || pcLoading}
+            className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
           >
-            {pcSaving ? "Saving…" : pcSaved ? "✓ Saved!" : "Submit"}
+            {pcSaving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+            {pcLoading ? "Loading…" : pcSaving ? "Saving…" : pcSaved ? "✓ Saved!" : "Submit"}
           </button>
         </div>
         {pcError && (
@@ -1092,29 +1142,354 @@ function SMTPProvidersPage({ onBack }) {
 }
 
 /* ── Leads ── */
-const INIT_LEADS = [
-  { id: 1, name: "Q1 Enterprise Targets", type: "CRM", total: 412 },
-  { id: 2, name: "SaaS Warm Leads", type: "Manual", total: 87 },
-  { id: 3, name: "APAC Director List", type: "CRM", total: 234 },
-];
-const LEAD_TYPES = ["CRM", "Manual", "CSV Import", "API"];
-
 function LeadsPage({ onBack }) {
-  const [leads, setLeads] = useState(INIT_LEADS);
-  const [showModal, setShow] = useState(false);
-  const [form, setForm] = useState({ name: "", type: "CRM" });
+  const fileRef = useRef(null);
+
+  /* ── All lists ── */
+  const [lists, setLists] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [viewItem, setView] = useState(null);
 
-  const filtered = leads.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()));
-  const create = () => {
-    if (!form.name.trim()) return;
-    setLeads((p) => [...p, { id: Date.now(), name: form.name.trim(), type: form.type, total: 0 }]);
-    setForm({ name: "", type: "CRM" });
-    setShow(false);
+  /* ── Create list wizard ── */
+  const wizardFileRef = useRef(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ name: "", sourceType: "" });
+  const [creating, setCreating] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);   // 1 = name+source, 2 = upload
+  const [createdListId, setCreatedListId] = useState(null);
+  const [wizardExcelFile, setWizardExcelFile] = useState(null);  // selected file (not yet uploaded)
+  const [wizardExcelUploading, setWizardExcelUploading] = useState(false);
+  const [wizardCrmImporting, setWizardCrmImporting] = useState(false);
+
+  /* ── Detail view ── */
+  const [viewList, setViewList] = useState(null);
+  const [listLeads, setListLeads] = useState([]);
+  const [listLeadsLoading, setListLeadsLoading] = useState(false);
+  const [leadSearch, setLeadSearch] = useState("");
+
+  /* ── Upload / import ── */
+  const [excelUploading, setExcelUploading] = useState(false);
+  const [crmImporting, setCrmImporting] = useState(false);
+  const [deletingLeadId, setDeletingLeadId] = useState(null);
+
+  /* ── GET /lead-lists ── */
+  const fetchLists = async () => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get("/lead-lists");
+      const d = res.data;
+      const raw = Array.isArray(d) ? d
+        : Array.isArray(d?.lists) ? d.lists
+        : Array.isArray(d?.data)  ? d.data
+        : [];
+      setLists(raw);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to load lead lists.");
+    } finally {
+      setLoading(false);
+    }
   };
-  const del = (id) => setLeads((p) => p.filter((l) => l.id !== id));
 
+  useEffect(() => { fetchLists(); }, []);
+
+  /* ── Wizard helpers ── */
+  const closeWizard = () => {
+    setShowCreate(false);
+    setForm({ name: "", sourceType: "" });
+    setWizardStep(1);
+    setCreatedListId(null);
+    setWizardExcelFile(null);
+    if (wizardFileRef.current) wizardFileRef.current.value = "";
+  };
+
+  /* ── POST /lead-lists (wizard step 1 — Continue button) ── */
+  const handleCreate = async () => {
+    if (!form.name.trim() || !form.sourceType) return;
+    setCreating(true);
+    try {
+      const res = await axiosInstance.post("/lead-lists", {
+        name: form.name.trim(),
+        source_type: form.sourceType,
+      });
+      const id = res.data?.id ?? res.data?.list_id ?? res.data?.data?.id ?? null;
+      setCreatedListId(id);
+      toast.success("Lead list created.");
+      setWizardStep(2); // always advance to step 2; user clicks Create there
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to create lead list.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  /* ── POST /lead-lists/{id}/upload-excel (wizard step 2 Create button) ── */
+  const handleWizardExcelUpload = async () => {
+    if (!wizardExcelFile || !createdListId) return;
+    setWizardExcelUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", wizardExcelFile);
+      await axiosInstance.post(`/lead-lists/${createdListId}/upload-excel`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Leads uploaded successfully.");
+      closeWizard();
+      fetchLists();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Excel upload failed.");
+    } finally {
+      setWizardExcelUploading(false);
+    }
+  };
+
+  /* ── POST /lead-lists/{id}/import-crm (wizard step 2 Create button) ── */
+  const handleWizardCRMImport = async (listId) => {
+    setWizardCrmImporting(true);
+    try {
+      await axiosInstance.post(`/lead-lists/${listId}/import-crm`);
+      toast.success("CRM import started successfully.");
+      closeWizard();
+      fetchLists();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "CRM import failed.");
+    } finally {
+      setWizardCrmImporting(false);
+    }
+  };
+
+  /* ── GET /lead-lists/{id} ── */
+  const openDetail = async (list) => {
+    setViewList(list);
+    setListLeads([]);
+    setLeadSearch("");
+    setListLeadsLoading(true);
+    try {
+      const res = await axiosInstance.get(`/lead-lists/${list.id}`);
+      const d = res.data;
+      // Actual API: { list: {...}, leads: [...], total_leads, page, page_size }
+      // Update viewList with the richer detail response (has total_leads, etc.)
+      if (d?.list && typeof d.list === "object") setViewList(d.list);
+      const raw = Array.isArray(d?.leads)   ? d.leads
+        : Array.isArray(d?.data)            ? d.data
+        : Array.isArray(d?.items)           ? d.items
+        : Array.isArray(d?.results)         ? d.results
+        : Array.isArray(d)                  ? d
+        : [];
+      setListLeads(raw);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to load leads.");
+    } finally {
+      setListLeadsLoading(false);
+    }
+  };
+
+  /* ── POST /lead-lists/{id}/upload-excel ── */
+  const handleExcelUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !viewList) return;
+    setExcelUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await axiosInstance.post(`/lead-lists/${viewList.id}/upload-excel`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Excel uploaded successfully.");
+      openDetail(viewList);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Excel upload failed.");
+    } finally {
+      setExcelUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  /* ── POST /lead-lists/{id}/import-crm ── */
+  const handleCRMImport = async () => {
+    if (!viewList) return;
+    setCrmImporting(true);
+    try {
+      await axiosInstance.post(`/lead-lists/${viewList.id}/import-crm`);
+      toast.success("CRM import started. Refreshing leads…");
+      openDetail(viewList);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "CRM import failed.");
+    } finally {
+      setCrmImporting(false);
+    }
+  };
+
+  /* ── DELETE /lead-lists/{list_id}/leads/{list_lead_id} ── */
+  const handleDeleteLead = async (leadId) => {
+    if (!viewList) return;
+    setDeletingLeadId(leadId);
+    try {
+      await axiosInstance.delete(`/lead-lists/${viewList.id}/leads/${leadId}`);
+      setListLeads((p) => p.filter((l) => (l.id ?? l._id ?? l.list_lead_id) !== leadId));
+      toast.success("Lead removed from list.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to remove lead.");
+    } finally {
+      setDeletingLeadId(null);
+    }
+  };
+
+  const filteredLists = lists.filter((l) =>
+    (l.name ?? "").toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredLeads = listLeads.filter((l) => {
+    const q = leadSearch.toLowerCase();
+    const ld = l.lead_data ?? {};
+    return (
+      (ld.name ?? "").toLowerCase().includes(q) ||
+      (ld.email_address ?? "").toLowerCase().includes(q) ||
+      (ld.contact_number ?? "").toLowerCase().includes(q) ||
+      (ld.company ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  /* ════ DETAIL VIEW ════ */
+  if (viewList) {
+    return (
+      <div>
+        <PageHeader
+          title={viewList.name ?? "Lead List"}
+          subtitle={`${viewList.total_leads ?? listLeads.length} lead${(viewList.total_leads ?? listLeads.length) !== 1 ? "s" : ""}`}
+          onBack={() => { setViewList(null); setListLeads([]); setLeadSearch(""); }}
+          action={
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleExcelUpload}
+              />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={excelUploading}
+                className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-[12px] font-[600] text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+              >
+                {excelUploading
+                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  : <Upload className="h-3.5 w-3.5" />}
+                {excelUploading ? "Uploading…" : "Upload Excel"}
+              </button>
+              <button
+                onClick={handleCRMImport}
+                disabled={crmImporting}
+                className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition shadow-sm disabled:opacity-50"
+              >
+                {crmImporting
+                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  : <Database className="h-3.5 w-3.5" />}
+                {crmImporting ? "Importing…" : "Import from CRM"}
+              </button>
+            </div>
+          }
+        />
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+            <span className="text-[13px] font-[600] text-gray-900">Leads in &quot;{viewList.name}&quot;</span>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <input
+                value={leadSearch}
+                onChange={(e) => setLeadSearch(e.target.value)}
+                placeholder="Search leads…"
+                className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+
+          {listLeadsLoading ? (
+            <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">Loading leads…</div>
+          ) : (
+            <>
+              <div className="overflow-x-auto scrollbar-thin">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      {["#", "Name", "Email", "Phone", "Company", "Status", "Channels", ""].map((h) => (
+                        <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLeads.length === 0 ? (
+                      <tr><td colSpan={8} className="px-5 py-12 text-center text-[13px] text-gray-400">No leads found</td></tr>
+                    ) : (
+                      filteredLeads.map((lead, i) => {
+                        const leadId = lead.id ?? lead._id ?? lead.list_lead_id ?? i;
+                        const ld = lead.lead_data ?? {};
+                        const fullName = ld.name ?? "—";
+                        const email   = ld.email_address ?? "—";
+                        const phone   = ld.contact_number ?? "—";
+                        const company = ld.company ?? "—";
+                        const status  = ld.lead_status ?? ld.lead_rating ?? null;
+                        const statusCls =
+                          status === "dead"      ? "bg-red-50 text-red-600 border-red-200" :
+                          status === "active"    ? "bg-green-50 text-green-700 border-green-200" :
+                          status === "converted" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                          "bg-gray-100 text-gray-600 border-gray-200";
+                        return (
+                          <tr key={leadId} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                            <td className="px-5 py-3.5 text-[12px] text-gray-400">{i + 1}</td>
+                            <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-800 whitespace-nowrap max-w-[160px] truncate">{fullName}</td>
+                            <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">{email}</td>
+                            <td className="px-5 py-3.5 text-[12px] text-gray-600 font-mono whitespace-nowrap">{phone}</td>
+                            <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">{company}</td>
+                            <td className="px-5 py-3.5">
+                              {status ? (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[700] capitalize border ${statusCls}`}>
+                                  {status}
+                                </span>
+                              ) : <span className="text-gray-300">—</span>}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-1.5">
+                                {lead.call_enabled && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-[700] border border-indigo-100">Call</span>
+                                )}
+                                {lead.email_enabled && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-600 text-[10px] font-[700] border border-sky-100">Email</span>
+                                )}
+                                {lead.whatsapp_enabled && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-green-50 text-green-600 text-[10px] font-[700] border border-green-100">WA</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <button
+                                onClick={() => handleDeleteLead(leadId)}
+                                disabled={deletingLeadId === leadId}
+                                className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
+                                title="Remove lead from list"
+                              >
+                                {deletingLeadId === leadId
+                                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                  : <Trash2 className="h-4 w-4" />}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
+                {filteredLeads.length} of {viewList.total_leads ?? listLeads.length} leads
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ════ LISTS VIEW ════ */
   return (
     <div>
       <PageHeader
@@ -1122,89 +1497,267 @@ function LeadsPage({ onBack }) {
         subtitle="Manage lead sources and lists for your campaigns"
         onBack={onBack}
         action={
-          <button onClick={() => setShow(true)} className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
+          >
             <Plus className="h-4 w-4" />Create
           </button>
         }
       />
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
           <span className="text-[13px] font-[600] text-gray-900">All Lead Lists</span>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search leads…"
-              className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchLists}
+              disabled={loading}
+              className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search lists…"
+                className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400"
+              />
+            </div>
           </div>
         </div>
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100">
-              {["Name", "Source Type", "Total Leads", "View", "Delete"].map((h) => (
-                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">No lead lists found</td></tr>
-            ) : (
-              filtered.map((l, i) => (
-                <tr key={l.id} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
-                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{l.name}</td>
-                  <td className="px-5 py-3.5">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-[600] ${l.type === "CRM" ? "bg-blue-50 text-blue-700" : l.type === "Manual" ? "bg-amber-50 text-amber-700" : "bg-teal-50 text-teal-700"}`}>
-                      {l.type}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] font-[700] text-gray-800">{l.total.toLocaleString()}</td>
-                  <td className="px-5 py-3.5">
-                    <button onClick={() => setView(l)} className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition">
-                      <Eye className="h-3.5 w-3.5" />View
-                    </button>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <button onClick={() => del(l.id)} className="text-red-400 hover:text-red-600 transition">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">Loading lead lists…</div>
+        ) : (
+          <>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {["Name", "Total Leads", "Created", "Action"].map((h) => (
+                    <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">{leads.length} results</div>
+              </thead>
+              <tbody>
+                {filteredLists.length === 0 ? (
+                  <tr><td colSpan={4} className="px-5 py-12 text-center text-[13px] text-gray-400">No lead lists found</td></tr>
+                ) : (
+                  filteredLists.map((l, i) => (
+                    <tr key={l.id ?? i} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                      <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{l.name}</td>
+                      <td className="px-5 py-3.5 text-[13px] font-[700] text-indigo-700">
+                        {(l.total_leads ?? l.total ?? l.lead_count ?? l.count ?? 0).toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3.5 text-[12px] text-gray-500">
+                        {l.created_at
+                          ? new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                          : "—"}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <button
+                          onClick={() => openDetail(l)}
+                          className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
+                        >
+                          <Eye className="h-3.5 w-3.5" />View Leads
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">{lists.length} lists</div>
+          </>
+        )}
       </div>
 
-      {showModal && (
-        <Modal title="Create Lead List" onClose={() => setShow(false)}>
-          <div className="space-y-4">
-            <Field label="Name" required placeholder="e.g. Q2 Enterprise Targets" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            <SelectField label="Type" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} options={LEAD_TYPES} />
-            <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
-              <button onClick={() => setShow(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={create} className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition">Submit</button>
-            </div>
+      {showCreate && (
+        <Modal
+          title={wizardStep === 1 ? "Create Lead List" : form.sourceType === "excel" ? "Upload Excel" : "Import from CRM"}
+          onClose={closeWizard}
+        >
+          {/* ── Step indicator ── */}
+          <div className="flex items-center gap-2 mb-5">
+            {["Details", form.sourceType === "crm" ? "Import CRM" : "Upload Excel"].map((label, i) => (
+              <div key={i} className="flex items-center gap-2">
+                {i > 0 && <div className={`h-px w-8 ${wizardStep > i ? "bg-indigo-400" : "bg-gray-200"}`} />}
+                <div className={`flex items-center gap-1.5 text-[11px] font-[600] px-2.5 py-1 rounded-full border transition ${
+                  wizardStep === i + 1
+                    ? "bg-[#6366f1] text-white border-[#6366f1]"
+                    : wizardStep > i + 1
+                    ? "bg-green-50 text-green-700 border-green-200"
+                    : "bg-gray-100 text-gray-400 border-gray-200"
+                }`}>
+                  <span>{i + 1}</span> <span>{label}</span>
+                </div>
+              </div>
+            ))}
           </div>
-        </Modal>
-      )}
 
-      {viewItem && (
-        <Modal title={viewItem.name} onClose={() => setView(null)}>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-gray-50 p-4">
-                <p className="text-[11px] font-[600] uppercase tracking-wide text-gray-400 mb-1">Source Type</p>
-                <p className="text-[16px] font-[700] text-gray-800">{viewItem.type}</p>
+          {/* ══ STEP 1: Name + Source Type ══ */}
+          {wizardStep === 1 && (
+            <div className="space-y-4">
+              <Field
+                label="List Name" required
+                placeholder="e.g. Q2 Enterprise Targets"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              />
+              <div>
+                <label className="block text-[12px] font-[600] text-gray-700 mb-2">
+                  Source Type <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: "excel", label: "Excel / CSV", icon: Upload, desc: "Upload a spreadsheet file" },
+                    { value: "crm",   label: "CRM",         icon: Database, desc: "Import directly from CRM" },
+                  ].map(({ value, label, icon: Icon, desc }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, sourceType: value }))}
+                      className={`flex flex-col items-start gap-1 rounded-xl border-2 px-4 py-3.5 text-left transition ${
+                        form.sourceType === value
+                          ? "border-[#6366f1] bg-[#6366f1]/5"
+                          : "border-gray-200 bg-gray-50/60 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className={`flex items-center gap-2 font-[700] text-[13px] ${
+                        form.sourceType === value ? "text-[#6366f1]" : "text-gray-800"
+                      }`}>
+                        <Icon className="h-4 w-4" />{label}
+                      </div>
+                      <p className="text-[11px] text-gray-400">{desc}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="rounded-xl bg-gray-50 p-4">
-                <p className="text-[11px] font-[600] uppercase tracking-wide text-gray-400 mb-1">Total Leads</p>
-                <p className="text-[16px] font-[700] text-indigo-700">{viewItem.total.toLocaleString()}</p>
+              <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
+                <button
+                  onClick={closeWizard}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreate}
+                  disabled={creating || !form.name.trim() || !form.sourceType}
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
+                >
+                  {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
+                  {creating ? "Creating…" : "Continue →"}
+                </button>
               </div>
             </div>
-            <p className="text-[13px] text-gray-500 text-center py-4">
-              Detailed lead records will display here when connected to a live data source.
-            </p>
-          </div>
+          )}
+
+          {/* ══ STEP 2 — EXCEL ══ */}
+          {wizardStep === 2 && form.sourceType === "excel" && (
+            <div className="space-y-5">
+              <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/60 p-6">
+                <p className="text-[13px] font-[600] text-gray-700 mb-1 text-center">Select your Excel / CSV file</p>
+                <p className="text-[11px] text-gray-400 mb-4 text-center">.xlsx, .xls or .csv — leads will be imported into <span className="font-[600] text-gray-600">{form.name}</span></p>
+                <input
+                  ref={wizardFileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setWizardExcelFile(f);
+                  }}
+                />
+                <div className="flex flex-col items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => wizardFileRef.current?.click()}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 bg-white text-[12px] font-[600] text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {wizardExcelFile ? "Change File" : "Choose File"}
+                  </button>
+                  {wizardExcelFile && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                      <span className="text-[12px] font-[500] text-green-700 truncate max-w-[220px]">{wizardExcelFile.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                <button
+                  onClick={() => { setWizardStep(1); setWizardExcelFile(null); if (wizardFileRef.current) wizardFileRef.current.value = ""; }}
+                  className="text-[12px] text-gray-500 hover:text-gray-700 transition"
+                >
+                  ← Back
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={closeWizard}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleWizardExcelUpload}
+                    disabled={wizardExcelUploading || !wizardExcelFile}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
+                  >
+                    {wizardExcelUploading
+                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Uploading…</>
+                      : <><Plus className="h-3.5 w-3.5" />Create</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══ STEP 2 — CRM ══ */}
+          {wizardStep === 2 && form.sourceType === "crm" && (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-gray-100 bg-indigo-50/60 p-6 text-center">
+                <Database className="mx-auto h-8 w-8 text-indigo-300 mb-3" />
+                <p className="text-[13px] font-[600] text-gray-700 mb-1">Import from CRM</p>
+                <p className="text-[11px] text-gray-400">
+                  All CRM contacts will be pulled into{" "}
+                  <span className="font-[600] text-gray-600">{form.name}</span>
+                </p>
+              </div>
+              <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                <button
+                  onClick={() => setWizardStep(1)}
+                  disabled={wizardCrmImporting}
+                  className="text-[12px] text-gray-500 hover:text-gray-700 transition disabled:opacity-40"
+                >
+                  ← Back
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={closeWizard}
+                    disabled={wizardCrmImporting}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition disabled:opacity-40"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleWizardCRMImport(createdListId)}
+                    disabled={wizardCrmImporting}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
+                  >
+                    {wizardCrmImporting
+                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Importing…</>
+                      : <><Plus className="h-3.5 w-3.5" />Create</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
     </div>
@@ -1212,42 +1765,144 @@ function LeadsPage({ onBack }) {
 }
 
 /* ── Mappings ── */
-const DEFAULT_MAPPINGS = [
-  { id: 1, crm: "first_name", local: "First Name" },
-  { id: 2, crm: "last_name", local: "Last Name" },
-  { id: 3, crm: "email", local: "Email Address" },
-  { id: 4, crm: "company", local: "Company" },
-  { id: 5, crm: "phone", local: "Phone" },
-  { id: 6, crm: "title", local: "Job Title" },
-  { id: 7, crm: "industry", local: "Industry" },
-  { id: 8, crm: "lead_source", local: "Lead Source" },
-  { id: 9, crm: "annual_revenue", local: "Annual Revenue" },
+const SYSTEM_FIELD_KEYS = [
+  { key: "name",                      label: "Name" },
+  { key: "contact_number",            label: "Contact Number" },
+  { key: "email_address",             label: "Email Address" },
+  { key: "company",                   label: "Company" },
+  { key: "title",                     label: "Title" },
+  { key: "lead_status",               label: "Lead Status" },
+  { key: "lead_rating",               label: "Lead Rating" },
+  { key: "lead_source",               label: "Lead Source" },
+  { key: "lead_owner_email",          label: "Lead Owner Email" },
+  { key: "notes",                     label: "Notes" },
+  { key: "description",              label: "Description" },
+  { key: "activities",               label: "Activities" },
+  { key: "comments",                 label: "Comments" },
+  { key: "attachments",              label: "Attachments" },
+  { key: "tasks",                    label: "Tasks" },
+  { key: "address_street",           label: "Address Street" },
+  { key: "address_city",             label: "Address City" },
+  { key: "address_state",            label: "Address State" },
+  { key: "address_zip_code",         label: "Address Zip Code" },
+  { key: "address_country",          label: "Address Country" },
+  { key: "client_type",              label: "Client Type" },
+  { key: "business_area",            label: "Business Area" },
+  { key: "reason_not_interested",    label: "Reason Not Interested" },
+  { key: "reason_not_interested_other", label: "Reason Not Interested (Other)" },
+  { key: "project_name",             label: "Project Name" },
+  { key: "project_type",             label: "Project Type" },
+  { key: "website",                  label: "Website" },
+  { key: "industry",                 label: "Industry" },
+  { key: "no_of_employees",          label: "No. of Employees" },
+  { key: "annual_revenue",           label: "Annual Revenue" },
+  { key: "add_prompt",               label: "Add Prompt" },
+  { key: "last_follow_up_date",      label: "Last Follow-up Date" },
+  { key: "last_modified_date",       label: "Last Modified Date" },
+  { key: "linkedin_url",             label: "LinkedIn URL" },
 ];
 
 function MappingsPage({ onBack }) {
-  const [mappings, setMappings] = useState(DEFAULT_MAPPINGS);
-  const [saved, setSaved] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
-  const [newMap, setNewMap] = useState({ crm: "", local: "" });
-  const [search, setSearch] = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [saving,  setSaving]          = useState(false);
+  const [saved,   setSaved]           = useState(false);
+  const [saveError, setSaveError]     = useState("");
+  const [search,  setSearch]          = useState("");
+  const [showAdd, setShowAdd]         = useState(false);
+  const [newMap,  setNewMap]          = useState({ sysKey: "", crmField: "" });
 
-  const filtered = mappings.filter(
-    (m) => m.crm.includes(search.toLowerCase()) || m.local.toLowerCase().includes(search.toLowerCase()),
+  /* Integration URL config */
+  const [config, setConfig] = useState({
+    integration_mode: "rest",
+    crm_type: "",
+    fetch_leads_url: "",
+    fetch_details_url: "",
+    update_results_url: "",
+    send_email_url: "",
+  });
+
+  /* Rows: { id, apiKey, crmField }
+     apiKey  = system key used in POST payload (e.g. "name")
+     crmField = what the CRM calls this field (editable, e.g. "first_name") */
+  const [mappings, setMappings] = useState(
+    SYSTEM_FIELD_KEYS.map((f) => ({ id: f.key, apiKey: f.key, label: f.label, crmField: "", isCustom: false }))
   );
 
-  const update = (id, val) => setMappings((p) => p.map((m) => (m.id === id ? { ...m, local: val } : m)));
+  /* ── Load existing config on mount ── */
+  useEffect(() => {
+    setLoading(true);
+    axiosInstance.get("/get-integration-config")
+      .then((res) => {
+        const d = res.data ?? {};
+        setConfig({
+          integration_mode: d.integration_mode ?? "rest",
+          crm_type:         d.crm_type         ?? "",
+          fetch_leads_url:    d.fetch_leads_url    ?? "",
+          fetch_details_url:  d.fetch_details_url  ?? "",
+          update_results_url: d.update_results_url ?? "",
+          send_email_url:     d.send_email_url     ?? "",
+        });
+        const fm = d.field_mappings ?? {};
+        /* Populate predefined rows with API values */
+        setMappings((prev) =>
+          prev.map((m) => ({
+            ...m,
+            crmField: fm[m.apiKey] !== undefined ? String(fm[m.apiKey]) : m.crmField,
+          }))
+        );
+        /* Append any extra custom keys from API not in predefined list */
+        const knownKeys = new Set(SYSTEM_FIELD_KEYS.map((f) => f.key));
+        const extras = Object.entries(fm)
+          .filter(([k]) => !knownKeys.has(k))
+          .map(([k, v]) => ({ id: k, apiKey: k, label: k, crmField: String(v ?? ""), isCustom: true }));
+        if (extras.length > 0) setMappings((prev) => [...prev, ...extras]);
+      })
+      .catch(() => {}) /* silently ignore — user fills manually */
+      .finally(() => setLoading(false));
+  }, []);
+
+  const updateCrmField = (id, val) =>
+    setMappings((p) => p.map((m) => (m.id === id ? { ...m, crmField: val } : m)));
+
   const remove = (id) => setMappings((p) => p.filter((m) => m.id !== id));
+
   const addMapping = () => {
-    if (!newMap.crm.trim() || !newMap.local.trim()) return;
-    setMappings((p) => [...p, { id: Date.now(), crm: newMap.crm.trim(), local: newMap.local.trim() }]);
-    setNewMap({ crm: "", local: "" });
+    if (!newMap.sysKey.trim()) return;
+    const key = newMap.sysKey.trim();
+    setMappings((p) => [
+      ...p,
+      { id: `custom_${Date.now()}`, apiKey: key, label: key, crmField: newMap.crmField.trim(), isCustom: true },
+    ]);
+    setNewMap({ sysKey: "", crmField: "" });
     setShowAdd(false);
   };
-  const submit = (e) => {
+
+  const submit = async (e) => {
     e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSaving(true);
+    setSaveError("");
+    try {
+      const field_mappings = {};
+      mappings.forEach((m) => { field_mappings[m.apiKey] = m.crmField; });
+      await axiosInstance.post("/save-integration-config", { ...config, field_mappings });
+      setSaved(true);
+      toast.success("Integration config saved.");
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to save. Please try again.";
+      setSaveError(msg);
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const filtered = mappings.filter(
+    (m) =>
+      m.apiKey.includes(search.toLowerCase()) ||
+      m.label.toLowerCase().includes(search.toLowerCase()) ||
+      m.crmField.toLowerCase().includes(search.toLowerCase()),
+  );
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-120px)]">
@@ -1263,11 +1918,84 @@ function MappingsPage({ onBack }) {
       />
 
       <form onSubmit={submit} className="flex flex-col flex-1 gap-4">
+
+        {/* ── Integration Config Section ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <h2 className="text-[13px] font-[700] text-gray-800 mb-4 flex items-center gap-2">
+            <Globe className="h-4 w-4 text-indigo-500" />
+            Integration Configuration
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Integration Mode</label>
+              <div className="relative">
+                <select
+                  value={config.integration_mode}
+                  onChange={(e) => setConfig((p) => ({ ...p, integration_mode: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 appearance-none cursor-pointer"
+                >
+                  <option value="rest">REST</option>
+                  <option value="graphql">GraphQL</option>
+                  <option value="webhook">Webhook</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">CRM Type</label>
+              <input
+                value={config.crm_type}
+                onChange={(e) => setConfig((p) => ({ ...p, crm_type: e.target.value }))}
+                placeholder="e.g. salesforce, hubspot, zoho"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Fetch Leads URL</label>
+              <input
+                value={config.fetch_leads_url}
+                onChange={(e) => setConfig((p) => ({ ...p, fetch_leads_url: e.target.value }))}
+                placeholder="https://your-crm.com/api/leads"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Fetch Details URL</label>
+              <input
+                value={config.fetch_details_url}
+                onChange={(e) => setConfig((p) => ({ ...p, fetch_details_url: e.target.value }))}
+                placeholder="https://your-crm.com/api/leads/{id}"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Update Results URL</label>
+              <input
+                value={config.update_results_url}
+                onChange={(e) => setConfig((p) => ({ ...p, update_results_url: e.target.value }))}
+                placeholder="https://your-crm.com/api/leads/{id}/update"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Send Email URL</label>
+              <input
+                value={config.send_email_url}
+                onChange={(e) => setConfig((p) => ({ ...p, send_email_url: e.target.value }))}
+                placeholder="https://your-crm.com/api/send-email"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Field Mappings Table ── */}
         <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 gap-4">
             <div className="flex items-center gap-3">
               <span className="text-[13px] font-[600] text-gray-800">All Mappings</span>
               <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-[600] text-gray-500">{mappings.length} fields</span>
+              {loading && <span className="text-[11px] text-violet-400 animate-pulse">Loading…</span>}
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
@@ -1288,8 +2016,8 @@ function MappingsPage({ onBack }) {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">#</th>
-                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400 flex items-center gap-1.5">
-                    <Database className="h-3 w-3" />CRM Field
+                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">
+                    <span className="flex items-center gap-1.5"><Database className="h-3 w-3" />CRM Field</span>
                   </th>
                   <th className="px-2 py-3" />
                   <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">System Field</th>
@@ -1300,7 +2028,7 @@ function MappingsPage({ onBack }) {
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-5 py-14 text-center text-[13px] text-gray-400">
-                      {search ? "No matching fields." : 'No mappings yet. Click "Add Field" to get started.'}
+                      {search ? "No matching fields." : 'No mappings found.'}
                     </td>
                   </tr>
                 ) : (
@@ -1308,7 +2036,7 @@ function MappingsPage({ onBack }) {
                     <tr key={m.id} className="border-b border-gray-50 hover:bg-violet-50/40 transition-colors group">
                       <td className="px-5 py-3.5 text-[12px] text-gray-400 font-mono">{i + 1}</td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-[12px] text-gray-600 font-mono">{m.crm}</span>
+                        <span className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-[12px] text-gray-600 font-mono">{m.apiKey}</span>
                       </td>
                       <td className="px-2 py-3.5 text-center text-gray-300 group-hover:text-violet-400 transition-colors">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -1316,11 +2044,19 @@ function MappingsPage({ onBack }) {
                         </svg>
                       </td>
                       <td className="px-5 py-3">
-                        <input value={m.local} onChange={(e) => update(m.id, e.target.value)}
-                          className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2 text-[13px] text-gray-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-400/20 hover:border-gray-300" />
+                        <input
+                          value={m.crmField}
+                          onChange={(e) => updateCrmField(m.id, e.target.value)}
+                          placeholder={`Enter your CRM field name…`}
+                          className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2 text-[13px] text-gray-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-400/20 hover:border-gray-300"
+                        />
                       </td>
                       <td className="px-5 py-3.5 text-center">
-                        <button type="button" onClick={() => remove(m.id)} className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-90 transition">
+                        <button
+                          type="button"
+                          onClick={() => remove(m.id)}
+                          className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-90 transition"
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </td>
@@ -1334,19 +2070,42 @@ function MappingsPage({ onBack }) {
 
         <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 w-full">
           <p className="text-[12px] text-gray-400">
-            <span className="font-[600] text-gray-700">{mappings.length}</span> mappings configured
+            {saveError
+              ? <span className="text-red-500 font-[500]">{saveError}</span>
+              : <><span className="font-[600] text-gray-700">{mappings.length}</span> mappings configured</>}
           </p>
-          <button type="submit" className="rounded-xl bg-[#0a0a0a] px-7 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm">
-            {saved ? "✓ Saved!" : "Save Mappings"}
+          <button
+            type="submit"
+            disabled={saving || loading}
+            className="flex items-center gap-2 rounded-xl bg-[#0a0a0a] px-7 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+            {saving ? "Saving…" : saved ? "✓ Saved!" : "Save Mappings"}
           </button>
         </div>
       </form>
 
       {showAdd && (
-        <Modal title="Add Field Mapping" onClose={() => setShowAdd(false)}>
+        <Modal title="Add Custom Field Mapping" onClose={() => setShowAdd(false)}>
           <div className="space-y-4">
-            <Field label="CRM Field Key" required placeholder="e.g. lead_owner" value={newMap.crm} onChange={(e) => setNewMap((p) => ({ ...p, crm: e.target.value }))} icon={Database} />
-            <Field label="System Field Label" required placeholder="e.g. Lead Owner" value={newMap.local} onChange={(e) => setNewMap((p) => ({ ...p, local: e.target.value }))} />
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">System Field Key <span className="text-red-500">*</span></label>
+              <input
+                placeholder="e.g. custom_field"
+                value={newMap.sysKey}
+                onChange={(e) => setNewMap((p) => ({ ...p, sysKey: e.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">CRM Field Value</label>
+              <input
+                placeholder="e.g. custom_crm_field"
+                value={newMap.crmField}
+                onChange={(e) => setNewMap((p) => ({ ...p, crmField: e.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              />
+            </div>
             <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
               <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition">Cancel</button>
               <button onClick={addMapping} className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition">Add</button>

@@ -56,6 +56,9 @@ import {
   DELETE_CAMPAIGN_REQUEST,
   DELETE_CAMPAIGN_SUCCESS,
   DELETE_CAMPAIGN_FAILURE,
+  INBOUND_HISTORY_REQUEST,
+  INBOUND_HISTORY_SUCCESS,
+  INBOUND_HISTORY_FAILURE,
 } from "../types/userTypes";
 
 const initialState = {
@@ -103,6 +106,10 @@ const initialState = {
   updatingCampaign: false,
   // 🗑️ Delete Campaign
   deletingCampaign: false,
+  // 📞 Inbound Call History
+  inboundCallHistory: [],
+  inboundHistoryLoading: false,
+  inboundHistoryError: null,
 };
 
 const adminReducers = (state = initialState, action) => {
@@ -315,6 +322,14 @@ const adminReducers = (state = initialState, action) => {
       };
     case DELETE_CAMPAIGN_FAILURE:
       return { ...state, deletingCampaign: false };
+
+    // 📞 Inbound Call History
+    case INBOUND_HISTORY_REQUEST:
+      return { ...state, inboundHistoryLoading: true, inboundHistoryError: null };
+    case INBOUND_HISTORY_SUCCESS:
+      return { ...state, inboundHistoryLoading: false, inboundCallHistory: action.payload };
+    case INBOUND_HISTORY_FAILURE:
+      return { ...state, inboundHistoryLoading: false, inboundHistoryError: action.payload };
 
     default:
       return state;

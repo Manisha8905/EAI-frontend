@@ -50,6 +50,9 @@ import {
   DELETE_CAMPAIGN_REQUEST,
   DELETE_CAMPAIGN_SUCCESS,
   DELETE_CAMPAIGN_FAILURE,
+  INBOUND_HISTORY_REQUEST,
+  INBOUND_HISTORY_SUCCESS,
+  INBOUND_HISTORY_FAILURE,
 } from "../types/userTypes";
 
 import axiosInstance from "../axiosInstance";
@@ -404,9 +407,11 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
 };
 
 // 📋 Create Campaign
-export const createCampaign = (formData, onSuccess) => async (dispatch) => {
+export const createCampaign = (formData, agent_id, onSuccess) => async (dispatch) => {
   try {
-    const res = await axiosInstance.post("/create-campaign", formData);
+    const headers = {};
+    if (agent_id) headers["X-Agent-ID"] = agent_id;
+    const res = await axiosInstance.post("/create-campaign", formData, { headers });
     toast.success(res?.data?.message ?? "Campaign created successfully!");
     dispatch(listCampaigns({ page: 1, page_size: 20 }));
     if (onSuccess) onSuccess();
@@ -577,11 +582,35 @@ export const fetchWhatsappHistory = (campaignId) => async (dispatch) => {
   }
 };
 
+// 📞 Inbound Call History  —  GET /api/inbound/calls/history
+export const fetchInboundCallHistory = () => async (dispatch) => {
+  dispatch({ type: INBOUND_HISTORY_REQUEST });
+  try {
+    const res = await axiosInstance.get("/api/inbound/calls/history");
+    const raw = extractArray(res.data);
+    const normalized = raw.map((r) => ({
+      name:     r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",
+      phone:    r.phone_number    ?? r.phone         ?? r.contact_phone ?? "—",
+      company:  r.company_name    ?? r.company       ?? r.organization  ?? "—",
+      dateTime: r.call_time       ?? r.created_at    ?? r.date          ?? "—",
+      duration: r.duration        ?? r.call_duration ?? "0",
+      status:   (r.call_status    ?? r.status        ?? "").toUpperCase(),
+      meeting:  r.meeting_scheduled ?? r.meeting     ?? r.is_meeting_scheduled ?? false,
+    }));
+    dispatch({ type: INBOUND_HISTORY_SUCCESS, payload: normalized });
+  } catch (err) {
+    dispatch({ type: INBOUND_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load inbound call history." });
+    toast.error(err?.response?.data?.message || "Failed to load inbound call history.");
+  }
+};
+
 // ✏️ Update Campaign  —  PATCH /update-campaign/{campaign_id}
-export const updateCampaign = (campaignId, formData, onSuccess) => async (dispatch) => {
+export const updateCampaign = (campaignId, formData, agent_id, onSuccess) => async (dispatch) => {
   dispatch({ type: UPDATE_CAMPAIGN_REQUEST });
   try {
-    const res = await axiosInstance.patch(`/update-campaign/${campaignId}`, formData);
+    const headers = {};
+    if (agent_id) headers["X-Agent-ID"] = agent_id;
+    const res = await axiosInstance.patch(`/update-campaign/${campaignId}`, formData, { headers });
     dispatch({ type: UPDATE_CAMPAIGN_SUCCESS });
     toast.success(res?.data?.message ?? "Campaign updated successfully!");
     dispatch(listCampaigns({ page: 1, page_size: 20 }));
