@@ -482,9 +482,7 @@ const extractArray = (data) => {
 export const fetchCallHistory = (campaignId) => async (dispatch) => {
   dispatch({ type: CALL_HISTORY_REQUEST });
   try {
-    const res = await axiosInstance.get("/users/call-history/", {
-      params: { campaign_id: campaignId },
-    });
+    const res = await axiosInstance.get(`/campaigns/${campaignId}/call-history/`);
     const raw = extractArray(res.data);
     const normalized = raw.map((r) => ({
       name:       r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",

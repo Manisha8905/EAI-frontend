@@ -398,7 +398,6 @@ function AgentsPage({ onBack }) {
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [fetchError, setFetchError] = useState("");
   const [newName, setNewName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
   const [parallelCalls, setPC] = useState(0);
   const [pcLoading, setPcLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -419,7 +418,10 @@ function AgentsPage({ onBack }) {
         list.map((a) => ({
           id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
           name: a.agent_name ?? a.name ?? "—",
-          email: a.email ?? "—",
+          created_at: a.created_at ?? "—",
+          created_at_display: a.created_at
+            ? new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : "—",
           is_active: a.is_active ?? false,
           is_current: a.is_current ?? false,
         }))
@@ -453,7 +455,7 @@ function AgentsPage({ onBack }) {
   const filtered = agents.filter(
     (a) =>
       a.name.toLowerCase().includes(search.toLowerCase()) ||
-      (a.email !== "—" && a.email.toLowerCase().includes(search.toLowerCase())),
+      (a.created_at !== "—" && a.created_at.toLowerCase().includes(search.toLowerCase())),
   );
 
   const switchAgent = async (id) => {
@@ -478,7 +480,6 @@ function AgentsPage({ onBack }) {
         agent_name: newName.trim(),
       });
       setNewName("");
-      setNewEmail("");
       await fetchAgents();
     } catch (err) {
       setCreateError(
@@ -535,20 +536,10 @@ function AgentsPage({ onBack }) {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Enter agent name"
-              className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
             />
           </div>
-          <div className="flex-1 min-w-[160px]">
-            <label className="block text-[11px] font-[600] text-gray-600 mb-1">
-              Email
-            </label>
-            <input
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="agent@company.com"
-              className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
-            />
-          </div>
+      
           <button
             onClick={createAgent}
             disabled={creating}
@@ -583,7 +574,7 @@ function AgentsPage({ onBack }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {["Agent Name", "Email", "Status", "Action"].map((h) => (
+              {["Agent Name", "Date", "Status", "Action"].map((h) => (
                 <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
               ))}
             </tr>
@@ -614,7 +605,7 @@ function AgentsPage({ onBack }) {
                   className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                 >
                   <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-900">{a.name}</td>
-                  <td className="px-5 py-3.5 text-[13px] text-indigo-600 font-[500]">{a.email}</td>
+                  <td className="px-5 py-3.5 text-[13px] text-gray-500">{a.created_at_display}</td>
                   <td className="px-5 py-3.5">
                     {(() => {
                       const isCurrent = a.is_active && a.is_current;
@@ -622,10 +613,10 @@ function AgentsPage({ onBack }) {
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${
                           isCurrent
                             ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-red-50 text-red-600 border-red-200"
+                            : "bg-green-50 text-green-700 border-green-200"
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isCurrent ? "bg-green-500" : "bg-red-400"}`} />
-                          {isCurrent ? "Active" : "Inactive"}
+                          <span className={`w-1.5 h-1.5 rounded-full ${isCurrent ? "bg-green-500" : "bg-green-500"}`} />
+                          {isCurrent ? "Active" : "Active"}
                         </span>
                       );
                     })()}
@@ -2123,9 +2114,79 @@ function MappingsPage({ onBack }) {
 export default function Setting() {
   const [activePage, setActivePage] = useState(null);
   const [emailPlatform, setEP] = useState("SMTP");
-  const [smtpProvider, setSMTP] = useState("Mailgun");
+  const [smtpProvider, setSMTP] = useState("");
+  const [smtpProviderList, setSmtpProviderList] = useState([]); // [{name, description, ready}]
+  const [smtpProviderLoading, setSmtpProviderLoading] = useState(false);
+  const [smtpSelectSaving, setSmtpSelectSaving] = useState(false);
   const [crmConnected, setCRM] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch available SMTP providers + currently selected provider on mount
+  useEffect(() => {
+    const fetchSmtpProviders = async () => {
+      setSmtpProviderLoading(true);
+      try {
+        const [availableRes, configuredRes] = await Promise.allSettled([
+          axiosInstance.get("/api/smtp/available-providers"),
+          axiosInstance.get("/api/smtp/providers"),
+        ]);
+
+        // Build provider list from available-providers
+        // Response shape: { available_providers: [{ name, ready, description, ... }] }
+        let providers = [];
+        if (availableRes.status === "fulfilled") {
+          const d = availableRes.value.data;
+          const raw = d?.available_providers ?? d?.providers ?? (Array.isArray(d) ? d : []);
+          providers = raw.map((p) =>
+            typeof p === "string"
+              ? { name: p, description: "", ready: true }
+              : { name: p.name ?? p.provider ?? String(p), description: p.description ?? "", ready: p.ready ?? true }
+          );
+        }
+        if (providers.length === 0) {
+          providers = [
+            { name: "mailgun", description: "Mailgun SMTP/API", ready: true },
+            { name: "sendgrid", description: "SendGrid", ready: true },
+          ];
+        }
+        setSmtpProviderList(providers);
+
+        // Determine the currently active provider from /api/smtp/providers
+        if (configuredRes.status === "fulfilled") {
+          const d = configuredRes.value.data;
+          const activeProvider = Array.isArray(d)
+            ? d.find((p) => p.is_active ?? p.selected ?? p.is_default)
+            : (d?.active_provider ?? d?.selected_provider ?? d?.provider ?? null);
+          if (activeProvider) {
+            const name = typeof activeProvider === "string" ? activeProvider : (activeProvider.name ?? activeProvider.provider ?? "");
+            if (name) setSMTP(name);
+          } else if (providers.length > 0) {
+            setSMTP(providers[0].name);
+          }
+        } else if (providers.length > 0) {
+          setSMTP(providers[0].name);
+        }
+      } catch {
+        // silently ignore
+      } finally {
+        setSmtpProviderLoading(false);
+      }
+    };
+    fetchSmtpProviders();
+  }, []);
+
+  const handleSelectSmtpProvider = async (providerName) => {
+    setSMTP(providerName);
+    setSmtpSelectSaving(true);
+    try {
+      await axiosInstance.post("/api/smtp/select-provider", { provider: providerName });
+      toast.success(`SMTP provider set to ${providerName}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to set SMTP provider.");
+    } finally {
+      setSmtpSelectSaving(false);
+    }
+  };
 
   if (activePage === "crm") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><CRMPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "agents") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><AgentsPage onBack={() => setActivePage(null)} /></div>;
@@ -2253,12 +2314,29 @@ export default function Setting() {
               <div>
                 <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Provider</label>
                 <div className="relative">
-                  <select value={smtpProvider} onChange={(e) => setSMTP(e.target.value)}
-                    className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer">
-                    {["Mailgun", "SendGrid", "Amazon SES", "Postmark"].map((o) => <option key={o}>{o}</option>)}
-                  </select>
+                  {smtpProviderLoading ? (
+                    <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-400">
+                      Loading providers…
+                    </div>
+                  ) : (
+                    <select
+                      value={smtpProvider}
+                      onChange={(e) => handleSelectSmtpProvider(e.target.value)}
+                      disabled={smtpSelectSaving}
+                      className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {smtpProviderList.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.description ? `${p.name} — ${p.description}` : p.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 </div>
+                {smtpSelectSaving && (
+                  <p className="mt-1.5 text-[11px] text-violet-500 font-[500]">Saving…</p>
+                )}
               </div>
             }
           />

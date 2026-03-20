@@ -41,6 +41,11 @@ import {
   Trash2,
   StopCircle,
   GitBranch,
+  Clock,
+  Loader2,
+  Star,
+  MinusCircle,
+  SkipForward,
 } from "lucide-react";
 import {
   BarChart,
@@ -78,6 +83,34 @@ const LINKEDIN_STATUS_STYLE = {
   "NOT CONNECTED": "bg-gray-100 text-gray-500 border border-gray-200",
   "MEETING SCHEDULED": "bg-violet-50 text-violet-700 border border-violet-200",
   "NO REPLY": "bg-gray-100 text-gray-500 border border-gray-200",
+};
+
+/* ── Channel status config (module-level, stable reference) ── */
+const CHANNEL_STATUS_CFG = {
+  completed:  { icon: CheckCircle2, iconCls: "text-green-500",  bg: "bg-green-50",   badge: "bg-green-50 text-green-700 border border-green-200",     dot: "bg-green-500",  label: "Completed",  canSkip: false },
+  converted:  { icon: Star,         iconCls: "text-violet-500", bg: "bg-violet-50",  badge: "bg-violet-100 text-violet-700 border border-violet-200",  dot: "bg-violet-500", label: "Converted",  canSkip: false },
+  processing: { icon: Loader2,      iconCls: "text-blue-500",   bg: "bg-blue-50",    badge: "bg-blue-50 text-blue-700 border border-blue-200",          dot: "bg-blue-500",   label: "Processing", canSkip: true,  spin: true },
+  waiting:    { icon: Clock,        iconCls: "text-amber-500",  bg: "bg-amber-50",   badge: "bg-amber-50 text-amber-700 border border-amber-200",       dot: "bg-amber-400",  label: "Waiting",    canSkip: true },
+  not_started:{ icon: MinusCircle,  iconCls: "text-gray-400",   bg: "bg-gray-100",   badge: "bg-gray-100 text-gray-500 border border-gray-200",         dot: "bg-gray-300",   label: "Not Started",canSkip: false },
+};
+const getChCfg = (status) =>
+  CHANNEL_STATUS_CFG[(status ?? "").toLowerCase()] ??
+  { icon: X, iconCls: "text-red-500", bg: "bg-red-50", badge: "bg-red-50 text-red-600 border border-red-200", dot: "bg-red-400", label: status ?? "—", canSkip: false };
+
+/* Helper: resolve channel status from a journey-overview lead row.
+   Handles flat  { call: "processing" }  OR  nested  { channels: [{channel:"CALL",status:"processing"}] } */
+const resolveChannelStatus = (row, fieldKey) => {
+  const flat = row[fieldKey];
+  if (typeof flat === "string") return flat;
+  if (typeof flat === "boolean" || typeof flat === "number") return flat ? "completed" : null;
+  const channels = row.channels ?? row.channel_steps ?? [];
+  if (Array.isArray(channels)) {
+    const match = channels.find(
+      (ch) => (ch.channel ?? ch.type ?? "").toLowerCase() === fieldKey.toLowerCase(),
+    );
+    if (match) return match.status ?? null;
+  }
+  return null;
 };
 
 /* ── Stable Field component (defined at module level to prevent remount on re-render) ── */
@@ -192,10 +225,18 @@ export default function CampaignPage() {
   const [leadListLeads, setLeadListLeads] = useState([]);
   const [leadListLoading, setLeadListLoading] = useState(false);
 
+  /* ── Campaign Journey API Stats ── */
+  const [journeyStats, setJourneyStats] = useState(null);
+
   /* ── Campaign Journey Panel ── */
   const [showJourneyPanel, setShowJourneyPanel] = useState(false);
   const [journeyData, setJourneyData] = useState([]);
   const [journeyLoading, setJourneyLoading] = useState(false);
+
+  /* ── Single Lead Journey Panel ── */
+  const [selectedLeadJourney, setSelectedLeadJourney] = useState(null); // { lead_id, lead_name }
+  const [leadJourneyData, setLeadJourneyData] = useState([]);
+  const [leadJourneyLoading, setLeadJourneyLoading] = useState(false);
 
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -475,56 +516,27 @@ export default function CampaignPage() {
     if (activeTab === "ALL") {
       setLeadListLoading(true);
       setLeadListLeads([]);
-      const extractLeads = (d) =>
-        Array.isArray(d)
-          ? d
-          : Array.isArray(d?.leads)
-            ? d.leads
-            : Array.isArray(d?.data)
-              ? d.data
-              : Array.isArray(d?.items)
-                ? d.items
-                : Array.isArray(d?.results)
-                  ? d.results
-                  : null;
-
-      const tryFetch = (url) =>
-        axiosInstance.get(url).then((res) => {
-          const arr = extractLeads(res.data);
-          if (arr && arr.length > 0) {
-            setLeadListLeads(arr);
-            return true;
-          }
-          return false;
-        });
-
-      const listId = selectedCampaign.listId;
+      setJourneyStats(null);
+      setSelectedLeadJourney(null);
+      setLeadJourneyData([]);
       const campaignId = selectedCampaign.id;
 
-      // Try in order: list-specific endpoint → campaign leads endpoint
-      const urls = listId
-        ? [
-            `/lead-lists/${listId}/leads`,
-            `/lead-lists/${listId}`,
-            `/campaigns/${campaignId}/leads`,
-            `/get-campaigns/${campaignId}/leads`,
-          ]
-        : [
-            `/campaigns/${campaignId}/leads`,
-            `/get-campaigns/${campaignId}/leads`,
-          ];
-
-      (async () => {
-        for (const url of urls) {
-          try {
-            const found = await tryFetch(url);
-            if (found) break;
-          } catch {
-            // try next
-          }
-        }
-        setLeadListLoading(false);
-      })();
+      axiosInstance
+        .get(`/api/campaigns/${campaignId}/journey`, {
+          params: { page: 1, page_size: 20 },
+        })
+        .then((res) => {
+          const d = res.data;
+          // Store stats from the API response
+          if (d?.stats) setJourneyStats(d.stats);
+          // Leads are returned under d.leads
+          const rows = Array.isArray(d)
+            ? d
+            : (d?.leads ?? d?.items ?? d?.data ?? d?.results ?? d?.journeys ?? []);
+          setLeadListLeads(rows);
+        })
+        .catch(() => {})
+        .finally(() => setLeadListLoading(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCampaign, activeTab]);
@@ -536,7 +548,7 @@ export default function CampaignPage() {
     setTimeout(() => setRefreshing(false), 800);
   };
 
-  /* ── Fetch campaign journey ── */
+  /* ── Fetch campaign journey (overview panel) ── */
   const fetchJourney = async (campaignId, pg = 1) => {
     setJourneyLoading(true);
     try {
@@ -552,6 +564,85 @@ export default function CampaignPage() {
       toast.error(err?.response?.data?.message || "Failed to load campaign journey.");
     } finally {
       setJourneyLoading(false);
+    }
+  };
+
+  /* ── Fetch single-lead journey ── */
+  const fetchLeadJourney = async (campaignId, leadId, leadName) => {
+    setSelectedLeadJourney({ lead_id: leadId, lead_name: leadName, overall_status: null });
+    setLeadJourneyData([]);
+    setLeadJourneyLoading(true);
+    try {
+      const res = await axiosInstance.get(
+        `/api/campaigns/${campaignId}/leads/${leadId}/journey`,
+      );
+      const d = res.data;
+      // Capture overall_status
+      const overallStatus = d?.overall_status ?? null;
+      setSelectedLeadJourney({ lead_id: leadId, lead_name: leadName, overall_status: overallStatus });
+      // channels[] is the primary field per the API spec
+      const steps = Array.isArray(d)
+        ? d
+        : (d?.channels ?? d?.steps ?? d?.journey_steps ?? d?.activities ?? []);
+      setLeadJourneyData(steps);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to load lead journey.");
+    } finally {
+      setLeadJourneyLoading(false);
+    }
+  };
+
+  /* ── Skip a channel for a lead ── */
+  /* ── Re-fetch the journey overview table for the current campaign ── */
+  const refreshCampaignJourney = async (campaignId) => {
+    try {
+      const res = await axiosInstance.get(`/api/campaigns/${campaignId}/journey`, {
+        params: { page: 1, page_size: 20 },
+      });
+      const d = res.data;
+      if (d?.stats) setJourneyStats(d.stats);
+      const rows = Array.isArray(d)
+        ? d
+        : (d?.leads ?? d?.items ?? d?.data ?? d?.results ?? d?.journeys ?? []);
+      setLeadListLeads(rows);
+    } catch {
+      // silent — table already showed the old state
+    }
+  };
+
+  const skipChannel = async (campaignId, leadId, channelName) => {
+    // Optimistic update: mark this channel as completed in the table immediately
+    setLeadListLeads((prev) =>
+      prev.map((r) => {
+        if ((r.lead_id ?? r.id) !== leadId) return r;
+        // flat field update
+        const updated = { ...r, [channelName.toLowerCase()]: "completed" };
+        // also update nested channels[] if present
+        if (Array.isArray(r.channels)) {
+          updated.channels = r.channels.map((ch) =>
+            (ch.channel ?? ch.type ?? "").toUpperCase() === channelName
+              ? { ...ch, status: "completed" }
+              : ch,
+          );
+        }
+        return updated;
+      }),
+    );
+    try {
+      await axiosInstance.patch(
+        `/campaigns/${campaignId}/leads/${leadId}/skip-channels`,
+        { channels: [channelName] },
+      );
+      toast.success(`${channelName} channel skipped.`);
+      // Refresh the table + modal journey after skip
+      refreshCampaignJourney(campaignId);
+      if (selectedLeadJourney?.lead_id === leadId) {
+        fetchLeadJourney(campaignId, leadId, selectedLeadJourney.lead_name ?? "");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to skip channel.");
+      // Revert optimistic update on failure
+      refreshCampaignJourney(campaignId);
     }
   };
 
@@ -1370,18 +1461,14 @@ export default function CampaignPage() {
 
     /* ─── ALL CAMPAIGN ACTIVITY ─── */
     if (activeTab === "ALL") {
-      // Use leads from API; fall back to c.allActivity (legacy mock)
+      // Data from /api/campaigns/{id}/journey
       const allData = leadListLeads.length > 0 ? leadListLeads : (c.allActivity ?? []);
-      // Dynamic channel columns from this campaign's channel_order
-      const channelCols = (c.channelOrder ?? []).map((key) => {
-        const map = {
-          CALL:     { label: "Call",     field: "call" },
-          EMAIL:    { label: "Email",    field: "email" },
-          LINKEDIN: { label: "LinkedIn", field: "linkedin" },
-          WHATSAPP: { label: "WhatsApp", field: "whatsapp" },
-        };
-        return map[key] ?? { label: key, field: key.toLowerCase() };
-      });
+      // Fixed channel columns matching the second design image
+      const channelCols = [
+        { label: "Call",     field: "call" },
+        { label: "Email",    field: "email" },
+        { label: "LinkedIn", field: "linkedin" },
+      ];
       const total = allData.length || c.totalLeads;
       const fullCoverage = allData.filter(
         (r) => channelCols.every((col) => r[col.field]),
@@ -1416,92 +1503,149 @@ export default function CampaignPage() {
         { name: "Partial", value: partialCoverage, color: "#f59e0b" },
         { name: "None", value: noCoverage, color: "#e5e7eb" },
       ].filter((s) => s.value > 0);
+      /* helpers for journey modal status rendering */
+      const overallStatusBadge = (s) => {
+        const st = (s ?? "").toLowerCase();
+        if (st === "converted")   return { label: "Converted",   cls: "bg-violet-100 text-violet-700 border border-violet-200" };
+        if (st === "in_progress") return { label: "In Progress", cls: "bg-blue-100 text-blue-700 border border-blue-200" };
+        if (st === "finished")    return { label: "Finished",    cls: "bg-gray-100 text-gray-600 border border-gray-200" };
+        if (st === "not_started") return { label: "Not Started", cls: "bg-amber-50 text-amber-700 border border-amber-200" };
+        return { label: s ?? "—", cls: "bg-gray-100 text-gray-500 border border-gray-200" };
+      };
+      const chIcons = { CALL: Phone, EMAIL: Mail, LINKEDIN: Linkedin, WHATSAPP: MessageCircle };
+
       return (
-        <main className="min-h-screen bg-[#f4f5f7] flex">
-          {/* ── Campaign Journey Side Panel ── */}
-          {showJourneyPanel && (
-            <aside className="w-[340px] shrink-0 bg-white border-r border-gray-200 shadow-xl flex flex-col overflow-y-auto">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-                <div className="flex items-center gap-2">
-                  <GitBranch className="h-4 w-4 text-[#6366f1]" />
-                  <h2 className="text-[14px] font-[700] text-gray-900">Campaign Journey</h2>
+        <main className="min-h-screen bg-[#f4f5f7]">
+          {/* ── Lead Journey Modal Popup ── */}
+          {selectedLeadJourney && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ background: "rgba(15,23,42,0.45)", backdropFilter: "blur(2px)" }}
+              onClick={() => { setSelectedLeadJourney(null); setLeadJourneyData([]); }}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal header */}
+                <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="w-8 h-8 rounded-xl bg-[#6366f1]/10 flex items-center justify-center shrink-0">
+                      <GitBranch className="h-4 w-4 text-[#6366f1]" />
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="text-[14px] font-[700] text-gray-900 truncate">
+                        {selectedLeadJourney.lead_name}
+                      </h2>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-gray-400">Lead Journey</span>
+                        {selectedLeadJourney.overall_status && (() => {
+                          const b = overallStatusBadge(selectedLeadJourney.overall_status);
+                          return (
+                            <span className={`text-[10px] font-[600] px-1.5 py-0.5 rounded-full border ${b.cls}`}>
+                              {b.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setSelectedLeadJourney(null); setLeadJourneyData([]); }}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 transition shrink-0 mt-0.5"
+                  >
+                    <X className="h-4 w-4 text-gray-500" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowJourneyPanel(false)}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 transition"
-                >
-                  <X className="h-4 w-4 text-gray-500" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                {journeyLoading ? (
-                  <div className="py-16 text-center text-[13px] text-gray-400">Loading journey…</div>
-                ) : journeyData.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <GitBranch className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-[13px] text-gray-400">No journey data found.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {journeyData.map((lead, idx) => {
-                      const steps = lead.steps ?? lead.channels ?? lead.journey_steps ?? lead.activities ?? [];
-                      const channelIcons = { CALL: Phone, EMAIL: Mail, LINKEDIN: Linkedin, WHATSAPP: MessageCircle };
-                      const stepStatusColor = (s) => {
-                        const st = (s ?? "").toUpperCase();
-                        if (["COMPLETED","DONE","SUCCESS","ANSWERED"].includes(st))     return "bg-green-100 text-green-700";
-                        if (["IN_PROGRESS","RUNNING","ACTIVE","PENDING"].includes(st)) return "bg-blue-100 text-blue-700";
-                        if (["FAILED","ERROR","REJECTED"].includes(st))               return "bg-red-100 text-red-700";
-                        return "bg-gray-100 text-gray-500";
-                      };
-                      return (
-                        <div key={lead.lead_id ?? lead.id ?? idx} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                          <p className="text-[12px] font-[700] text-gray-800 mb-2.5 truncate">
-                            {lead.lead_name ?? lead.name ?? `Lead ${idx + 1}`}
-                          </p>
-                          {steps.length > 0 ? (
-                            <div className="flex flex-col gap-2">
-                              {steps.map((step, si) => {
-                                const channel = (step.channel ?? step.type ?? step.channel_name ?? "").toUpperCase();
-                                const Icon = channelIcons[channel] ?? GitBranch;
-                                const status = step.status ?? step.state ?? "—";
-                                return (
-                                  <div key={si} className="flex items-center gap-2.5">
-                                    <span className="w-6 h-6 rounded-full bg-[#6366f1]/10 flex items-center justify-center shrink-0">
-                                      <Icon className="h-3 w-3 text-[#6366f1]" />
+
+                {/* Modal body */}
+                <div className="flex-1 overflow-y-auto p-5">
+                  {leadJourneyLoading ? (
+                    <div className="py-14 text-center">
+                      <RefreshCw className="h-6 w-6 text-violet-400 animate-spin mx-auto mb-2" />
+                      <p className="text-[13px] text-gray-400">Loading journey…</p>
+                    </div>
+                  ) : leadJourneyData.length === 0 ? (
+                    <div className="py-14 text-center">
+                      <GitBranch className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                      <p className="text-[13px] text-gray-400">No journey steps found.</p>
+                    </div>
+                  ) : (
+                    <div className="relative pl-7">
+                      {/* vertical timeline line */}
+                      <span className="absolute left-[11px] top-3 bottom-3 w-[2px] bg-gray-100 rounded-full" />
+                      <div className="flex flex-col gap-4">
+                        {leadJourneyData.map((step, si) => {
+                          const channel = (step.channel ?? step.type ?? step.channel_name ?? "").toUpperCase();
+                          const ChIcon = chIcons[channel] ?? GitBranch;
+                          const cfg = getChCfg(step.status ?? step.state ?? "");
+                          const StatusIcon = cfg.icon;
+                          return (
+                            <div key={si} className="relative">
+                              {/* timeline dot with status colour */}
+                              <span className={`absolute -left-[26px] top-4 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm ${cfg.dot}`} />
+                              <div className={`rounded-xl border shadow-sm p-3.5 ${
+                                cfg.dot === "bg-green-500"  ? "bg-green-50/40 border-green-100" :
+                                cfg.dot === "bg-violet-500" ? "bg-violet-50/40 border-violet-100" :
+                                cfg.dot === "bg-blue-500"   ? "bg-blue-50/30 border-blue-100" :
+                                cfg.dot === "bg-amber-400"  ? "bg-amber-50/30 border-amber-100" :
+                                "bg-white border-gray-100"
+                              }`}>
+                                {/* channel label + status badge row */}
+                                <div className="flex items-center justify-between gap-2 mb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    {/* channel icon in indigo circle */}
+                                    <span className="w-7 h-7 rounded-lg bg-[#6366f1]/10 flex items-center justify-center shrink-0">
+                                      <ChIcon className="h-3.5 w-3.5 text-[#6366f1]" />
                                     </span>
-                                    <div className="flex-1 flex items-center justify-between gap-1 min-w-0">
-                                      <span className="text-[11px] font-[600] text-gray-700 shrink-0">{channel || "Step " + (si + 1)}</span>
-                                      <span className={`text-[10px] font-[600] px-1.5 py-0.5 rounded-full shrink-0 ${stepStatusColor(status)}`}>
-                                        {status}
-                                      </span>
-                                    </div>
+                                    <span className="text-[13px] font-[700] text-gray-800">
+                                      {channel || `Step ${si + 1}`}
+                                    </span>
                                   </div>
-                                );
-                              })}
+                                  {/* status pill with matching icon */}
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-[600] px-2 py-0.5 rounded-full border shrink-0 ${cfg.badge}`}>
+                                    <StatusIcon className={`h-3 w-3${cfg.spin ? " animate-spin" : ""}`} />
+                                    {cfg.label}
+                                  </span>
+                                </div>
+                                {/* extra metadata */}
+                                <div className="space-y-1 mb-2">
+                                  {Object.entries(step)
+                                    .filter(([k]) => !["channel","type","channel_name","status","state"].includes(k))
+                                    .slice(0, 5)
+                                    .map(([key, val]) => (
+                                      <div key={key} className="flex justify-between items-start gap-2">
+                                        <span className="text-[11px] text-gray-400 capitalize shrink-0">
+                                          {key.replace(/_/g, " ")}
+                                        </span>
+                                        <span className="text-[11px] font-[500] text-gray-700 text-right max-w-[180px] truncate">
+                                          {String(val ?? "—")}
+                                        </span>
+                                      </div>
+                                    ))}
+                                </div>
+                                {/* Skip button — only for processing / waiting */}
+                                {cfg.canSkip && (
+                                  <button
+                                    onClick={() => skipChannel(c.id, selectedLeadJourney.lead_id, channel)}
+                                    className="mt-1 w-full py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-[11px] font-[600] hover:bg-amber-100 transition flex items-center justify-center gap-1.5"
+                                  >
+                                    <SkipForward className="h-3 w-3" /> Skip {channel}
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          ) : (
-                            <div className="space-y-1.5">
-                              {Object.entries(lead)
-                                .filter(([k]) => !["lead_id","id","lead_name","name"].includes(k))
-                                .slice(0, 6)
-                                .map(([key, val]) => (
-                                  <div key={key} className="flex justify-between items-start gap-2">
-                                    <span className="text-[10px] text-gray-400 capitalize">{key.replace(/_/g," ")}</span>
-                                    <span className="text-[10px] font-[500] text-gray-700 text-right max-w-[140px] truncate">{String(val ?? "—")}</span>
-                                  </div>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </aside>
+            </div>
           )}
           {/* ── Main Content ── */}
-          <div className="flex-1 p-4 overflow-auto min-w-0">
+          <div className="p-4 overflow-auto min-w-0">
             <div className="mb-5">
               <button
                 type="button"
@@ -1511,57 +1655,40 @@ export default function CampaignPage() {
                 <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
               </button>
             </div>
-            <div className="mb-5 flex items-center justify-between gap-4">
+            <div className="mb-5">
               <div>
                 <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
-                  Lead Activity
+                  All Campaign Activity
                 </h1>
                 <p className="text-[13px] text-gray-500 mt-0.5">
                   Overview of all channel activities across campaigns
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowJourneyPanel((prev) => {
-                    const next = !prev;
-                    if (next) fetchJourney(c.id);
-                    return next;
-                  });
-                }}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-[13px] font-[600] transition shadow-sm shrink-0 ${
-                  showJourneyPanel
-                    ? "bg-[#6366f1] text-white border-[#6366f1]"
-                    : "bg-white text-[#6366f1] border-[#6366f1]/30 hover:bg-[#6366f1]/5"
-                }`}
-              >
-                <GitBranch className="h-4 w-4" /> Journey
-              </button>
             </div>
-          {/* KPI strip */}
+          {/* KPI strip — sourced from /api/campaigns/{id}/journey stats */}
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               {
                 label: "Total Leads",
-                value: c.totalLeads,
+                value: journeyStats?.total ?? c.totalLeads ?? 0,
                 color: "text-gray-900",
                 ring: "ring-gray-200",
               },
               {
-                label: "Completed",
-                value: c.completed,
-                color: "text-green-600",
-                ring: "ring-green-200",
-              },
-              {
-                label: "Meetings",
-                value: c.meetings,
+                label: "In Progress",
+                value: journeyStats?.in_progress ?? 0,
                 color: "text-blue-600",
                 ring: "ring-blue-200",
               },
               {
-                label: "Conv. Rate",
-                value: `${c.convRate}%`,
+                label: "Converted",
+                value: journeyStats?.converted ?? 0,
+                color: "text-green-600",
+                ring: "ring-green-200",
+              },
+              {
+                label: "Finished",
+                value: journeyStats?.finished ?? 0,
                 color: "text-violet-600",
                 ring: "ring-violet-200",
               },
@@ -1573,7 +1700,7 @@ export default function CampaignPage() {
                 <p className="text-[11px] font-[600] uppercase tracking-widest text-gray-400">
                   {k.label}
                 </p>
-                <p className={`text-[22px] font-[800] leading-none text-sky-600 ${k.color}`}>
+                <p className={`text-[22px] font-[800] leading-none ${k.color}`}>
                   {k.value}
                 </p>
               </article>
@@ -1687,10 +1814,10 @@ export default function CampaignPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-[14px] font-[600] text-gray-900">
-                Lead Channel Coverage
+                All Campaign Activity
               </h3>
               <p className="text-[12px] text-gray-400 mt-0.5">
-                Per-lead channel activity status
+                Overview of all channel activities across campaigns
               </p>
             </div>
             {leadListLoading ? (
@@ -1720,48 +1847,61 @@ export default function CampaignPage() {
                       colSpan={2 + channelCols.length}
                       className="px-5 py-12 text-center text-[13px] text-gray-400"
                     >
-                      {c.listId
-                        ? `No leads returned from /lead-lists/${c.listId}/leads`
-                        : "No lead list assigned to this campaign (list_id is null)."}
+                      No journey data found for this campaign.
                     </td>
                   </tr>
                 ) : (
-                  allData.map((row, idx) => (
-                    <tr
-                      key={row.id ?? row.serial ?? idx}
-                      className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${
-                        idx % 2 !== 0 ? "bg-gray-50/30" : ""
-                      }`}
-                    >
-                      <td className="px-5 py-3.5 text-[13px] text-gray-500">
-                        {idx + 1}
-                      </td>
-                      <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-800">
-                        {row.first_name
-                          ? `${row.first_name} ${row.last_name ?? ""}`.trim()
-                          : row.leadName ?? row.name ?? "—"}
-                      </td>
-                      {channelCols.map((col) => (
-                        <td key={col.field} className="px-5 py-3.5">
-                          {row[col.field] ? (
-                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50">
-                              <CheckCircle2 className="h-4 w-4 text-green-500" />
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100">
-                              <span className="text-[10px] text-gray-400 font-[600]">—</span>
-                            </span>
-                          )}
+                  allData.map((row, idx) => {
+                    const leadId = row.lead_id ?? row.id;
+                    const leadName = row.lead_name ?? row.name
+                      ?? (row.first_name ? `${row.first_name} ${row.last_name ?? ""}`.trim() : null)
+                      ?? `Lead ${idx + 1}`;
+                    return (
+                      <tr
+                        key={leadId ?? idx}
+                        className={`border-b border-gray-50 transition ${
+                          idx % 2 !== 0 ? "bg-gray-50/30" : ""
+                        }`}
+                      >
+                        <td className="px-5 py-3.5 text-[13px] text-gray-500">
+                          {idx + 1}
                         </td>
-                      ))}
-                    </tr>
-                  ))
+                        <td
+                          className="px-5 py-3.5 text-[13px] font-[600] text-[#6366f1] cursor-pointer hover:underline"
+                          onClick={() => fetchLeadJourney(c.id, leadId, leadName)}
+                        >
+                          {leadName}
+                        </td>
+                        {channelCols.map((col) => {
+                          const chStatus = resolveChannelStatus(row, col.field);
+                          const cfg = getChCfg(chStatus);
+                          const IconComp = cfg.icon;
+                          const isDone = ["completed","converted"].includes((chStatus??"").toLowerCase());
+                          return (
+                            <td key={col.field} className="px-5 py-3.5">
+                              <button
+                                onClick={() =>
+                                  isDone
+                                    ? fetchLeadJourney(c.id, leadId, leadName)
+                                    : skipChannel(c.id, leadId, col.label.toUpperCase())
+                                }
+                                className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${cfg.bg} hover:opacity-75 transition cursor-pointer`}
+                                title={isDone ? `${cfg.label} — View journey` : `Skip ${col.label} → mark completed`}
+                              >
+                                <IconComp className={`h-4 w-4 ${cfg.iconCls}${cfg.spin ? " animate-spin" : ""}`} />
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
             )}
           </div>
-          </div>{/* end flex-1 main content */}
+          </div>{/* end main content */}
         </main>
       );
     }
