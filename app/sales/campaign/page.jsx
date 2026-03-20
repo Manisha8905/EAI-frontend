@@ -1082,30 +1082,15 @@ export default function CampaignPage() {
                 />
               </Field>
               <Field label="Agent">
-                <div className="relative">
-                  <select
-                    name="agent_id"
-                    value={form.agent_id}
-                    onChange={(e) => {
-                      const selected = agents.find((a) => a.id === e.target.value);
-                      setForm((prev) => ({
-                        ...prev,
-                        agent_id: e.target.value,
-                        agent_name: selected?.name ?? "",
-                      }));
-                      console.log("AGENT ID SENT:", e.target.value);
-                    }}
-                    className={`${inputCls} appearance-none pr-8 cursor-pointer`}
-                  >
-                    <option value="">— Select Agent —</option>
-                    {agents.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-                </div>
+                <input
+                  name="agent_name"
+                  value={form.agent_name}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, agent_name: e.target.value }))
+                  }
+                  placeholder="Enter agent name"
+                  className={inputCls}
+                />
               </Field>
               <Field label="Logged in User Email">
                 <input

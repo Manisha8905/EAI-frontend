@@ -17,9 +17,28 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   const router = useRouter();
 
   useEffect(() => {
-    const role = localStorage.getItem("userRole") || "";
+    const token = localStorage.getItem("session_token") || "";
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    const role = (localStorage.getItem("userRole") || "").toUpperCase().replace(/[\s_-]/g, "");
+    // Redirect root "/" to role-appropriate home
+    if (pathname === "/") {
+      if (isAdminRole(role)) {
+        router.replace("/user-management");
+      } else if (role === "FINANCE") {
+        router.replace("/finance");
+      } else if (role === "SUPPORT") {
+        router.replace("/support");
+      } else {
+        router.replace("/sales");
+      }
+      return;
+    }
+    // Admin-only path guard
     if (ADMIN_ONLY_PATHS.some((p) => pathname.startsWith(p)) && !isAdminRole(role)) {
-      router.replace("/");
+      router.replace("/sales");
     }
   }, [pathname, router]);
 
@@ -31,12 +50,13 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
 
   return (
     <>
-      <Navbar />
-<div className="flex min-h-screen overflow-hidden">
-          <div className="w-64 shrink-0">
+      <div className="sticky top-0 z-50">
+        <Navbar />
+      </div>
+      <div className="flex" style={{ minHeight: "calc(100vh - 60px)" }}>
+        <div className="w-64 shrink-0 sticky top-[60px] h-[calc(100vh-60px)] overflow-hidden">
           <Sidebar />
         </div>
-
         <div className="flex-1 min-w-0 overflow-x-auto bg-[#f4f5f7]">
           {children}
         </div>

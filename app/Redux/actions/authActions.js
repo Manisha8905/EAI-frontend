@@ -87,7 +87,19 @@ export const loginUser = (values, router) => async (dispatch) => {
       payload: response.data,
     });
     toast.success(response?.data?.message ?? "Login Successful");
-    router.push("/user-management");
+
+    // Redirect based on role
+    const role = (response.data.role || "").toUpperCase().replace(/[\s_-]/g, "");
+    if (role === "ADMIN" || role === "SUPERADMIN") {
+      router.push("/user-management");
+    } else if (role === "FINANCE") {
+      router.push("/finance");
+    } else if (role === "SUPPORT") {
+      router.push("/support");
+    } else {
+      // SALES, MANAGER, or any other role → Sales module
+      router.push("/sales");
+    }
   } catch (error) {
     toast.error(error.response?.data?.message || "login failed");
   }

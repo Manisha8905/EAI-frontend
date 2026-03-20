@@ -1,5 +1,4 @@
-import ModuleDashboard from "./Componets/Dashboard/ModuleDashboard";
-
+// Root "/" — LayoutWrapper handles redirect based on auth/role
 export default function Home() {
-  return <ModuleDashboard moduleName="Sales" />;
+  return null;
 }

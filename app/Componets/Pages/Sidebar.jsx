@@ -313,7 +313,7 @@ const Sidebar = () => {
 
       {/* ── Nav — hidden entirely for admin ── */}
       {!userIsAdmin && (
-        <nav className="flex-1 px-3 py-3 space-y-0.5">
+        <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           {visibleSections.map((sec) => {
             const isParentActive = sec.activeRoutes.some((r) =>
               pathname.startsWith(r),
