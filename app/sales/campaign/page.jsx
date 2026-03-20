@@ -238,6 +238,25 @@ export default function CampaignPage() {
   const [leadJourneyData, setLeadJourneyData] = useState([]);
   const [leadJourneyLoading, setLeadJourneyLoading] = useState(false);
 
+  /* ── Email Detail Modal ── */
+  const [emailDetailModal, setEmailDetailModal] = useState(null);
+  const [emailDetailLoading, setEmailDetailLoading] = useState(false);
+
+  const handleViewEmail = async (id) => {
+    if (!id) return;
+    setEmailDetailLoading(true);
+    setEmailDetailModal({});
+    try {
+      const res = await axiosInstance.get(`/email-history/${id}/`);
+      setEmailDetailModal(res.data);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to load email detail.");
+      setEmailDetailModal(null);
+    } finally {
+      setEmailDetailLoading(false);
+    }
+  };
+
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({
@@ -2400,7 +2419,7 @@ export default function CampaignPage() {
             </p>
           </div>
           {/* KPI strip */}
-          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {/* <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
               {
                 label: "Emails Sent",
@@ -2458,7 +2477,7 @@ export default function CampaignPage() {
                 <p className="text-[11px] text-gray-400">{k.sub}</p>
               </article>
             ))}
-          </section>
+          </section> */}
           {/* Charts */}
           {funnelData.some((d) => d.value > 0) && (
             <section className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2657,11 +2676,27 @@ export default function CampaignPage() {
                           {row.dateTime}
                         </td>
                         <td className="px-3 py-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${EMAIL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
-                          >
-                            {row.status}
-                          </span>
+                          {row.skippable ? (
+                            <div className="relative group inline-block">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-[600] cursor-pointer ${EMAIL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
+                              >
+                                {row.status}
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 opacity-60" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                              </span>
+                              <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block w-max max-w-[220px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg">
+                                <p className="font-[600] mb-0.5">Skip Reason</p>
+                                <p className="font-[400] text-gray-300">{row.skipReason || "No reason provided"}</p>
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                              </div>
+                            </div>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${EMAIL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
+                            >
+                              {row.status}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-[12px] text-gray-700">
                           {row.clicked ? "Yes" : "No"}
@@ -2676,6 +2711,7 @@ export default function CampaignPage() {
                         <td className="px-3 py-3">
                           <button
                             type="button"
+                            onClick={() => handleViewEmail(row.id)}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1d4ed8] text-white text-[11px] font-[600] hover:bg-blue-700 transition"
                           >
                             <Eye className="h-3.5 w-3.5" /> View
@@ -2697,6 +2733,89 @@ export default function CampaignPage() {
               </span>
             </div>
           </div>
+        {/* ── Email Detail Modal ── */}
+        {emailDetailModal !== null && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={() => setEmailDetailModal(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl mx-4"
+              style={{ height: "80vh" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-600" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
+                  </div>
+                  <div>
+                    <h2 className="text-[14px] font-[700] text-[#0a0a0a] leading-tight">Email Detail</h2>
+                    {!emailDetailLoading && emailDetailModal.lead_name && (
+                      <p className="text-[11px] text-gray-400">{emailDetailModal.lead_name} · {emailDetailModal.campaign_name ?? ""}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEmailDetailModal(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                </button>
+              </div>
+
+              {emailDetailLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                  <svg className="animate-spin h-9 w-9 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                  <p className="text-[13px] text-gray-400">Loading email…</p>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* ── Meta Info (top) ── */}
+                  <div className="shrink-0 border-b border-gray-100 px-6 py-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-3">
+                      {[
+                        { label: "Lead Name",         value: emailDetailModal.lead_name },
+                        { label: "To Email",           value: emailDetailModal.to_email ?? emailDetailModal.email },
+                        { label: "Company",            value: emailDetailModal.company_name || "—" },
+                        { label: "Campaign",           value: emailDetailModal.campaign_name },
+                        { label: "Subject",            value: emailDetailModal.email_subject ?? emailDetailModal.subject },
+                        { label: "Status",             value: emailDetailModal.status },
+                        // { label: "Lead Type",          value: emailDetailModal.lead_type },
+                        { label: "Sent At",            value: emailDetailModal.sent_at ? new Date(emailDetailModal.sent_at).toLocaleString() : "—" },
+                        // { label: "Skippable",          value: emailDetailModal.skippable ? `Yes — ${emailDetailModal.skip_reason || "no reason"}` : "No" },
+                        // { label: "Meeting Requested",  value: emailDetailModal.meeting_requested ? "Yes" : "No" },
+                        // { label: "Meeting Link",       value: emailDetailModal.meeting_link || "—" },
+                        // { label: "Error",              value: emailDetailModal.error_message || "—" },
+                      ].map(({ label, value }) => (
+                        <div key={label}>
+                          <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400 mb-0.5">{label}</p>
+                          <p className="text-[12px] text-gray-800 break-all leading-relaxed">{value ?? "—"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── Email Body (bottom, fills remaining) ── */}
+                  {emailDetailModal.email_body ? (
+                    <iframe
+                      srcDoc={emailDetailModal.email_body}
+                      title="Email Body"
+                      className="flex-1 w-full border-0"
+                      sandbox="allow-same-origin"
+                    />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <p className="text-[13px] text-gray-400 italic">No email body available.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         </main>
       );
     }
@@ -2938,7 +3057,7 @@ export default function CampaignPage() {
                   placeholder="Search by lead name or company..."
                   value={liSearch}
                   onChange={(e) => setLiSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-violet-400/30"
+                  className="w-full pl-8 pr-3 py-2 text-[12px] text-gray-800 placeholder-gray-400 rounded-lg border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-violet-400/30"
                 />
               </div>
               <div className="relative">

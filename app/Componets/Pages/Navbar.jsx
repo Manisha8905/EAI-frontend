@@ -26,13 +26,37 @@ const ROLE_MODULE_PATHS = {
   SUPPORT: ["/support"],  // Support: Customer Support tab only
 };
 
+/* Sales module is active for its own sub-paths */
+const SALES_SUB_PATHS = ["/sales", "/metrics", "/campaign", "/setting", "/user-management", "/mapping", "/navbar", "/reporting"];
+
 const normalizeRole = (role) =>
   (role || "").toUpperCase().replace(/[\s_-]/g, "");
 
+const getInitials = (name) =>
+  (name || "U")
+    .split(" ")
+    .map((w) => w[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "U";
+
 export default function Navbar() {
   const pathname = usePathname();
-  const { auth, loading, error } = useSelector((state) => state.auth);
-  const [storedRole, setStoredRole] = useState(null);
+  const { auth } = useSelector((state) => state.auth);
+
+  const [storedRole, setStoredRole] = useState(() => {
+    if (typeof window !== "undefined") {
+      const r = localStorage.getItem("userRole");
+      return r ? r.toUpperCase() : null;
+    }
+    return null;
+  });
+  const [storedName] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("userName") || "" : ""
+  );
+  const [storedRoleDisplay] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("userRoleDisplay") || "" : ""
+  );
 
   useEffect(() => {
     const role = localStorage.getItem("userRole");
@@ -40,11 +64,15 @@ export default function Navbar() {
   }, []);
 
   const role = storedRole || normalizeRole(auth?.role);
-  const allowedPaths = ROLE_MODULE_PATHS[role] ?? null; // null = all accessible
+  const allowedPaths = ROLE_MODULE_PATHS[role] ?? null;
 
   // A module is accessible if allowedPaths is null (all) or includes its path
   const isAllowed = (path) =>
     allowedPaths === null || allowedPaths.includes(path);
+
+  const displayName = (auth?.name ?? auth?.username ?? storedName) || "User";
+  const displayRoleLabel = (auth?.role_display ?? storedRoleDisplay) || "";
+  const initials = getInitials(displayName);
 
 
   return (
@@ -68,7 +96,7 @@ export default function Navbar() {
           {modules.map((module) => {
             const isActive =
               module.name === "Sales"
-                ? pathname === "/" || pathname.startsWith("/sales")
+                ? pathname === "/" || SALES_SUB_PATHS.some((p) => pathname.startsWith(p))
                 : pathname.startsWith(module.path);
             const allowed = isAllowed(module.path);
 
@@ -133,11 +161,11 @@ export default function Navbar() {
           {/* User avatar */}
           <div className="flex items-center gap-2 cursor-pointer group">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shadow">
-              SA
+              {initials}
             </div>
             <div className="hidden lg:block">
-              <p className="text-[13px] font-[600] text-gray-800 leading-tight">Super Admin</p>
-              <p className="text-[11px] text-gray-500 leading-tight">Administrator</p>
+              <p className="text-[13px] font-[600] text-gray-800 leading-tight">{displayName}</p>
+              <p className="text-[11px] text-gray-500 leading-tight">{displayRoleLabel}</p>
             </div>
             <svg
               className="text-gray-400 hidden lg:block"

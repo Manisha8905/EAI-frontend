@@ -73,8 +73,14 @@ export const loginUser = (values, router) => async (dispatch) => {
     });
     console.log()
 
-    // ✅ SAVE TOKEN HERE
+    // ✅ SAVE TOKEN + ROLE + USER INFO
     localStorage.setItem("session_token", response.data.session_token);
+    if (response.data.role)
+      localStorage.setItem("userRole", response.data.role.toUpperCase());
+    if (response.data.name || response.data.username)
+      localStorage.setItem("userName", response.data.name ?? response.data.username ?? "");
+    if (response.data.role_display || response.data.role)
+      localStorage.setItem("userRoleDisplay", response.data.role_display ?? response.data.role ?? "");
 
     dispatch({
       type: LOGIN_SUCCESS,
@@ -487,7 +493,7 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
     const normalized = raw.map((r) => ({
       name:       r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",
       phone:      r.phone_number    ?? r.phone         ?? r.contact_phone ?? "—",
-      company:    r.company_name    ?? r.company       ?? r.organization  ?? "—",
+      company:    r.campaign_name    ?? r.company       ?? r.organization  ?? "—",
       dateTime:   r.call_time       ?? r.created_at    ?? r.date          ?? "—",
       duration:   r.duration        ?? r.call_duration ?? "0",
       status:     (r.call_status    ?? r.status        ?? "").toUpperCase(),
@@ -511,14 +517,17 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
     });
     const raw = extractArray(res.data);
     const normalized = raw.map((r) => ({
+      id:        r.id           ?? r.email_history_id ?? null,
       name:      r.lead_name    ?? r.name          ?? r.contact_name  ?? "—",
-      emailAddr: r.email        ?? r.email_address  ?? r.contact_email ?? "—",
-      company:   r.company_name ?? r.company        ?? r.organization  ?? "—",
+      emailAddr: r.to_email     ?? r.email        ?? r.email_address  ?? r.contact_email ?? "—",
+      company:   (r.company_name && r.company_name.trim()) ? r.company_name : (r.company ?? r.organization ?? "—"),
       subject:   r.subject      ?? r.email_subject  ?? "—",
       dateTime:  r.sent_at      ?? r.created_at     ?? r.date          ?? "—",
       status:    (r.status      ?? r.email_status   ?? "").toUpperCase(),
       clicked:   r.clicked      ?? r.is_clicked     ?? false,
       meeting:   r.meeting_scheduled ?? r.meeting   ?? r.is_meeting_scheduled ?? false,
+      skippable: r.skippable    ?? false,
+      skipReason: r.skip_reason ?? null,
     }));
     dispatch({ type: EMAIL_HISTORY_SUCCESS, payload: normalized });
     toast.success(`Email history loaded (${normalized.length} records)`);
@@ -538,7 +547,7 @@ export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
     const raw = extractArray(res.data);
     const normalized = raw.map((r) => ({
       name:               r.lead_name           ?? r.name              ?? r.contact_name  ?? "—",
-      company:            r.company_name         ?? r.company           ?? r.organization  ?? "—",
+      company:            r.campaign_name         ?? r.company           ?? r.organization  ?? "—",
       connectionSent:     r.connection_sent      ?? r.is_connection_sent ?? false,
       connectionAccepted: r.connection_accepted  ?? r.is_connection_accepted ?? r.action  ?? "—",
       messageSent:        r.message_sent         ?? r.is_message_sent   ?? false,
@@ -566,7 +575,7 @@ export const fetchWhatsappHistory = (campaignId) => async (dispatch) => {
     const normalized = raw.map((r) => ({
       name:           r.lead_name      ?? r.name         ?? r.contact_name  ?? "—",
       phone:          r.phone_number   ?? r.phone         ?? r.contact_phone ?? "—",
-      company:        r.company_name   ?? r.company       ?? r.organization  ?? "—",
+      company:        r.campaign_name   ?? r.company       ?? r.organization  ?? "—",
       dateTime:       r.sent_at        ?? r.created_at    ?? r.date          ?? "—",
       messagePreview: r.message_preview ?? r.message      ?? r.content       ?? "—",
       status:         (r.status        ?? r.message_status ?? "").toUpperCase(),
@@ -589,7 +598,7 @@ export const fetchInboundCallHistory = () => async (dispatch) => {
     const normalized = raw.map((r) => ({
       name:     r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",
       phone:    r.phone_number    ?? r.phone         ?? r.contact_phone ?? "—",
-      company:  r.company_name    ?? r.company       ?? r.organization  ?? "—",
+      company:  r.campaign_name    ?? r.company       ?? r.organization  ?? "—",
       dateTime: r.call_time       ?? r.created_at    ?? r.date          ?? "—",
       duration: r.duration        ?? r.call_duration ?? "0",
       status:   (r.call_status    ?? r.status        ?? "").toUpperCase(),

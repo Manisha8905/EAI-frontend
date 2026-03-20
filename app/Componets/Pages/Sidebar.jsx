@@ -197,20 +197,6 @@ const sections = [
       { href: "/analytics/forecasts", label: "Forecasts", icon: AnalyticsIcon },
     ],
   },
-  // {
-  //   key: "setting",
-  //   label: "Settings",
-  //   subtitle: "App configuration",
-  //   icon: SettingsIcon,
-  //   activeRoutes: ["/setting"],
-  //   links: [
-  //     {
-  //       href: "/setting",
-  //       label: "Settings",
-  //       icon: SettingsIcon,
-  //     },
-  //   ],
-  // },
 ];
 
 /* ─── Role helper ─────────────────────────────────────────────── */
@@ -221,7 +207,7 @@ const isAdmin = (role) => {
 
 /* ─── Role → allowed sidebar section keys (null = all) ───────── */
 const ROLE_SECTION_KEYS = {
-  SALES: ["ai", "analytics", "setting"],
+  SALES: ["ai", "analytics"],
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -234,7 +220,13 @@ const Sidebar = () => {
   const router = useRouter();
 
   const [openSection, setOpenSection] = useState("ai");
-  const [storedRole, setStoredRole] = useState(null);
+  const [storedRole, setStoredRole] = useState(() => {
+    if (typeof window !== "undefined") {
+      const role = localStorage.getItem("userRole");
+      return role ? role.toUpperCase() : null;
+    }
+    return null;
+  });
   /* derive admin flag from auth — checks both role and role_display */
   const userIsAdmin = storedRole === "ADMIN" || isAdmin(auth?.role) || isAdmin(auth?.role_display);
 
@@ -254,7 +246,7 @@ const Sidebar = () => {
 
   useEffect(() => {
     const role = localStorage.getItem("userRole");
-    if (role) {
+    if (role && role.toUpperCase() !== storedRole) {
       setStoredRole(role.toUpperCase());
     }
   }, []);
@@ -269,6 +261,8 @@ const Sidebar = () => {
 
   const handleLogout = async () => {
     localStorage.removeItem("userRole");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("userRoleDisplay");
     await dispatch(logoutUser());
     router.push("/login");
   };
@@ -411,22 +405,39 @@ const Sidebar = () => {
 
       {/* ── Bottom ── */}
       <div className="px-3 py-4 border-t border-gray-100 space-y-0.5">
-        {/* User Management — always visible */}
+        {/* User Management — admin only */}
+        {userIsAdmin && (
+          <Link
+            href="/user-management"
+            className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${
+              pathname === "/user-management"
+                ? "bg-blue-50 text-blue-600 font-[600] shadow-sm"
+                : "text-gray-600 hover:bg-blue-50/50 hover:text-blue-700"
+            }`}
+          >
+            <Image
+              src={UserManagement}
+              alt="User Management"
+              width={14}
+              height={14}
+            />
+            User Management
+          </Link>
+        )}
+
+        {/* Settings — always visible, shown after User Management */}
         <Link
-          href="/user-management"
+          href="/setting"
           className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${
-            pathname === "/user-management"
+            pathname.startsWith("/setting")
               ? "bg-blue-50 text-blue-600 font-[600] shadow-sm"
               : "text-gray-600 hover:bg-blue-50/50 hover:text-blue-700"
           }`}
         >
-          <Image
-            src={UserManagement}
-            alt="User Management"
-            width={14}
-            height={14}
-          />
-          User Management
+          <span className={`sb-icon ${ pathname.startsWith("/setting") ? "text-blue-600" : "text-gray-400" }`}>
+            <SettingsIcon />
+          </span>
+          Settings
         </Link>
 
         {/* Logout — always visible */}

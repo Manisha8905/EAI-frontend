@@ -2114,6 +2114,7 @@ function MappingsPage({ onBack }) {
 export default function Setting() {
   const [activePage, setActivePage] = useState(null);
   const [emailPlatform, setEP] = useState("SMTP");
+  const [emailPlatformSaving, setEmailPlatformSaving] = useState(false);
   const [smtpProvider, setSMTP] = useState("");
   const [smtpProviderList, setSmtpProviderList] = useState([]); // [{name, description, ready}]
   const [smtpProviderLoading, setSmtpProviderLoading] = useState(false);
@@ -2173,13 +2174,26 @@ export default function Setting() {
       }
     };
     fetchSmtpProviders();
-  }, []);
+  }, [emailPlatform]);
+
+  const handleSelectEmailPlatform = async (platform) => {
+    setEP(platform);
+    setEmailPlatformSaving(true);
+    try {
+      await axiosInstance.post("/api/email-sending/select-service", { service: platform.toLowerCase() });
+      toast.success(`Email sending service set to ${platform}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to set email sending service.");
+    } finally {
+      setEmailPlatformSaving(false);
+    }
+  };
 
   const handleSelectSmtpProvider = async (providerName) => {
     setSMTP(providerName);
     setSmtpSelectSaving(true);
     try {
-      await axiosInstance.post("/api/smtp/select-provider", { provider: providerName });
+      await axiosInstance.post("/api/smtp/select-provider", { provider_name: providerName });
       toast.success(`SMTP provider set to ${providerName}`);
     } catch (err) {
       toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to set SMTP provider.");
@@ -2295,13 +2309,20 @@ export default function Setting() {
             <div>
               <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Platform</label>
               <div className="relative">
-                <select value={emailPlatform} onChange={(e) => setEP(e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer">
+                <select
+                  value={emailPlatform}
+                  onChange={(e) => handleSelectEmailPlatform(e.target.value)}
+                  disabled={emailPlatformSaving}
+                  className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
                   <option>SMTP</option>
                   <option>CRM</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>
+              {emailPlatformSaving && (
+                <p className="mt-1.5 text-[11px] text-violet-500 font-[500]">Saving…</p>
+              )}
             </div>
           }
         />
@@ -2326,9 +2347,7 @@ export default function Setting() {
                       className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {smtpProviderList.map((p) => (
-                        <option key={p.name} value={p.name}>
-                          {p.description ? `${p.name} — ${p.description}` : p.name}
-                        </option>
+                        <option key={p.name} value={p.name}>{p.name}</option>
                       ))}
                     </select>
                   )}
@@ -2342,9 +2361,15 @@ export default function Setting() {
           />
         )}
 
-        <SettingCard icon={Server} iconBg="bg-green-50" iconColor="text-green-600" title="SMTP Providers Configuration" desc="Add, configure and test your SMTP delivery providers" action={<GearBtn page="smtp-providers" />} />
-        <SettingCard icon={FileText} iconBg="bg-pink-50" iconColor="text-pink-600" title="Email Templates" desc="Create and manage reusable email templates for automation" action={<GearBtn page="email-templates" />} />
-        <SettingCard icon={Shield} iconBg="bg-blue-50" iconColor="text-blue-600" title="Graph Configuration" desc="Microsoft Graph API credentials for calendar and mail sync" action={<GearBtn page="graph-config" />} />
+        {emailPlatform === "SMTP" && (
+          <SettingCard icon={Server} iconBg="bg-green-50" iconColor="text-green-600" title="SMTP Providers Configuration" desc="Add, configure and test your SMTP delivery providers" action={<GearBtn page="smtp-providers" />} />
+        )}
+        {emailPlatform === "SMTP" && (
+          <SettingCard icon={FileText} iconBg="bg-pink-50" iconColor="text-pink-600" title="Email Templates" desc="Create and manage reusable email templates for automation" action={<GearBtn page="email-templates" />} />
+        )}
+        {emailPlatform === "CRM" && (
+          <SettingCard icon={Shield} iconBg="bg-blue-50" iconColor="text-blue-600" title="Graph Configuration" desc="Microsoft Graph API credentials for calendar and mail sync" action={<GearBtn page="graph-config" />} />
+        )}
       </div>
     </main>
   );
