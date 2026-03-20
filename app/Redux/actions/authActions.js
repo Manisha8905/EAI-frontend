@@ -488,7 +488,7 @@ export const stopAllMultichannelCampaigns = (onDone) => async (dispatch) => {
 // ─── Helper: extract an array from any common response shape ───────────────
 const extractArray = (data) => {
   if (Array.isArray(data)) return data;
-  const keys = ["data", "result", "results", "records", "history", "conversations", "items", "list"];
+  const keys = ["emails", "data", "result", "results", "records", "history", "conversations", "items", "list"];
   for (const k of keys) {
     if (Array.isArray(data?.[k])) return data[k];
   }
@@ -537,7 +537,7 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       dateTime:  r.sent_at      ?? r.created_at     ?? r.date          ?? "—",
       status:    (r.status      ?? r.email_status   ?? "").toUpperCase(),
       clicked:   r.clicked      ?? r.is_clicked     ?? false,
-      meeting:   r.meeting_scheduled ?? r.meeting   ?? r.is_meeting_scheduled ?? false,
+      meeting:   r.meeting_requested ?? r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled ?? false,
       skippable: r.skippable    ?? false,
       skipReason: r.skip_reason ?? null,
     }));

@@ -2402,27 +2402,42 @@ export default function CampaignPage() {
         const ss = emailStatus === "All Status" || r.status === emailStatus;
         return ms && ss;
       });
-      // ── Email Stats sourced from /campaigns/{id}/email-stats/ API ──
+      // ── Email Stats derived from email history data ──
+      const ehSent     = emailHistoryData.filter((r) => r.status === "SENT").length;
+      const ehNotSent  = emailHistoryData.filter((r) => r.status === "NOT_SENT").length;
+      const ehFailed   = emailHistoryData.filter((r) => r.status === "FAILED").length;
+      const ehPending  = emailHistoryData.filter((r) => r.status === "PENDING").length;
+      const ehClicked  = emailHistoryData.filter((r) => r.clicked).length;
+      const ehMeetings = emailHistoryData.filter((r) => r.meeting).length;
+      const ehSkipped  = emailHistoryData.filter((r) => r.skippable).length;
+      const ehTotal    = emailHistoryData.length;
+      // Fall back to /email-stats/ API values if history is empty (e.g. paginated)
       const es = emailStats ?? {};
-      const statSent    = es.emails_sent    ?? es.total_sent   ?? es.sent    ?? c.emailsSent  ?? 0;
-      const statOpened  = es.emails_opened  ?? es.opened       ?? 0;
-      const statFailed  = es.emails_failed  ?? es.failed       ?? c.emailsFailed  ?? 0;
-      const statPending = es.emails_pending ?? es.pending      ?? c.emailsPending ?? 0;
-      const statClicked = es.emails_clicked ?? es.clicked      ?? 0;
-      const statMeetings= es.meetings_booked ?? es.meetings    ?? c.meetings  ?? 0;
+      const statSent    = ehTotal > 0 ? ehSent    : (es.emails_sent    ?? es.total_sent  ?? es.sent    ?? c.emailsSent  ?? 0);
+      const statNotSent = ehTotal > 0 ? ehNotSent : (es.emails_not_sent ?? es.not_sent   ?? 0);
+      const statFailed  = ehTotal > 0 ? ehFailed  : (es.emails_failed   ?? es.failed     ?? c.emailsFailed  ?? 0);
+      const statPending = ehTotal > 0 ? ehPending : (es.emails_pending  ?? es.pending    ?? c.emailsPending ?? 0);
+      const statClicked = ehTotal > 0 ? ehClicked : (es.emails_clicked  ?? es.clicked    ?? 0);
+      const statMeetings= ehTotal > 0 ? ehMeetings: (es.meetings_booked ?? es.meetings   ?? c.meetings  ?? 0);
+      const statSkipped = ehTotal > 0 ? ehSkipped : 0;
+      const statOpened  = es.emails_opened  ?? es.opened ?? 0;
       const statOpenRate= es.open_rate != null
         ? Math.round(Number(es.open_rate))
         : (statSent > 0 ? Math.round((statOpened / statSent) * 100) : 0);
       const funnelData = [
-        { stage: "Sent",    value: statSent,     fill: "#6366f1" },
-        { stage: "Opened",  value: statOpened,   fill: "#0ea5e9" },
-        { stage: "Clicked", value: statClicked,  fill: "#22c55e" },
-        { stage: "Meeting", value: statMeetings, fill: "#f59e0b" },
-      ];
+        { stage: "Sent",     value: statSent,     fill: "#6366f1" },
+        { stage: "Not Sent", value: statNotSent,  fill: "#94a3b8" },
+        { stage: "Failed",   value: statFailed,   fill: "#f87171" },
+        { stage: "Pending",  value: statPending,  fill: "#f59e0b" },
+        { stage: "Meeting",  value: statMeetings, fill: "#22c55e" },
+      ].filter((d) => d.value > 0);
       const statusDonut = [
-        { name: "Opened",  value: statOpened - statClicked, color: "#0ea5e9" },
-        { name: "Clicked", value: statClicked,               color: "#22c55e" },
-        { name: "Failed",  value: statFailed,                color: "#f87171" },
+        { name: "Sent",     value: statSent,     color: "#6366f1" },
+        { name: "Not Sent", value: statNotSent,  color: "#94a3b8" },
+        { name: "Failed",   value: statFailed,   color: "#f87171" },
+        { name: "Pending",  value: statPending,  color: "#f59e0b" },
+        { name: "Skipped",  value: statSkipped,  color: "#e879f9" },
+        { name: "Meeting",  value: statMeetings, color: "#22c55e" },
       ].filter((s) => s.value > 0);
       return (
         <main className="min-h-screen bg-[#f4f5f7] p-4">
@@ -2448,24 +2463,32 @@ export default function CampaignPage() {
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
               {
-                label: "Emails Sent",
-                value: emailStatsLoading ? "…" : statSent,
-                raw: statSent,
-                sub: "total outreach",
+                label: "Total Emails",
+                value: emailHistoryLoading ? "…" : ehTotal,
+                raw: ehTotal,
+                sub: "in campaign",
                 color: "text-gray-900",
                 ring: "ring-gray-200",
               },
               {
-                label: "Opened",
-                value: emailStatsLoading ? "…" : statOpened,
-                raw: statOpened,
-                sub: `${statOpenRate}% rate`,
-                color: "text-sky-600",
-                ring: "ring-sky-200",
+                label: "Sent",
+                value: emailHistoryLoading ? "…" : statSent,
+                raw: statSent,
+                sub: "delivered",
+                color: "text-indigo-600",
+                ring: "ring-indigo-200",
+              },
+              {
+                label: "Not Sent",
+                value: emailHistoryLoading ? "…" : statNotSent,
+                raw: statNotSent,
+                sub: "not delivered",
+                color: "text-slate-500",
+                ring: "ring-slate-200",
               },
               {
                 label: "Failed",
-                value: emailStatsLoading ? "…" : statFailed,
+                value: emailHistoryLoading ? "…" : statFailed,
                 raw: statFailed,
                 sub: "delivery failed",
                 color: "text-red-500",
@@ -2473,29 +2496,29 @@ export default function CampaignPage() {
               },
               {
                 label: "Pending",
-                value: emailStatsLoading ? "…" : statPending,
+                value: emailHistoryLoading ? "…" : statPending,
                 raw: statPending,
                 sub: "in queue",
                 color: "text-amber-500",
                 ring: "ring-amber-200",
               },
               {
-                label: "Meetings",
-                value: emailStatsLoading ? "…" : statMeetings,
-                raw: statMeetings,
-                sub: "booked",
-                color: "text-violet-600",
-                ring: "ring-violet-200",
+                label: "Skipped",
+                value: emailHistoryLoading ? "…" : statSkipped,
+                raw: statSkipped,
+                sub: "skipped",
+                color: "text-fuchsia-500",
+                ring: "ring-fuchsia-200",
               },
               {
-                label: "Open Rate",
-                value: emailStatsLoading ? "…" : `${statOpenRate}%`,
-                raw: statOpenRate,
-                sub: "of all sent",
-                color: "text-teal-600",
-                ring: "ring-teal-200",
+                label: "Meetings",
+                value: emailHistoryLoading ? "…" : statMeetings,
+                raw: statMeetings,
+                sub: "booked",
+                color: "text-green-600",
+                ring: "ring-green-200",
               },
-            ].filter((k) => emailStatsLoading || k.raw > 0).map((k) => (
+            ].filter((k) => emailHistoryLoading || k.raw > 0).map((k) => (
               <article
                 key={k.label}
                 className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring}`}

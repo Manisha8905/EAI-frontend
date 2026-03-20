@@ -693,49 +693,115 @@ function AgentsPage({ onBack }) {
 }
 
 /* ── Email Templates ── */
-const INIT_TEMPLATES = [
-  {
-    id: 1,
-    name: "Enterprise Intro",
-    subject: "Grow Your Revenue by 30% with AI SDR",
-    preview: "Hi {{first_name}}, I wanted to reach out...",
-  },
-  {
-    id: 2,
-    name: "Follow-up Sequence",
-    subject: "Quick follow-up — {{company}}",
-    preview: "Just wanted to circle back on my last message...",
-  },
-  {
-    id: 3,
-    name: "Demo Invite",
-    subject: "Can we show you something impressive?",
-    preview: "We'd love to give you a personalized demo...",
-  },
-];
-
 function EmailTemplatesPage({ onBack }) {
-  const [templates, setTemplates] = useState(INIT_TEMPLATES);
-  const [showModal, setShowModal] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [form, setForm] = useState({ name: "", subject: "", body: "" });
-  const [fileName, setFileName] = useState("No file selected");
+  const [templates, setTemplates]   = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [showModal, setShowModal]   = useState(false);
+  const [preview, setPreview]       = useState(null);
+  const [form, setForm]             = useState({ name: "", subject: "", body: "" });
+  const [htmlFile, setHtmlFile]     = useState(null);
+  const [fileName, setFileName]     = useState("No file selected");
+  const [saving, setSaving]         = useState(false);
+  const [deleting, setDeleting]     = useState(null);
   const fileRef = useRef(null);
 
-  const create = () => {
-    if (!form.name || !form.subject) return;
-    setTemplates((p) => [
-      ...p,
-      {
-        id: Date.now(),
-        name: form.name,
-        subject: form.subject,
-        preview: form.body || "(no body)",
-      },
-    ]);
-    setForm({ name: "", subject: "", body: "" });
-    setFileName("No file selected");
+  /* ── GET /api/email-templates ── */
+  const fetchTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get("/api/email-templates");
+      const raw = res.data ?? [];
+      const list = Array.isArray(raw) ? raw : (raw.data ?? raw.templates ?? raw.results ?? []);
+      setTemplates(
+        list.map((t) => ({
+          id:      t.template_id ?? t.id ?? t._id ?? Math.random(),
+          name:    t.name ?? t.template_name ?? "",
+          subject: t.subject ?? t.email_subject ?? "",
+          body:    t.html_content ?? t.body ?? t.content ?? t.html ?? "",
+          placeholders: t.placeholders ?? null,
+          originalFilename: t.original_filename ?? "",
+        }))
+      );
+    } catch {
+      /* silently ignore */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchTemplates(); }, []);
+
+  /* ── POST /api/email-templates/upload ── */
+  const create = async () => {
+    if (!form.name.trim() || !form.subject.trim()) return;
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append("name", form.name.trim());
+      fd.append("subject", form.subject.trim());
+      if (htmlFile) {
+        /* Actual HTML file selected — send as-is */
+        fd.append("html_content", htmlFile, htmlFile.name);
+      } else {
+        /* Plain text / pasted HTML — wrap in a Blob */
+        fd.append(
+          "html_content",
+          new Blob([form.body], { type: "text/html" }),
+          "template.html"
+        );
+      }
+      const res = await axiosInstance.post("/api/email-templates/upload", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const r = res.data ?? {};
+      toast.success(r.message ?? "Template created successfully.");
+      /* Add new template directly from response — no re-fetch needed */
+      setTemplates((prev) => [
+        ...prev,
+        {
+          id:               r.template_id ?? Math.random(),
+          name:             r.name ?? form.name.trim(),
+          subject:          form.subject.trim(),
+          body:             form.body,
+          placeholders:     r.placeholders ?? null,
+          originalFilename: r.original_filename ?? (htmlFile?.name ?? ""),
+        },
+      ]);
+      setForm({ name: "", subject: "", body: "" });
+      setHtmlFile(null);
+      setFileName("No file selected");
+      setShowModal(false);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.detail ??
+        err?.response?.data?.message ??
+        "Failed to create template."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ── DELETE /api/email-templates/{id} ── */
+  const del = async (id) => {
+    setDeleting(id);
+    try {
+      await axiosInstance.delete(`/api/email-templates/${id}`);
+      setTemplates((p) => p.filter((t) => t.id !== id));
+      toast.success("Template deleted.");
+    } catch {
+      /* If no delete endpoint, remove locally */
+      setTemplates((p) => p.filter((t) => t.id !== id));
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const closeModal = () => {
     setShowModal(false);
+    setForm({ name: "", subject: "", body: "" });
+    setHtmlFile(null);
+    setFileName("No file selected");
   };
 
   return (
@@ -745,69 +811,96 @@ function EmailTemplatesPage({ onBack }) {
         subtitle="Manage reusable email templates for your campaigns"
         onBack={onBack}
         action={
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Create New
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchTemplates}
+              disabled={loading}
+              className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              Create New
+            </button>
+          </div>
         }
       />
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-100">
-              {["Name", "Subject", "Preview", "View", "Delete"].map((h, i) => (
-                <th key={i} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {templates.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">
-                  No templates yet
-                </td>
-              </tr>
-            ) : (
-              templates.map((t, i) => (
-                <tr
-                  key={t.id}
-                  className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
-                >
-                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{t.name}</td>
-                  <td className="px-5 py-3.5 text-[13px] text-gray-600">{t.subject}</td>
-                  <td className="px-5 py-3.5 text-[12px] text-gray-400 max-w-[220px] truncate">{t.preview}</td>
-                  <td className="px-5 py-3.5">
-                    <button
-                      onClick={() => setPreview(t)}
-                      className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      View
-                    </button>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <button
-                      onClick={() => setTemplates((p) => p.filter((x) => x.id !== t.id))}
-                      className="text-red-400 hover:text-red-600 transition"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">
+            Loading templates…
+          </div>
+        ) : (
+          <>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  {["Name", "Subject", "Preview", "View", "Delete"].map((h, i) => (
+                    <th key={i} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+                  ))}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
-          {templates.length} templates
-        </div>
+              </thead>
+              <tbody>
+                {templates.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-12 text-center text-[13px] text-gray-400">
+                      No templates yet — click <span className="font-[600] text-gray-600">Create New</span> to add one.
+                    </td>
+                  </tr>
+                ) : (
+                  templates.map((t, i) => (
+                    <tr
+                      key={t.id}
+                      className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
+                    >
+                      <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{t.name}</td>
+                      <td className="px-5 py-3.5 text-[13px] text-gray-600">{t.subject}</td>
+                      <td className="px-5 py-3.5 text-[12px] text-gray-400 max-w-[220px] truncate">
+                        {/* Strip HTML tags for plain-text preview */}
+                        {t.body.replace(/<[^>]*>/g, "").slice(0, 60) || "(no body)"}
+                        {t.body.replace(/<[^>]*>/g, "").length > 60 ? "…" : ""}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <button
+                          onClick={() => setPreview(t)}
+                          className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          View
+                        </button>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <button
+                          onClick={() => del(t.id)}
+                          disabled={deleting === t.id}
+                          className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
+                        >
+                          {deleting === t.id
+                            ? <RefreshCw className="h-4 w-4 animate-spin" />
+                            : <Trash2 className="h-4 w-4" />}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
+              {templates.length} template{templates.length !== 1 ? "s" : ""}
+            </div>
+          </>
+        )}
       </div>
 
+      {/* ── Create Modal ── */}
       {showModal && (
-        <Modal title="Create Template" onClose={() => setShowModal(false)}>
+        <Modal title="Create Template" onClose={closeModal}>
           <div className="space-y-4">
             <Field
               label="Name"
@@ -825,14 +918,14 @@ function EmailTemplatesPage({ onBack }) {
             />
             <div>
               <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
-                Body / File <span className="text-red-500">*</span>
+                HTML Body <span className="text-red-500">*</span>
               </label>
               <textarea
-                rows={4}
-                placeholder="Write your email body, or upload an HTML file below…"
+                rows={5}
+                placeholder="Paste your HTML email body here, or upload an .html file below…"
                 value={form.body}
                 onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-400 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none mb-2"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none mb-2 font-mono"
               />
               <div className="flex items-center gap-3">
                 <button
@@ -841,44 +934,67 @@ function EmailTemplatesPage({ onBack }) {
                   className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[12px] font-[500] text-gray-600 hover:bg-gray-50 transition"
                 >
                   <Upload className="h-3.5 w-3.5" />
-                  Browse
+                  Browse HTML File
                 </button>
-                <span className="text-[12px] text-gray-400">{fileName}</span>
+                <span className="text-[12px] text-gray-400 truncate max-w-[180px]">{fileName}</span>
                 <input
                   ref={fileRef}
                   type="file"
-                  accept=".html,.htm,.txt"
+                  accept=".html,.htm"
                   className="hidden"
-                  onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "No file selected")}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setHtmlFile(f);
+                    setFileName(f?.name ?? "No file selected");
+                    if (f) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setForm((frm) => ({ ...frm, body: ev.target.result ?? "" }));
+                      reader.readAsText(f);
+                    }
+                  }}
                 />
               </div>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                HTML is sent as <code className="bg-gray-100 px-1 rounded text-[10px]">html_content</code> to the upload endpoint.
+              </p>
             </div>
             <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
               <button
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
                 className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={create}
-                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition"
+                disabled={saving || !form.name.trim() || !form.subject.trim()}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
               >
-                Submit
+                {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                {saving ? "Uploading…" : "Submit"}
               </button>
             </div>
           </div>
         </Modal>
       )}
 
+      {/* ── Preview Modal ── */}
       {preview && (
-        <Modal title={preview.name} onClose={() => setPreview(null)} width="max-w-xl">
-          <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wide mb-1">Subject</p>
+        <Modal title={preview.name} onClose={() => setPreview(null)} width="max-w-2xl">
+          <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-1">Subject</p>
           <p className="text-[14px] font-[500] text-gray-800 mb-4">{preview.subject}</p>
-          <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wide mb-1">Body</p>
-          <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-[13px] text-gray-700 whitespace-pre-line">
-            {preview.preview}
-          </div>
+          <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-2">Body</p>
+          {preview.body && /<[a-z]/i.test(preview.body) ? (
+            /* Render HTML preview in a sandboxed iframe-like container */
+            <div
+              className="rounded-xl border border-gray-200 bg-white overflow-auto max-h-[420px] p-4 text-[13px]"
+              dangerouslySetInnerHTML={{ __html: preview.body }}
+            />
+          ) : (
+            <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-[13px] text-gray-700 whitespace-pre-line max-h-[420px] overflow-auto">
+              {preview.body || "(no body)"}
+            </div>
+          )}
         </Modal>
       )}
     </div>
@@ -893,18 +1009,67 @@ function GraphConfigPage({ onBack }) {
     tenantId: "",
     targetEmail: "",
   });
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [loadedFromServer, setLoadedFromServer] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const submit = (e) => {
+  /* ── Fetch existing credentials on mount ── */
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await axiosInstance.get("/api/globalsetting/graph");
+        /* Handle { credentials: { GRAPH_CLIENT_ID, ... } } as well as flat shapes */
+        const raw = res.data ?? {};
+        const d   = raw.credentials ?? raw.data ?? raw;
+        const mapped = {
+          clientId:     d.GRAPH_CLIENT_ID     ?? d.client_id      ?? d.clientId     ?? "",
+          clientSecret: d.GRAPH_CLIENT_SECRET ?? d.client_secret  ?? d.clientSecret ?? "",
+          tenantId:     d.GRAPH_TENANT_ID     ?? d.tenant_id      ?? d.tenantId     ?? "",
+          targetEmail:  d.GRAPH_TARGET_EMAIL  ?? d.target_email   ?? d.targetEmail  ?? "",
+        };
+        setForm(mapped);
+        /* Mark as loaded only if at least one field has a value */
+        if (Object.values(mapped).some(Boolean)) setLoadedFromServer(true);
+      } catch (err) {
+        const msg = err?.response?.data?.detail ?? err?.response?.data?.message ?? null;
+        if (err?.response?.status !== 404) setLoadError(msg || "Failed to load Graph credentials.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  /* ── Save / update credentials ── */
+  const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      await axiosInstance.put("/api/globalsetting/graph", {
+        credentials: {
+          GRAPH_CLIENT_ID:     form.clientId,
+          GRAPH_CLIENT_SECRET: form.clientSecret,
+          GRAPH_TENANT_ID:     form.tenantId,
+          GRAPH_TARGET_EMAIL:  form.targetEmail,
+        },
+      });
       setSaved(true);
+      toast.success("Graph credentials saved.");
       setTimeout(() => setSaved(false), 3500);
-    }, 1400);
+    } catch (err) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        "Failed to save Graph credentials.";
+      toast.error(detail);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const services = [
@@ -940,6 +1105,23 @@ function GraphConfigPage({ onBack }) {
             </div>
 
             <form onSubmit={submit} className="p-7 space-y-5">
+              {loadError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-[12px] text-red-600 flex items-center gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />{loadError}
+                </div>
+              )}
+              {loadedFromServer && !loadError && (
+                <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-[12px] text-green-700 flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />
+                  Credentials loaded from server — fields pre-filled below.
+                </div>
+              )}
+              {loading ? (
+                <div className="flex items-center justify-center py-10 text-[13px] text-gray-400 gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />Loading credentials…
+                </div>
+              ) : (
+                <>
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <Field label="Graph Client ID" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={form.clientId} onChange={set("clientId")} icon={Key} />
                 <Field label="Graph Client Secret" required type="password" placeholder="••••••••••••••••••" value={form.clientSecret} onChange={set("clientSecret")} icon={Shield} />
@@ -961,6 +1143,8 @@ function GraphConfigPage({ onBack }) {
                     : <><Zap className="h-4 w-4" />Save Configuration</>}
                 </button>
               </div>
+                </>
+              )}
             </form>
           </div>
         </div>
@@ -1028,27 +1212,279 @@ function GraphConfigPage({ onBack }) {
 }
 
 /* ── SMTP Providers ── */
-const INIT_SMTP = [
-  { id: 1, name: "Mailgun Production", provider: "Mailgun", domain: "mg.mycompany.com", ready: true },
-  { id: 2, name: "SendGrid Backup", provider: "SendGrid", domain: "sg.mycompany.com", ready: false },
+/* ── SMTP provider definitions ── */
+const SMTP_PROVIDER_LIST = [
+  { value: "mailgun",       label: "Mailgun" },
+  { value: "sendgrid",      label: "SendGrid" },
+  { value: "ses",           label: "Amazon SES" },
+  { value: "gmail",         label: "Gmail" },
+  { value: "outlook",       label: "Outlook / Office365" },
+  { value: "custom",        label: "Custom SMTP" },
+  { value: "outlook_graph", label: "Outlook Graph" },
+  { value: "mailercloud",   label: "Mailercloud" },
+  { value: "mailersend",    label: "MailerSend" },
+  { value: "sparkpost",     label: "SparkPost" },
+  { value: "brevo",         label: "Brevo (Sendinblue)" },
+  { value: "postmark",      label: "Postmark" },
 ];
-const SMTP_PROVIDERS = ["Mailgun", "SendGrid", "Amazon SES", "Postmark", "Custom SMTP"];
-const EMPTY_SMTP = { name: "", provider: SMTP_PROVIDERS[0], apiKey: "", domain: "", fromEmail: "", fromName: "" };
+
+/* Fields per provider — { key, label, placeholder, type, icon, required } */
+const SMTP_FIELDS = {
+  mailgun: [
+    { key: "MAILGUN_API_KEY",    label: "API Key",     placeholder: "key-xxxxxxxxxxxx",            type: "password", icon: "key",    required: true },
+    { key: "MAILGUN_DOMAIN",     label: "Domain",      placeholder: "mg.yourdomain.com",           type: "text",     icon: "globe",  required: true },
+    { key: "MAILGUN_FROM_EMAIL", label: "From Email",  placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
+    { key: "MAILGUN_FROM_NAME",  label: "From Name",   placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+  ],
+  sendgrid: [
+    { key: "SENDGRID_API_KEY",    label: "API Key",    placeholder: "SG.xxxxxxxxxxxx",             type: "password", icon: "key",    required: true },
+    { key: "SENDGRID_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
+    { key: "SENDGRID_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+  ],
+  ses: [
+    { key: "AWS_ACCESS_KEY_ID",     label: "Access Key ID",     placeholder: "AKIAxxxxxxxxxxxx",   type: "text",     icon: "key",    required: true },
+    { key: "AWS_SECRET_ACCESS_KEY", label: "Secret Access Key", placeholder: "xxxxxxxxxxxx",       type: "password", icon: "key",    required: true },
+    { key: "AWS_REGION",            label: "AWS Region",        placeholder: "us-east-1",          type: "text",     icon: "globe",  required: true },
+    { key: "SES_FROM_EMAIL",        label: "From Email",        placeholder: "noreply@yourdomain.com", type: "email", icon: "at",    required: false },
+    { key: "SES_FROM_NAME",         label: "From Name",         placeholder: "Your Company",       type: "text",     icon: null,     required: false },
+  ],
+  gmail: [
+    { key: "GMAIL_EMAIL",        label: "Gmail Address",   placeholder: "yourname@gmail.com",      type: "email",    icon: "at",     required: true },
+    { key: "GMAIL_APP_PASSWORD", label: "App Password",    placeholder: "xxxx xxxx xxxx xxxx",     type: "password", icon: "key",    required: true },
+    { key: "GMAIL_FROM_NAME",    label: "From Name",       placeholder: "Your Name",               type: "text",     icon: null,     required: false },
+  ],
+  outlook: [
+    { key: "OUTLOOK_EMAIL",     label: "Outlook Email",   placeholder: "yourname@outlook.com",    type: "email",    icon: "at",     required: true },
+    { key: "OUTLOOK_PASSWORD",  label: "Password",        placeholder: "your-password",           type: "password", icon: "key",    required: true },
+    { key: "OUTLOOK_FROM_NAME", label: "From Name",       placeholder: "Your Name",               type: "text",     icon: null,     required: false },
+  ],
+  custom: [
+    { key: "SMTP_HOST",       label: "SMTP Host",     placeholder: "smtp.yourdomain.com",         type: "text",     icon: "globe",  required: true },
+    { key: "SMTP_PORT",       label: "Port",          placeholder: "587",                         type: "text",     icon: null,     required: true },
+    { key: "SMTP_USERNAME",   label: "Username",      placeholder: "your-username",               type: "text",     icon: "at",     required: true },
+    { key: "SMTP_PASSWORD",   label: "Password",      placeholder: "your-password",               type: "password", icon: "key",    required: true },
+    { key: "SMTP_USE_TLS",    label: "Use TLS",       placeholder: "true",                        type: "text",     icon: null,     required: false },
+    { key: "SMTP_USE_SSL",    label: "Use SSL",       placeholder: "false",                       type: "text",     icon: null,     required: false },
+    { key: "SMTP_FROM_EMAIL", label: "From Email",    placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
+    { key: "SMTP_FROM_NAME",  label: "From Name",     placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+  ],
+  outlook_graph: [
+    { key: "GRAPH_CLIENT_ID",     label: "Client ID",       placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", type: "text",     icon: "key",    required: true },
+    { key: "GRAPH_CLIENT_SECRET", label: "Client Secret",   placeholder: "your-client-secret",                  type: "password", icon: "key",    required: true },
+    { key: "GRAPH_TENANT_ID",     label: "Tenant ID",       placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", type: "text",     icon: "globe",  required: true },
+    { key: "GRAPH_TARGET_EMAIL",  label: "Target Mailbox",  placeholder: "mailbox@yourcompany.com",              type: "email",    icon: "at",     required: true },
+    { key: "WEBHOOK_BASE_URL",    label: "Webhook Base URL", placeholder: "https://yourapp.com",                 type: "text",     icon: "globe",  required: false },
+  ],
+  mailercloud: [
+    { key: "MAILERCLOUD_API_KEY",    label: "API Key",    placeholder: "mc-xxxxxxxxxxxx",              type: "password", icon: "key",    required: true },
+    { key: "MAILERCLOUD_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
+    { key: "MAILERCLOUD_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+  ],
+  mailersend: [
+    { key: "MAILERSEND_API_KEY",    label: "API Key",    placeholder: "mlsn.xxxxxxxxxxxx",            type: "password", icon: "key",    required: true },
+    { key: "MAILERSEND_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
+    { key: "MAILERSEND_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+  ],
+  sparkpost: [
+    { key: "SPARKPOST_API_KEY",    label: "API Key",    placeholder: "xxxxxxxxxxxx",                 type: "password", icon: "key",    required: true },
+    { key: "SPARKPOST_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
+    { key: "SPARKPOST_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+  ],
+  brevo: [
+    { key: "BREVO_API_KEY",    label: "API Key",    placeholder: "xkeysib-xxxxxxxxxxxx",             type: "password", icon: "key",    required: true },
+    { key: "BREVO_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",          type: "email",    icon: "at",     required: false },
+    { key: "BREVO_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                    type: "text",     icon: null,     required: false },
+  ],
+  postmark: [
+    { key: "POSTMARK_API_KEY",    label: "Server API Token", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", type: "password", icon: "key",    required: true },
+    { key: "POSTMARK_FROM_EMAIL", label: "From Email",       placeholder: "noreply@yourdomain.com",              type: "email",    icon: "at",     required: false },
+    { key: "POSTMARK_FROM_NAME",  label: "From Name",        placeholder: "Your Company",                        type: "text",     icon: null,     required: false },
+  ],
+};
+
+const EMPTY_SMTP_FORM = { name: "", provider: "mailgun", credentials: {} };
+
+function smtpIconFor(iconName) {
+  if (iconName === "key")   return <Key   className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />;
+  if (iconName === "globe") return <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />;
+  if (iconName === "at")    return <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />;
+  return null;
+}
+
+function CredInput({ field, value, error, onChange }) {
+  const [show, setShow] = useState(false);
+  const isPass = field.type === "password";
+  return (
+    <div>
+      <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+        {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <div className="relative">
+        {field.icon && smtpIconFor(field.icon)}
+        <input
+          type={isPass ? (show ? "text" : "password") : "text"}
+          inputMode={field.type === "email" ? "email" : undefined}
+          placeholder={field.placeholder}
+          value={value}
+          onChange={(e) => onChange(field.key, e.target.value)}
+          className={`w-full rounded-xl border py-2.5 text-[13px] text-gray-800 placeholder-gray-400 outline-none transition
+            focus:ring-2 focus:ring-violet-400/20
+            ${error ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 bg-gray-50/60 focus:border-violet-400 focus:bg-white"}
+            ${field.icon ? "pl-10 pr-3" : "px-3.5"}
+            ${isPass ? "pr-10" : ""}`}
+        />
+        {isPass && (
+          <button type="button" onClick={() => setShow((s) => !s)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+    </div>
+  );
+}
 
 function SMTPProvidersPage({ onBack }) {
-  const [list, setList] = useState(INIT_SMTP);
+  const [list, setList] = useState([]);          // available providers (from available-providers API)
+  const [configuredMap, setConfiguredMap] = useState({}); // provider key → configured record
+  const [loadingList, setLoadingList] = useState(false);
   const [showModal, setShow] = useState(false);
-  const [form, setForm] = useState(EMPTY_SMTP);
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [form, setForm] = useState(EMPTY_SMTP_FORM);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const create = () => {
-    if (!form.name || !form.apiKey || !form.domain) return;
-    setList((p) => [...p, { id: Date.now(), name: form.name, provider: form.provider, domain: form.domain, ready: false }]);
-    setForm(EMPTY_SMTP);
-    setShow(false);
+  /* fetch available providers + configured status in parallel */
+  const fetchList = async () => {
+    setLoadingList(true);
+    try {
+      const [availRes, cfgRes] = await Promise.allSettled([
+        axiosInstance.get("/api/smtp/available-providers"),
+        axiosInstance.get("/api/smtp/providers"),
+      ]);
+
+      /* ── available providers ── */
+      /* Build a label lookup from the hardcoded list so API keys like "mailgun"
+         render as "Mailgun", "outlook" → "Outlook / Office365", etc. */
+      const labelMap = Object.fromEntries(SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]));
+
+      const normalizeProvider = (p, isReady) => {
+        const key = typeof p === "string" ? p : (p.name ?? p.provider ?? String(p));
+        return {
+          provider: key,
+          name:     p.display_name ?? p.label ?? labelMap[key] ?? key,
+          ready:    typeof p === "string" ? isReady : (p.ready ?? p.is_active ?? isReady),
+        };
+      };
+
+      let available = [];
+      if (availRes.status === "fulfilled") {
+        const d = availRes.value.data;
+
+        /* available_providers — ready ones */
+        const rawAvail = d?.available_providers ?? (Array.isArray(d) ? d : []);
+        const availItems = rawAvail.map((p) => normalizeProvider(p, true));
+
+        /* unavailable_providers — not yet configured */
+        const rawUnavail = d?.unavailable_providers ?? [];
+        const unavailItems = rawUnavail.map((p) => normalizeProvider(p, false));
+
+        /* merge: available first, then unavailable; dedupe by provider key */
+        const seen = new Set();
+        const merged = [...availItems, ...unavailItems].filter((p) => {
+          if (seen.has(p.provider)) return false;
+          seen.add(p.provider);
+          return true;
+        });
+        available = merged;
+      }
+      setList(available);
+
+      /* ── configured / saved providers → build a lookup map ── */
+      if (cfgRes.status === "fulfilled") {
+        const d = cfgRes.value.data;
+        const raw = Array.isArray(d) ? d : (d?.providers ?? d?.data ?? d?.results ?? []);
+        const map = {};
+        raw.forEach((p) => {
+          const key = (p.provider ?? p.name ?? "").toLowerCase();
+          if (key) map[key] = p;
+        });
+        setConfiguredMap(map);
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setLoadingList(false);
+    }
   };
-  const del = (id) => setList((p) => p.filter((x) => x.id !== id));
-  const toggle = (id) => setList((p) => p.map((x) => (x.id === id ? { ...x, ready: !x.ready } : x)));
+  useEffect(() => { fetchList(); }, []);
+
+  const setCred = (key, val) =>
+    setForm((f) => ({ ...f, credentials: { ...f.credentials, [key]: val } }));
+
+  const openCreate = () => {
+    const firstProvider = list[0]?.provider ?? "mailgun";
+    setForm({ name: "", provider: firstProvider, credentials: {} });
+    setErrors({});
+    setShow(true);
+  };
+
+  /* validate required fields for current provider */
+  const validate = () => {
+    const errs = {};
+    if (!form.name.trim()) errs.name = "Configuration name is required.";
+    const fields = SMTP_FIELDS[form.provider] ?? [];
+    fields.forEach((f) => {
+      if (f.required && !form.credentials[f.key]?.trim()) {
+        errs[f.key] = `${f.label} is required.`;
+      }
+    });
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  /* build payload and POST */
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      const payload = {
+        provider: form.provider,
+        credentials: { ...form.credentials },
+      };
+      const res = await axiosInstance.post("/api/smtp/validate-and-save-credentials", payload);
+      const msg = res?.data?.message || "SMTP credentials validated and saved.";
+      toast.success(msg);
+      setShow(false);
+      fetchList();
+    } catch (err) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        "Validation failed. Please check your credentials.";
+      toast.error(detail);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const del = async (providerKey) => {
+    const cfg = configuredMap[providerKey?.toLowerCase()];
+    const apiId = cfg?.id ?? cfg?.provider ?? providerKey;
+    try {
+      await axiosInstance.delete(`/api/smtp/providers/${apiId}`);
+      setConfiguredMap((m) => { const n = { ...m }; delete n[providerKey?.toLowerCase()]; return n; });
+      toast.success("Provider removed.");
+    } catch {
+      setConfiguredMap((m) => { const n = { ...m }; delete n[providerKey?.toLowerCase()]; return n; });
+    }
+  };
+
+  const fields = SMTP_FIELDS[form.provider] ?? [];
+  /* group fields in pairs for 2-col grid */
+  const fieldRows = [];
+  for (let i = 0; i < fields.length; i += 2) fieldRows.push(fields.slice(i, i + 2));
 
   return (
     <div>
@@ -1057,12 +1493,9 @@ function SMTPProvidersPage({ onBack }) {
         subtitle="Configure email delivery providers for campaigns"
         onBack={onBack}
         action={
-          <button
-            onClick={() => setShow(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Add Provider
+          <button onClick={openCreate}
+            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm">
+            <Plus className="h-4 w-4" />Add Provider
           </button>
         }
       />
@@ -1070,60 +1503,113 @@ function SMTPProvidersPage({ onBack }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {["Name", "Provider", "Domain", "Ready to Use", "Actions"].map((h) => (
+              {["Provider", "Name", "Status", "Actions"].map((h) => (
                 <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {list.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">No SMTP providers yet</td></tr>
+            {loadingList ? (
+              <tr><td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">Loading…</td></tr>
+            ) : list.length === 0 ? (
+              <tr><td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">No SMTP providers available</td></tr>
             ) : (
-              list.map((s, i) => (
-                <tr key={s.id} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
-                  <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{s.name}</td>
-                  <td className="px-5 py-3.5 text-[13px] text-gray-600">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-[600]">{s.provider}</span>
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] text-gray-500 font-mono text-[12px]">{s.domain}</td>
-                  <td className="px-5 py-3.5">
-                    <button onClick={() => toggle(s.id)}>
-                      {s.ready ? (
-                        <span className="inline-flex items-center gap-1.5 text-[12px] font-[600] text-green-700"><CheckCircle2 className="h-4 w-4 text-green-500" />Ready</span>
+              list.map((s, i) => {
+                const cfgEntry = configuredMap[(s.provider ?? s.name ?? "").toLowerCase()];
+                const isConfigured = Boolean(cfgEntry);
+                return (
+                  <tr key={s.provider ?? i} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                    <td className="px-5 py-3.5">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-indigo-50 text-[11px] font-[600] text-indigo-700">{s.provider}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{s.name}</td>
+                    <td className="px-5 py-3.5">
+                      {isConfigured ? (
+                        <span className="inline-flex items-center gap-1.5 text-[12px] font-[600] text-green-700"><CheckCircle2 className="h-4 w-4 text-green-500" />Configured</span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[12px] text-gray-400"><Circle className="h-4 w-4" />Not ready</span>
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-gray-400"><Circle className="h-4 w-4" />Not configured</span>
                       )}
-                    </button>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <button onClick={() => del(s.id)} className="text-red-400 hover:text-red-600 transition">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {isConfigured && (
+                        <button onClick={() => del(s.provider ?? s.name)} className="text-red-400 hover:text-red-600 transition">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
         <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
-          {list.length} providers configured
+          {list.length} provider{list.length !== 1 ? "s" : ""} available · {Object.keys(configuredMap).length} configured
         </div>
       </div>
 
       {showModal && (
-        <Modal title="Create SMTP Configuration" onClose={() => setShow(false)}>
+        <Modal title="Create SMTP Configuration" onClose={() => setShow(false)} width="max-w-xl">
           <div className="space-y-4">
-            <Field label="Configuration Name" required placeholder="e.g. Mailgun Production" value={form.name} onChange={set("name")} />
-            <SelectField label="Provider" options={SMTP_PROVIDERS} value={form.provider} onChange={set("provider")} />
-            <Field label="API Key" required placeholder="Enter your provider API key" type="password" value={form.apiKey} onChange={set("apiKey")} icon={Key} />
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Domain" required placeholder="mg.yourdomain.com" value={form.domain} onChange={set("domain")} icon={Globe} />
-              <Field label="From Email" placeholder="noreply@yourdomain.com" value={form.fromEmail} onChange={set("fromEmail")} icon={AtSign} />
+            {/* Config name */}
+            <div>
+              <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">Configuration Name<span className="text-red-500 ml-0.5">*</span></label>
+              <input
+                placeholder="e.g. Mailgun Production"
+                value={form.name}
+                onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setErrors((e2) => ({ ...e2, name: undefined })); }}
+                className={`w-full rounded-xl border px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-400 outline-none transition focus:ring-2 focus:ring-violet-400/20
+                  ${errors.name ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 bg-gray-50/60 focus:border-violet-400 focus:bg-white"}`}
+              />
+              {errors.name && <p className="mt-1 text-[11px] text-red-500">{errors.name}</p>}
             </div>
-            <Field label="From Name" placeholder="Your Company Name" value={form.fromName} onChange={set("fromName")} />
-            <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
+            {/* Provider selector — populated from available-providers API */}
+            <div>
+              <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">Provider</label>
+              <div className="relative">
+                <select
+                  value={form.provider}
+                  onChange={(e) => setForm({ name: form.name, provider: e.target.value, credentials: {} })}
+                  className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
+                >
+                  {list.length > 0
+                    ? list.map((p) => {
+                        const found = SMTP_PROVIDER_LIST.find((x) => x.value === p.provider);
+                        return (
+                          <option key={p.provider} value={p.provider}>
+                            {found?.label ?? p.name}
+                          </option>
+                        );
+                      })
+                    : SMTP_PROVIDER_LIST.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))
+                  }
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              </div>
+            </div>
+            {/* Dynamic credential fields */}
+            {fieldRows.map((row, ri) => (
+              <div key={ri} className={row.length === 2 ? "grid grid-cols-2 gap-3" : ""}>
+                {row.map((field) => (
+                  <CredInput
+                    key={field.key}
+                    field={field}
+                    value={form.credentials[field.key] ?? ""}
+                    error={errors[field.key]}
+                    onChange={setCred}
+                  />
+                ))}
+              </div>
+            ))}
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
               <button onClick={() => setShow(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={create} className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition">Submit</button>
+              <button onClick={handleSubmit} disabled={saving}
+                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 flex items-center gap-2">
+                {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                {saving ? "Validating & Saving…" : "Validate & Save"}
+              </button>
             </div>
           </div>
         </Modal>
