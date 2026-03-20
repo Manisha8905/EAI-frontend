@@ -238,6 +238,18 @@ export default function CampaignPage() {
   const [leadJourneyData, setLeadJourneyData] = useState([]);
   const [leadJourneyLoading, setLeadJourneyLoading] = useState(false);
 
+  /* ── Email Sending Service (CRM / SMTP) ── */
+  const [emailSendingService, setEmailSendingService] = useState("SMTP");
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setEmailSendingService(localStorage.getItem("emailSendingService") || "SMTP");
+    }
+  }, []);
+
+  /* ── Email Stats (from /campaigns/{id}/email-stats/) ── */
+  const [emailStats, setEmailStats] = useState(null);
+  const [emailStatsLoading, setEmailStatsLoading] = useState(false);
+
   /* ── Email Detail Modal ── */
   const [emailDetailModal, setEmailDetailModal] = useState(null);
   const [emailDetailLoading, setEmailDetailLoading] = useState(false);
@@ -336,16 +348,18 @@ export default function CampaignPage() {
       logged_in_user_email: form.logged_in_user_email,
       campaign_parallel_calls: Number(form.campaign_parallel_calls),
       list_id: form.list_id || undefined,
-      smtp_provider_name: form.smtp_provider_name,
+      ...(emailSendingService !== "CRM" && {
+        smtp_provider_name: form.smtp_provider_name,
+        from_name: form.from_name,
+        from_email: form.from_email,
+        reply_to_email: form.reply_to_email,
+        emails_per_batch: Number(form.emails_per_batch),
+        delay_between_batches_seconds: Number(form.delay_between_batches_seconds),
+      }),
       template_id: form.template_id || undefined,
-      from_name: form.from_name,
-      from_email: form.from_email,
-      reply_to_email: form.reply_to_email,
       enable_ai_personalization: form.enable_ai_personalization,
       ai_tone: form.ai_tone,
       ai_context: form.ai_context,
-      emails_per_batch: Number(form.emails_per_batch),
-      delay_between_batches_seconds: Number(form.delay_between_batches_seconds),
     };
 
     if (editingCampaignId) {
@@ -527,7 +541,16 @@ export default function CampaignPage() {
   useEffect(() => {
     if (!selectedCampaign) return;
     if (activeTab === "CALL") dispatch(fetchCallHistory(selectedCampaign.id));
-    if (activeTab === "EMAIL") dispatch(fetchEmailHistory(selectedCampaign.id));
+    if (activeTab === "EMAIL") {
+      dispatch(fetchEmailHistory(selectedCampaign.id));
+      setEmailStats(null);
+      setEmailStatsLoading(true);
+      axiosInstance
+        .get(`/campaigns/${selectedCampaign.id}/email-stats/`)
+        .then((res) => setEmailStats(res.data))
+        .catch(() => {})
+        .finally(() => setEmailStatsLoading(false));
+    }
     if (activeTab === "LINKEDIN")
       dispatch(fetchLinkedinHistory(selectedCampaign.id));
     if (activeTab === "WHATSAPP")
@@ -749,9 +772,9 @@ export default function CampaignPage() {
   /* ── Full-page Create Campaign form ── */
   if (showCreate) {
     return (
-      <main className="min-h-screen bg-[#f4f5f7]">
+      <main className="flex flex-col bg-[#f4f5f7]" style={{ height: "calc(100vh - 60px)" }}>
         {/* Top bar */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shadow-sm">
+        <div className="shrink-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shadow-sm">
           <div>
             <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
               {editingCampaignId ? "Edit Campaign" : "Create New Campaign"}
@@ -775,6 +798,7 @@ export default function CampaignPage() {
           </button>
         </div>
 
+        <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
           {/* Section: Basic Info */}
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
@@ -1073,13 +1097,28 @@ export default function CampaignPage() {
                 </div>
               </Field>
               <Field label="VAPI Voice ID">
-                <input
-                  name="vapi_voice_id"
-                  value={form.vapi_voice_id}
-                  onChange={handleFormChange}
-                  placeholder="e.g. 11labs-emily"
-                  className={inputCls}
-                />
+                <div className="relative">
+                  <select
+                    name="vapi_voice_id"
+                    value={form.vapi_voice_id}
+                    onChange={handleFormChange}
+                    className={selectCls}
+                  >
+                    <option value="">— Select Voice —</option>
+                    {[
+                      { label: "Cassidy", value: "56AoDkrOh6qfVPDXZ7Pt", description: "Confident female podcaster" },
+                      { label: "Jessica", value: "flHkNRp1BlvT73UL6gyz", description: "The Villain! Wickedly eloquent." },
+                      { label: "William", value: "8Es4wFxsDlHBmFWAOWRS", description: "Neutral US English, rich depth" },
+                      { label: "Dan",     value: "fvVBPXuE7f1iX3dZLKFy", description: "Warm, conversational, friendly" },
+                      { label: "Eric",    value: "cjVigY5qzO86Huf0OWal", description: "Smooth tenor, man in his 40s" },
+                    ].map((v) => (
+                      <option key={v.value} value={v.value}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                </div>
               </Field>
               <Field label="Agent">
                 <input
@@ -1133,8 +1172,8 @@ export default function CampaignPage() {
             </div>
           </section>
 
-          {/* Section: Email Config — only when Email is in channel_order */}
-          {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && (
+          {/* Section: Email Config — only when Email is in channel_order AND service is not CRM */}
+          {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
             <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Mail className="h-4 w-4 text-indigo-600" />
@@ -1143,15 +1182,17 @@ export default function CampaignPage() {
                 </h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Field label="SMTP Provider Name">
-                  <input
-                    name="smtp_provider_name"
-                    value={form.smtp_provider_name}
-                    onChange={handleFormChange}
-                    placeholder="default"
-                    className={inputCls}
-                  />
-                </Field>
+                {emailSendingService !== "CRM" && (
+                  <Field label="SMTP Provider Name">
+                    <input
+                      name="smtp_provider_name"
+                      value={form.smtp_provider_name}
+                      onChange={handleFormChange}
+                      placeholder="default"
+                      className={inputCls}
+                    />
+                  </Field>
+                )}
                 <Field label="Email Template">
                   <div className="relative">
                     <select
@@ -1170,55 +1211,59 @@ export default function CampaignPage() {
                     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   </div>
                 </Field>
-                <Field label="From Name">
-                  <input
-                    name="from_name"
-                    value={form.from_name}
-                    onChange={handleFormChange}
-                    placeholder="John from Acme Corp"
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="From Email">
-                  <input
-                    type="email"
-                    name="from_email"
-                    value={form.from_email}
-                    onChange={handleFormChange}
-                    placeholder="john@acme.com"
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="Reply to Email">
-                  <input
-                    type="email"
-                    name="reply_to_email"
-                    value={form.reply_to_email}
-                    onChange={handleFormChange}
-                    placeholder="support@acme.com"
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="Emails per Batch">
-                  <input
-                    type="number"
-                    name="emails_per_batch"
-                    value={form.emails_per_batch}
-                    onChange={handleFormChange}
-                    min={1}
-                    className={inputCls}
-                  />
-                </Field>
-                <Field label="Delay between Batches (Seconds)">
-                  <input
-                    type="number"
-                    name="delay_between_batches_seconds"
-                    value={form.delay_between_batches_seconds}
-                    onChange={handleFormChange}
-                    min={0}
-                    className={inputCls}
-                  />
-                </Field>
+                {emailSendingService !== "CRM" && (
+                  <>
+                    <Field label="From Name">
+                      <input
+                        name="from_name"
+                        value={form.from_name}
+                        onChange={handleFormChange}
+                        placeholder="John from Acme Corp"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="From Email">
+                      <input
+                        type="email"
+                        name="from_email"
+                        value={form.from_email}
+                        onChange={handleFormChange}
+                        placeholder="john@acme.com"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Reply to Email">
+                      <input
+                        type="email"
+                        name="reply_to_email"
+                        value={form.reply_to_email}
+                        onChange={handleFormChange}
+                        placeholder="support@acme.com"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Emails per Batch">
+                      <input
+                        type="number"
+                        name="emails_per_batch"
+                        value={form.emails_per_batch}
+                        onChange={handleFormChange}
+                        min={1}
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Delay between Batches (Seconds)">
+                      <input
+                        type="number"
+                        name="delay_between_batches_seconds"
+                        value={form.delay_between_batches_seconds}
+                        onChange={handleFormChange}
+                        min={0}
+                        className={inputCls}
+                      />
+                    </Field>
+                  </>
+                )}
               </div>
             </section>
           )}
@@ -1410,6 +1455,7 @@ export default function CampaignPage() {
               </button>
             </section>
           )}
+        </div>
         </div>
       </main>
     );
@@ -2356,33 +2402,27 @@ export default function CampaignPage() {
         const ss = emailStatus === "All Status" || r.status === emailStatus;
         return ms && ss;
       });
-      const totalSent = emailHistoryData.length || c.emailsSent;
-      const opened = emailHistoryData.filter(
-        (r) =>
-          r.status === "OPENED" ||
-          r.status === "CLICKED" ||
-          r.status === "REPLIED",
-      ).length;
-      const clicked = emailHistoryData.filter(
-        (r) => r.status === "CLICKED",
-      ).length;
-      const noOpen = emailHistoryData.filter(
-        (r) => r.status === "NOT OPENED" || r.status === "NO OPEN",
-      ).length;
-      const meetingBooked =
-        emailHistoryData.filter((r) => r.meeting).length || c.meetings;
-      const openRate =
-        totalSent > 0 ? Math.round((opened / totalSent) * 100) : 0;
+      // ── Email Stats sourced from /campaigns/{id}/email-stats/ API ──
+      const es = emailStats ?? {};
+      const statSent    = es.emails_sent    ?? es.total_sent   ?? es.sent    ?? c.emailsSent  ?? 0;
+      const statOpened  = es.emails_opened  ?? es.opened       ?? 0;
+      const statFailed  = es.emails_failed  ?? es.failed       ?? c.emailsFailed  ?? 0;
+      const statPending = es.emails_pending ?? es.pending      ?? c.emailsPending ?? 0;
+      const statClicked = es.emails_clicked ?? es.clicked      ?? 0;
+      const statMeetings= es.meetings_booked ?? es.meetings    ?? c.meetings  ?? 0;
+      const statOpenRate= es.open_rate != null
+        ? Math.round(Number(es.open_rate))
+        : (statSent > 0 ? Math.round((statOpened / statSent) * 100) : 0);
       const funnelData = [
-        { stage: "Sent", value: totalSent, fill: "#6366f1" },
-        { stage: "Opened", value: opened, fill: "#0ea5e9" },
-        { stage: "Clicked", value: clicked, fill: "#22c55e" },
-        { stage: "Meeting", value: meetingBooked, fill: "#f59e0b" },
+        { stage: "Sent",    value: statSent,     fill: "#6366f1" },
+        { stage: "Opened",  value: statOpened,   fill: "#0ea5e9" },
+        { stage: "Clicked", value: statClicked,  fill: "#22c55e" },
+        { stage: "Meeting", value: statMeetings, fill: "#f59e0b" },
       ];
       const statusDonut = [
-        { name: "Opened", value: opened - clicked, color: "#0ea5e9" },
-        { name: "Clicked", value: clicked, color: "#22c55e" },
-        { name: "No Open", value: noOpen, color: "#e2e8f0" },
+        { name: "Opened",  value: statOpened - statClicked, color: "#0ea5e9" },
+        { name: "Clicked", value: statClicked,               color: "#22c55e" },
+        { name: "Failed",  value: statFailed,                color: "#f87171" },
       ].filter((s) => s.value > 0);
       return (
         <main className="min-h-screen bg-[#f4f5f7] p-4">
@@ -2403,52 +2443,59 @@ export default function CampaignPage() {
               Track all email campaign activity and responses
             </p>
           </div>
-          {/* KPI strip */}
-          {/* <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+
+          {/* KPI strip — only cards with a non-zero value are shown */}
+          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
               {
                 label: "Emails Sent",
-                value: c.emailsSent,
+                value: emailStatsLoading ? "…" : statSent,
+                raw: statSent,
                 sub: "total outreach",
                 color: "text-gray-900",
                 ring: "ring-gray-200",
               },
               {
                 label: "Opened",
-                value: opened || c.emailsSent,
-                sub: `${openRate}% rate`,
+                value: emailStatsLoading ? "…" : statOpened,
+                raw: statOpened,
+                sub: `${statOpenRate}% rate`,
                 color: "text-sky-600",
                 ring: "ring-sky-200",
               },
               {
                 label: "Failed",
-                value: c.emailsFailed,
+                value: emailStatsLoading ? "…" : statFailed,
+                raw: statFailed,
                 sub: "delivery failed",
                 color: "text-red-500",
                 ring: "ring-red-200",
               },
               {
                 label: "Pending",
-                value: c.emailsPending,
+                value: emailStatsLoading ? "…" : statPending,
+                raw: statPending,
                 sub: "in queue",
                 color: "text-amber-500",
                 ring: "ring-amber-200",
               },
               {
                 label: "Meetings",
-                value: c.meetings,
+                value: emailStatsLoading ? "…" : statMeetings,
+                raw: statMeetings,
                 sub: "booked",
                 color: "text-violet-600",
                 ring: "ring-violet-200",
               },
               {
                 label: "Open Rate",
-                value: `${openRate}%`,
+                value: emailStatsLoading ? "…" : `${statOpenRate}%`,
+                raw: statOpenRate,
                 sub: "of all sent",
                 color: "text-teal-600",
                 ring: "ring-teal-200",
               },
-            ].map((k) => (
+            ].filter((k) => emailStatsLoading || k.raw > 0).map((k) => (
               <article
                 key={k.label}
                 className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring}`}
@@ -2462,7 +2509,8 @@ export default function CampaignPage() {
                 <p className="text-[11px] text-gray-400">{k.sub}</p>
               </article>
             ))}
-          </section> */}
+          </section>
+
           {/* Charts */}
           {funnelData.some((d) => d.value > 0) && (
             <section className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2516,7 +2564,7 @@ export default function CampaignPage() {
                     Email Status Split
                   </h3>
                   <p className="text-[12px] text-gray-400 mb-2">
-                    Opened vs clicked vs ignored
+                    Opened vs clicked vs failed
                   </p>
                   <div className="flex-1 flex flex-col items-center justify-center gap-3">
                     <ResponsiveContainer width={140} height={140}>
@@ -2570,6 +2618,7 @@ export default function CampaignPage() {
               )}
             </section>
           )}
+
           {/* Table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-wrap">

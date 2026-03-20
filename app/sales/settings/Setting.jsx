@@ -2113,7 +2113,9 @@ function MappingsPage({ onBack }) {
 ════════════════════════════════════════════════════════════ */
 export default function Setting() {
   const [activePage, setActivePage] = useState(null);
-  const [emailPlatform, setEP] = useState("SMTP");
+  const [emailPlatform, setEP] = useState(() =>
+    (typeof window !== "undefined" && localStorage.getItem("emailSendingService")) || "SMTP"
+  );
   const [emailPlatformSaving, setEmailPlatformSaving] = useState(false);
   const [smtpProvider, setSMTP] = useState("");
   const [smtpProviderList, setSmtpProviderList] = useState([]); // [{name, description, ready}]
@@ -2178,6 +2180,7 @@ export default function Setting() {
 
   const handleSelectEmailPlatform = async (platform) => {
     setEP(platform);
+    if (typeof window !== "undefined") localStorage.setItem("emailSendingService", platform.toUpperCase());
     setEmailPlatformSaving(true);
     try {
       await axiosInstance.post("/api/email-sending/select-service", { service: platform.toLowerCase() });
