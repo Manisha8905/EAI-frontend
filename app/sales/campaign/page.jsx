@@ -673,7 +673,7 @@ export default function CampaignPage() {
     try {
       await axiosInstance.patch(
         `/campaigns/${campaignId}/leads/${leadId}/skip-channels`,
-        { channels: [channelName] },
+        { skip_channels: [channelName] },
       );
       toast.success(`${channelName} channel skipped.`);
       // Refresh the table + modal journey after skip
