@@ -2276,6 +2276,23 @@ function LeadsPage({ onBack }) {
   const [deletingLeadId, setDeletingLeadId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  /* ── Delete entire list ── */
+  const [deletingListId, setDeletingListId] = useState(null);
+  const [deleteListTarget, setDeleteListTarget] = useState(null); // { id, name }
+
+  const handleDeleteList = async (listId) => {
+    setDeletingListId(listId);
+    try {
+      await axiosInstance.delete(`/lead-lists/${listId}`);
+      setLists((p) => p.filter((l) => l.id !== listId));
+      toast.success("Lead list deleted.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to delete lead list.");
+    } finally {
+      setDeletingListId(null);
+    }
+  };
+
   /* ── GET /lead-lists ── */
   const fetchLists = async () => {
     setLoading(true);
@@ -2438,6 +2455,36 @@ function LeadsPage({ onBack }) {
     }
   };
 
+  /* ── PATCH /lead-lists/{listId}/leads/{leadId} — toggle channel ── */
+  const [togglingChannel, setTogglingChannel] = useState(new Set());
+
+  const handleToggleLeadChannel = async (leadId, channelKey, currentValue) => {
+    if (!viewList) return;
+    const tKey = `${leadId}_${channelKey}`;
+    setTogglingChannel((s) => new Set([...s, tKey]));
+    // Optimistic update
+    setListLeads((prev) =>
+      prev.map((l) => {
+        const id = l.id ?? l._id ?? l.list_lead_id;
+        return id === leadId ? { ...l, [channelKey]: !currentValue } : l;
+      })
+    );
+    try {
+      await axiosInstance.patch(`/lead-lists/${viewList.id}/leads/${leadId}`, { [channelKey]: !currentValue });
+    } catch (err) {
+      // Revert on failure
+      setListLeads((prev) =>
+        prev.map((l) => {
+          const id = l.id ?? l._id ?? l.list_lead_id;
+          return id === leadId ? { ...l, [channelKey]: currentValue } : l;
+        })
+      );
+      toast.error(err?.response?.data?.message || "Failed to update channel.");
+    } finally {
+      setTogglingChannel((s) => { const ns = new Set(s); ns.delete(tKey); return ns; });
+    }
+  };
+
   const filteredLists = lists.filter((l) =>
     (l.name ?? "").toLowerCase().includes(search.toLowerCase())
   );
@@ -2552,16 +2599,28 @@ function LeadsPage({ onBack }) {
                               ) : <span className="text-gray-300">—</span>}
                             </td>
                             <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1.5">
-                                {lead.call_enabled && (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-[700] border border-indigo-100">Call</span>
-                                )}
-                                {lead.email_enabled && (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-600 text-[10px] font-[700] border border-sky-100">Email</span>
-                                )}
-                                {lead.whatsapp_enabled && (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-green-50 text-green-600 text-[10px] font-[700] border border-green-100">WA</span>
-                                )}
+                              <div className="flex items-center gap-1">
+                                {[
+                                  { key: "call_enabled",     label: "Call",  on: "bg-indigo-600 text-white border-indigo-600",  off: "bg-gray-100 text-gray-400 border-gray-200" },
+                                  { key: "email_enabled",    label: "Email", on: "bg-sky-600 text-white border-sky-600",        off: "bg-gray-100 text-gray-400 border-gray-200" },
+                                  { key: "linkedin_enabled", label: "Li",    on: "bg-blue-700 text-white border-blue-700",      off: "bg-gray-100 text-gray-400 border-gray-200" },
+                                  { key: "whatsapp_enabled", label: "WA",    on: "bg-green-600 text-white border-green-600",    off: "bg-gray-100 text-gray-400 border-gray-200" },
+                                ].map(({ key, label, on, off }) => {
+                                  const isOn = !!lead[key];
+                                  const tKey = `${leadId}_${key}`;
+                                  const busy = togglingChannel.has(tKey);
+                                  return (
+                                    <button
+                                       key={key}
+                                      disabled={busy}
+                                      onClick={() => handleToggleLeadChannel(leadId, key, isOn)}
+                                      title={`${isOn ? "Disable" : "Enable"} ${label}`}
+                                      className={`inline-flex items-center justify-center w-8 h-6 rounded-md text-[10px] font-[700] border transition disabled:opacity-60 ${isOn ? on : off}`}
+                                    >
+                                      {busy ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : label}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </td>
                             <td className="px-5 py-3.5">
@@ -2649,36 +2708,51 @@ function LeadsPage({ onBack }) {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {["Name", "Total Leads", "Created", "Action"].map((h) => (
+                  {["Name", "Total Leads", "Created", "Action", ""].map((h) => (
                     <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredLists.length === 0 ? (
-                  <tr><td colSpan={4} className="px-5 py-12 text-center text-[13px] text-gray-400">No lead lists found</td></tr>
+                  <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-gray-400">No lead lists found</td></tr>
                 ) : (
-                  filteredLists.map((l, i) => (
-                    <tr key={l.id ?? i} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
-                      <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{l.name}</td>
-                      <td className="px-5 py-3.5 text-[13px] font-[700] text-indigo-700">
-                        {(l.total_leads ?? l.total ?? l.lead_count ?? l.count ?? 0).toLocaleString()}
-                      </td>
-                      <td className="px-5 py-3.5 text-[12px] text-gray-500">
-                        {l.created_at
-                          ? new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                          : "—"}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => openDetail(l)}
-                          className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
-                        >
-                          <Eye className="h-3.5 w-3.5" />View Leads
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  filteredLists.map((l, i) => {
+                    const totalLeads = l.total_leads ?? l.total ?? l.lead_count ?? l.count ?? 0;
+                    return (
+                      <tr key={l.id ?? i} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                        <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{l.name}</td>
+                        <td className="px-5 py-3.5 text-[13px] font-[700] text-indigo-700">
+                          {totalLeads.toLocaleString()}
+                        </td>
+                        <td className="px-5 py-3.5 text-[12px] text-gray-500">
+                          {l.created_at
+                            ? new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                            : "—"}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <button
+                            onClick={() => openDetail(l)}
+                            className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
+                          >
+                            <Eye className="h-3.5 w-3.5" />View Leads
+                          </button>
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          <button
+                            onClick={() => setDeleteListTarget({ id: l.id, name: l.name })}
+                            disabled={deletingListId === l.id}
+                            className="text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition disabled:opacity-40"
+                            title="Delete list"
+                          >
+                            {deletingListId === l.id
+                              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -2686,6 +2760,15 @@ function LeadsPage({ onBack }) {
           </>
         )}
       </div>
+
+      {deleteListTarget && (
+        <DeleteConfirmModal
+          label={deleteListTarget.name}
+          onCancel={() => setDeleteListTarget(null)}
+          onConfirm={() => { handleDeleteList(deleteListTarget.id); setDeleteListTarget(null); }}
+          loading={deletingListId === deleteListTarget?.id}
+        />
+      )}
 
       {showCreate && (
         <Modal

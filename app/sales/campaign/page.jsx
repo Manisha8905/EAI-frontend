@@ -225,6 +225,9 @@ export default function CampaignPage() {
   const [leadListLeads, setLeadListLeads] = useState([]);
   const [leadListLoading, setLeadListLoading] = useState(false);
 
+  /* ── Per-lead channel toggling (Set of "leadId_CHANNEL") ── */
+  const [togglingLeadChannel, setTogglingLeadChannel] = useState(new Set());
+
   /* ── Campaign Journey API Stats ── */
   const [journeyStats, setJourneyStats] = useState(null);
 
@@ -685,6 +688,48 @@ export default function CampaignPage() {
       toast.error(err?.response?.data?.message || "Failed to skip channel.");
       // Revert optimistic update on failure
       refreshCampaignJourney(campaignId);
+    }
+  };
+
+  /* ── Toggle channel enable / disable for a lead in a campaign ── */
+  const toggleLeadChannel = async (campaignId, leadId, channelName, currentlyEnabled) => {
+    const tKey = `${leadId}_${channelName}`;
+    setTogglingLeadChannel((s) => new Set([...s, tKey]));
+    // Optimistic update
+    setLeadListLeads((prev) =>
+      prev.map((r) => {
+        if ((r.lead_id ?? r.id) !== leadId) return r;
+        const fieldKey = channelName.toLowerCase();
+        const updated = { ...r, [`${fieldKey}_enabled`]: !currentlyEnabled };
+        if (Array.isArray(r.channels)) {
+          updated.channels = r.channels.map((ch) =>
+            (ch.channel ?? ch.type ?? "").toUpperCase() === channelName
+              ? { ...ch, enabled: !currentlyEnabled }
+              : ch,
+          );
+        }
+        return updated;
+      }),
+    );
+    try {
+      if (currentlyEnabled) {
+        await axiosInstance.patch(
+          `/campaigns/${campaignId}/leads/${leadId}/skip-channels`,
+          { skip_channels: [channelName] },
+        );
+      } else {
+        await axiosInstance.patch(
+          `/campaigns/${campaignId}/leads/${leadId}/enable-channels`,
+          { enable_channels: [channelName] },
+        );
+      }
+      toast.success(`${channelName} ${currentlyEnabled ? "disabled" : "enabled"}.`);
+      refreshCampaignJourney(campaignId);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to update channel.");
+      refreshCampaignJourney(campaignId);
+    } finally {
+      setTogglingLeadChannel((s) => { const ns = new Set(s); ns.delete(tKey); return ns; });
     }
   };
 
@@ -1515,9 +1560,10 @@ export default function CampaignPage() {
       const allData = leadListLeads.length > 0 ? leadListLeads : (c.allActivity ?? []);
       // Fixed channel columns matching the second design image
       const channelCols = [
-        { label: "Call",     field: "call" },
-        { label: "Email",    field: "email" },
-        { label: "LinkedIn", field: "linkedin" },
+        { label: "Call",      field: "call",      enabledField: "call_enabled" },
+        { label: "Email",     field: "email",     enabledField: "email_enabled" },
+        { label: "LinkedIn",  field: "linkedin",  enabledField: "linkedin_enabled" },
+        { label: "WhatsApp",  field: "whatsapp",  enabledField: "whatsapp_enabled" },
       ];
       const total = allData.length || c.totalLeads;
       const fullCoverage = allData.filter(
@@ -1923,23 +1969,96 @@ export default function CampaignPage() {
                           {leadName}
                         </td>
                         {channelCols.map((col) => {
-                          const chStatus = resolveChannelStatus(row, col.field);
-                          const cfg = getChCfg(chStatus);
-                          const IconComp = cfg.icon;
-                          const isDone = ["completed","converted"].includes((chStatus??"").toLowerCase());
+                          const chName = col.label.toUpperCase() === "WHATSAPP" ? "WHATSAPP" : col.label.toUpperCase();
+                          const chStatus = (resolveChannelStatus(row, col.field) ?? "").toLowerCase();
+                          const tKey = `${leadId}_${chName}`;
+                          const busy = togglingLeadChannel.has(tKey);
+
+                          // ── Completed / converted → green tick (not skippable)
+                          if (chStatus === "completed" || chStatus === "converted") {
+                            return (
+                              <td key={col.field} className="px-4 py-3.5">
+                                <span
+                                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-50 border border-green-200"
+                                  title={`${col.label}: ${chStatus}`}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                </span>
+                              </td>
+                            );
+                          }
+
+                          // ── Not in campaign (no status at all) → dash, no cross
+                          if (!chStatus) {
+                            return (
+                              <td key={col.field} className="px-4 py-3.5 text-gray-300 text-[13px] font-[500]">—</td>
+                            );
+                          }
+
+                          // ── Processing → blue spinner chip (click to skip)
+                          if (chStatus === "processing") {
+                            return (
+                              <td key={col.field} className="px-4 py-3.5">
+                                <button
+                                  disabled={busy}
+                                  onClick={() => toggleLeadChannel(c.id, leadId, chName, true)}
+                                  title={`${col.label}: Processing — click to skip`}
+                                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[10px] font-[700] border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition disabled:opacity-60"
+                                >
+                                  {busy ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Loader2 className="h-3 w-3 animate-spin" />}
+                                  {busy ? "…" : "Live"}
+                                </button>
+                              </td>
+                            );
+                          }
+
+                          // ── Waiting → amber clock chip (click to skip)
+                          if (chStatus === "waiting") {
+                            return (
+                              <td key={col.field} className="px-4 py-3.5">
+                                <button
+                                  disabled={busy}
+                                  onClick={() => toggleLeadChannel(c.id, leadId, chName, true)}
+                                  title={`${col.label}: Waiting — click to skip`}
+                                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[10px] font-[700] border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition disabled:opacity-60"
+                                >
+                                  {busy ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Clock className="h-3 w-3" />}
+                                  {busy ? "…" : "Queue"}
+                                </button>
+                              </td>
+                            );
+                          }
+
+                          // ── Skipped → gray chip (click to re-enable)
+                          if (chStatus === "skipped") {
+                            return (
+                              <td key={col.field} className="px-4 py-3.5">
+                                <button
+                                  disabled={busy}
+                                  onClick={() => toggleLeadChannel(c.id, leadId, chName, false)}
+                                  title={`${col.label}: Skipped — click to re-enable`}
+                                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[10px] font-[700] border border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 transition disabled:opacity-60 line-through"
+                                >
+                                  {busy ? <RefreshCw className="h-3 w-3 animate-spin" /> : null}
+                                  {busy ? "…" : col.label}
+                                </button>
+                              </td>
+                            );
+                          }
+
+                          // ── not_started → show dash (same as null)
+                          if (chStatus === "not_started") {
+                            return (
+                              <td key={col.field} className="px-4 py-3.5 text-gray-300 text-sm">—</td>
+                            );
+                          }
+
+                          // ── Fallback for any other status → show label as-is
                           return (
-                            <td key={col.field} className="px-5 py-3.5">
-                              <button
-                                onClick={() =>
-                                  isDone
-                                    ? fetchLeadJourney(c.id, leadId, leadName)
-                                    : skipChannel(c.id, leadId, col.label.toUpperCase())
-                                }
-                                className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${cfg.bg} hover:opacity-75 transition cursor-pointer`}
-                                title={isDone ? `${cfg.label} — View journey` : `Skip ${col.label} → mark completed`}
-                              >
-                                <IconComp className={`h-4 w-4 ${cfg.iconCls}${cfg.spin ? " animate-spin" : ""}`} />
-                              </button>
+                            <td key={col.field} className="px-4 py-3.5">
+                              <span className="inline-flex items-center px-2.5 h-7 rounded-lg text-[10px] font-[600] border border-gray-200 bg-gray-50 text-gray-500">
+                                {chStatus}
+                              </span>
                             </td>
                           );
                         })}
@@ -4035,10 +4154,10 @@ export default function CampaignPage() {
                 const total = Math.max(c.totalLeads, 1);
                 // Status badge helpers
                 const statusLabel = (st) => {
-                  if (st === "COMPLETED")   return { text: "Done",      cls: "text-green-600 bg-green-50" };
-                  if (st === "IN_PROGRESS") return { text: "Running",   cls: "text-indigo-600 bg-indigo-50" };
-                  if (st === "FAILED")      return { text: "Failed",    cls: "text-red-500 bg-red-50" };
-                  return                          { text: "Not started", cls: "text-gray-400 bg-gray-100" };
+                  if (st === "COMPLETED")   return { text: "Done",    cls: "text-green-600 bg-green-50" };
+                  if (st === "IN_PROGRESS") return { text: "Running", cls: "text-indigo-600 bg-indigo-50" };
+                  if (st === "FAILED")      return { text: "Failed",  cls: "text-red-500 bg-red-50" };
+                  return                          null;
                 };
                 return (
                   <div className="mb-4 bg-gray-50 rounded-xl px-3 py-2.5">
@@ -4059,7 +4178,7 @@ export default function CampaignPage() {
                                 <span className="text-[10px] font-[600]">{ch.label}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                {st && (
+                                {badge && (
                                   <span className={`text-[9px] font-[700] px-1.5 py-0.5 rounded-full ${badge.cls}`}>
                                     {badge.text}
                                   </span>
@@ -4071,8 +4190,12 @@ export default function CampaignPage() {
                             </div>
                             <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
                               <div
-                                className="h-full rounded-full transition-all"
-                                style={{ width: `${pct}%`, background: ch.fill }}
+                                className={`h-full rounded-full transition-all duration-700${pct === 0 ? " animate-pulse" : ""}`}
+                                style={{
+                                  width: pct === 0 ? "5%" : `${pct}%`,
+                                  background: ch.fill,
+                                  opacity: pct === 0 ? 0.35 : 1,
+                                }}
                               />
                             </div>
                           </div>
