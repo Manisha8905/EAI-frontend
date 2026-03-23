@@ -206,13 +206,13 @@ function OutcomesPieChart({ data }) {
               cy="50%"
               innerRadius={48}
               outerRadius={76}
-              paddingAngle={3}
               dataKey="call_count"
               nameKey="name"
               strokeWidth={0}
+              stroke="none"
             >
               {data.map((entry, index) => (
-                <Cell key={entry.name} fill={OUTCOME_COLORS[index % OUTCOME_COLORS.length]} />
+                <Cell key={entry.name} fill={OUTCOME_COLORS[index % OUTCOME_COLORS.length]} stroke="none" />
               ))}
             </Pie>
             <Tooltip

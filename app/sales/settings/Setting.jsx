@@ -115,10 +115,10 @@ function Modal({ title, onClose, children, width = "max-w-lg" }) {
       onClick={onClose}
     >
       <div
-        className={`relative w-full ${width} bg-white rounded-2xl shadow-2xl overflow-hidden`}
+        className={`relative w-full ${width} bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-[15px] font-[700] text-gray-900">{title}</h2>
           <button
             type="button"
@@ -128,7 +128,59 @@ function Modal({ title, onClose, children, width = "max-w-lg" }) {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════ DELETE CONFIRM MODAL ═══════════════════════ */
+function DeleteConfirmModal({ label, onCancel, onConfirm, loading }) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="h-[3px] w-full bg-gradient-to-r from-red-500 to-red-700" />
+        <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-100">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 border border-red-100 text-red-500">
+            <Trash2 className="h-4 w-4" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-[14px] font-[700] text-gray-900">Confirm Delete</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">This action cannot be undone</p>
+          </div>
+          <button type="button" onClick={onCancel} className="rounded-lg p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-5 py-5">
+          <div className="flex items-start gap-2.5 px-3.5 py-3 bg-red-50 border border-red-100 rounded-xl">
+            <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+            <p className="text-[12px] text-red-700 leading-relaxed">
+              Are you sure you want to delete <span className="font-[700]">&quot;{label}&quot;</span>?
+              This action is <span className="font-[700]">irreversible</span>.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
+          <button type="button" onClick={onCancel} className="px-4 py-2 text-[12px] font-[500] text-gray-600 border border-gray-200 rounded-lg bg-white hover:border-gray-300 hover:bg-gray-50 transition">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-[600] text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 transition shadow-sm disabled:opacity-50"
+          >
+            {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            {loading ? "Deleting…" : "Yes, Delete"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -492,6 +544,7 @@ function AgentsPage({ onBack }) {
   };
 
   const del = (id) => setAgents((p) => p.filter((a) => a.id !== id));
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const savePC = async () => {
     setPcSaving(true);
@@ -639,7 +692,7 @@ function AgentsPage({ onBack }) {
                           {switchingId === a.id ? "Switching…" : (a.is_active ? "Switch" : "Activate")}
                         </button>
                       )}
-                      <button onClick={() => del(a.id)} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-600 hover:bg-red-100 transition">
+                      <button onClick={() => setDeleteTarget({ id: a.id, name: a.name })} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-600 hover:bg-red-100 transition">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -688,22 +741,54 @@ function AgentsPage({ onBack }) {
           <p className="mt-2 text-[12px] text-red-500 font-[500]">{pcError}</p>
         )}
       </div>
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={deleteTarget.name}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => { del(deleteTarget.id); setDeleteTarget(null); }}
+        />
+      )}
     </div>
   );
 }
 
 /* ── Email Templates ── */
 function EmailTemplatesPage({ onBack }) {
-  const [templates, setTemplates]   = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [showModal, setShowModal]   = useState(false);
-  const [preview, setPreview]       = useState(null);
-  const [form, setForm]             = useState({ name: "", subject: "", body: "" });
-  const [htmlFile, setHtmlFile]     = useState(null);
-  const [fileName, setFileName]     = useState("No file selected");
-  const [saving, setSaving]         = useState(false);
-  const [deleting, setDeleting]     = useState(null);
-  const fileRef = useRef(null);
+  const [templates, setTemplates]         = useState([]);
+  const [loading, setLoading]             = useState(false);
+
+  /* Create modal */
+  const [showModal, setShowModal]         = useState(false);
+  const [form, setForm]                   = useState({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
+  const [htmlFile, setHtmlFile]           = useState(null);
+  const [fileName, setFileName]           = useState("No file selected");
+  const [saving, setSaving]               = useState(false);
+  const fileRef                           = useRef(null);
+
+  /* View modal — GET /api/email-templates/{id} */
+  const [viewModal, setViewModal]         = useState(null);   // null | template object
+  const [viewLoading, setViewLoading]     = useState(false);
+  const [viewTab, setViewTab]             = useState("rendered"); // "rendered" | "html"
+  const [htmlOnly, setHtmlOnly]           = useState("");       // raw html from GET …/preview/html
+  const [htmlOnlyLoading, setHtmlOnlyLoading] = useState(false);
+
+  /* Edit modal — PUT /api/email-templates/{id} */
+  const [editModal, setEditModal]         = useState(null);   // null | template object
+  const [editForm, setEditForm]           = useState({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
+  const [editFile, setEditFile]           = useState(null);
+  const [editFileName, setEditFileName]   = useState("No file selected");
+  const [editSaving, setEditSaving]       = useState(false);
+  const editFileRef                       = useRef(null);
+
+  /* Preview with custom fields — POST /api/email-templates/{id}/preview */
+  const [previewModal, setPreviewModal]   = useState(null);   // null | template object
+  const [previewFields, setPreviewFields] = useState({});     // { placeholder: value }
+  const [previewResult, setPreviewResult] = useState(null);   // { subject, html_content }
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  /* Delete */
+  const [deleting, setDeleting]           = useState(null);
+  const [deleteTarget, setDeleteTarget]   = useState(null);
 
   /* ── GET /api/email-templates ── */
   const fetchTemplates = async () => {
@@ -714,12 +799,19 @@ function EmailTemplatesPage({ onBack }) {
       const list = Array.isArray(raw) ? raw : (raw.data ?? raw.templates ?? raw.results ?? []);
       setTemplates(
         list.map((t) => ({
-          id:      t.template_id ?? t.id ?? t._id ?? Math.random(),
-          name:    t.name ?? t.template_name ?? "",
-          subject: t.subject ?? t.email_subject ?? "",
-          body:    t.html_content ?? t.body ?? t.content ?? t.html ?? "",
-          placeholders: t.placeholders ?? null,
+          id:           t.template_id ?? t.id ?? t._id ?? Math.random(),
+          name:         t.name ?? t.template_name ?? "",
+          subject:      t.subject ?? t.email_subject ?? "",
+          body:         t.html_content ?? t.body ?? t.content ?? t.html ?? "",
+          placeholders: t.placeholders ?? [
+            ...(t.standard_placeholders ?? []),
+            ...(t.ai_placeholders       ?? []),
+            ...(t.custom_placeholders   ?? []),
+          ],
           originalFilename: t.original_filename ?? "",
+          category:     t.category   ?? "",
+          ai_tone:      t.ai_tone    ?? "",
+          ai_context:   t.ai_context ?? "",
         }))
       );
     } catch {
@@ -737,37 +829,33 @@ function EmailTemplatesPage({ onBack }) {
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append("name", form.name.trim());
+      fd.append("name",    form.name.trim());
       fd.append("subject", form.subject.trim());
+      if (form.category.trim())   fd.append("category",   form.category.trim());
+      if (form.ai_tone.trim())    fd.append("ai_tone",    form.ai_tone.trim());
+      if (form.ai_context.trim()) fd.append("ai_context", form.ai_context.trim());
       if (htmlFile) {
-        /* Actual HTML file selected — send as-is */
-        fd.append("html_content", htmlFile, htmlFile.name);
-      } else {
-        /* Plain text / pasted HTML — wrap in a Blob */
-        fd.append(
-          "html_content",
-          new Blob([form.body], { type: "text/html" }),
-          "template.html"
-        );
+        fd.append("file", htmlFile, htmlFile.name);
+      } else if (form.body.trim()) {
+        fd.append("file", new Blob([form.body], { type: "text/html" }), "template.html");
       }
       const res = await axiosInstance.post("/api/email-templates/upload", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const r = res.data ?? {};
       toast.success(r.message ?? "Template created successfully.");
-      /* Add new template directly from response — no re-fetch needed */
       setTemplates((prev) => [
         ...prev,
         {
           id:               r.template_id ?? Math.random(),
           name:             r.name ?? form.name.trim(),
-          subject:          form.subject.trim(),
-          body:             form.body,
-          placeholders:     r.placeholders ?? null,
+          subject:          r.subject ?? form.subject.trim(),
+          body:             r.html_content ?? form.body,
+          placeholders:     r.placeholders ?? [],
           originalFilename: r.original_filename ?? (htmlFile?.name ?? ""),
         },
       ]);
-      setForm({ name: "", subject: "", body: "" });
+      setForm({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
       setHtmlFile(null);
       setFileName("No file selected");
       setShowModal(false);
@@ -782,6 +870,176 @@ function EmailTemplatesPage({ onBack }) {
     }
   };
 
+  /* ── shared: fetch single template from GET /api/email-templates/{id} ── */
+  const fetchSingle = async (t) => {
+    try {
+      const res = await axiosInstance.get(`/api/email-templates/${t.id}`);
+      /* unwrap nested wrapper if present: { template: {...} } or { data: {...} } */
+      const raw = res.data ?? {};
+      const d = raw.template ?? raw.data ?? raw;
+      return {
+        id:               d.template_id  ?? d.id          ?? t.id,
+        name:             d.name         ?? d.template_name ?? t.name,
+        subject:          d.subject      ?? d.email_subject ?? t.subject,
+        body:             d.html_content ?? d.body ?? d.content ?? d.html ?? t.body ?? "",
+        placeholders:     d.placeholders ?? [
+          ...(d.standard_placeholders ?? []),
+          ...(d.ai_placeholders       ?? []),
+          ...(d.custom_placeholders   ?? []),
+        ],
+        originalFilename: d.original_filename ?? t.originalFilename ?? "",
+        category:         d.category   ?? t.category   ?? "",
+        ai_tone:          d.ai_tone    ?? t.ai_tone    ?? "",
+        ai_context:       d.ai_context ?? t.ai_context ?? "",
+      };
+    } catch {
+      return t; /* fallback to local data */
+    }
+  };
+
+  /* ── GET /api/email-templates/{id} ── */
+  const openView = async (t) => {
+    setViewTab("rendered");
+    setHtmlOnly("");
+    setViewModal(t);
+    setViewLoading(true);
+    const full = await fetchSingle(t);
+    setViewModal(full);
+    setViewLoading(false);
+  };
+
+  /* ── GET /api/email-templates/{id}/preview/html ── */
+  const loadHtmlOnly = async (id) => {
+    setHtmlOnlyLoading(true);
+    setHtmlOnly("");
+    try {
+      const res = await axiosInstance.get(`/api/email-templates/${id}/preview/html`);
+      const html =
+        typeof res.data === "string"
+          ? res.data
+          : (res.data?.html_content ?? res.data?.html ?? res.data?.content ?? "");
+      setHtmlOnly(html);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.detail ??
+        err?.response?.data?.message ??
+        "Failed to load HTML."
+      );
+    } finally {
+      setHtmlOnlyLoading(false);
+    }
+  };
+
+  /* ── PUT /api/email-templates/{id} ── */
+  const openEdit = async (t) => {
+    /* show modal immediately with local data, then hydrate from API */
+    setEditFile(null);
+    setEditFileName("No file selected");
+    setEditModal(t);
+    setEditForm({
+      name:       t.name       ?? "",
+      subject:    t.subject    ?? "",
+      body:       t.body       ?? "",
+      category:   t.category   ?? "",
+      ai_tone:    t.ai_tone    ?? "",
+      ai_context: t.ai_context ?? "",
+    });
+    const full = await fetchSingle(t);
+    setEditModal(full);
+    setEditForm({
+      name:       full.name       ?? "",
+      subject:    full.subject    ?? "",
+      body:       full.body       ?? "",
+      category:   full.category   ?? "",
+      ai_tone:    full.ai_tone    ?? "",
+      ai_context: full.ai_context ?? "",
+    });
+  };
+
+  const submitEdit = async () => {
+    if (!editForm.name.trim() || !editForm.subject.trim()) return;
+    setEditSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append("name",    editForm.name.trim());
+      fd.append("subject", editForm.subject.trim());
+      if (editForm.category.trim())   fd.append("category",   editForm.category.trim());
+      if (editForm.ai_tone.trim())    fd.append("ai_tone",    editForm.ai_tone.trim());
+      if (editForm.ai_context.trim()) fd.append("ai_context", editForm.ai_context.trim());
+      if (editFile) {
+        fd.append("file", editFile, editFile.name);
+      } else if (editForm.body.trim()) {
+        fd.append("file", new Blob([editForm.body], { type: "text/html" }), "template.html");
+      }
+      const res = await axiosInstance.put(
+        `/api/email-templates/${editModal.id}`,
+        fd,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      const r = res.data ?? {};
+      toast.success(r.message ?? "Template updated successfully.");
+      setTemplates((prev) =>
+        prev.map((t) =>
+          t.id === editModal.id
+            ? {
+                ...t,
+                name:       editForm.name.trim(),
+                subject:    editForm.subject.trim(),
+                body:       r.html_content ?? editForm.body,
+                category:   editForm.category.trim(),
+                ai_tone:    editForm.ai_tone.trim(),
+                ai_context: editForm.ai_context.trim(),
+                placeholders: r.placeholders ?? t.placeholders,
+              }
+            : t
+        )
+      );
+      setEditModal(null);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.detail ??
+        err?.response?.data?.message ??
+        "Failed to update template."
+      );
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  /* ── POST /api/email-templates/{id}/preview ── */
+  const openPreview = (t) => {
+    const placeholders = Array.isArray(t.placeholders) ? t.placeholders : [];
+    const initial = Object.fromEntries(placeholders.map((p) => [p, ""]));
+    setPreviewFields(initial);
+    setPreviewResult(null);
+    setPreviewModal(t);
+  };
+
+  const submitPreview = async () => {
+    if (!previewModal) return;
+    setPreviewLoading(true);
+    try {
+      const res = await axiosInstance.post(
+        `/api/email-templates/${previewModal.id}/preview`,
+        { custom_fields: previewFields }
+      );
+      const d = res.data ?? {};
+      const preview = d.preview ?? {};
+      setPreviewResult({
+        subject: preview.subject ?? d.subject ?? d.rendered_subject ?? previewModal.subject,
+        html:    preview.body_html ?? d.html_content ?? d.rendered_html ?? d.html ?? d.body ?? "",
+      });
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.detail ??
+        err?.response?.data?.message ??
+        "Preview failed."
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   /* ── DELETE /api/email-templates/{id} ── */
   const del = async (id) => {
     setDeleting(id);
@@ -790,16 +1048,15 @@ function EmailTemplatesPage({ onBack }) {
       setTemplates((p) => p.filter((t) => t.id !== id));
       toast.success("Template deleted.");
     } catch {
-      /* If no delete endpoint, remove locally */
       setTemplates((p) => p.filter((t) => t.id !== id));
     } finally {
       setDeleting(null);
     }
   };
 
-  const closeModal = () => {
+  const closeCreateModal = () => {
     setShowModal(false);
-    setForm({ name: "", subject: "", body: "" });
+    setForm({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
     setHtmlFile(null);
     setFileName("No file selected");
   };
@@ -831,6 +1088,7 @@ function EmailTemplatesPage({ onBack }) {
         }
       />
 
+      {/* ── Templates Table ── */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">
@@ -841,7 +1099,7 @@ function EmailTemplatesPage({ onBack }) {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {["Name", "Subject", "Preview", "View", "Delete"].map((h, i) => (
+                  {["Name", "Subject", "Placeholders", "Actions"].map((h, i) => (
                     <th key={i} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -849,7 +1107,7 @@ function EmailTemplatesPage({ onBack }) {
               <tbody>
                 {templates.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-[13px] text-gray-400">
+                    <td colSpan={4} className="px-5 py-12 text-center text-[13px] text-gray-400">
                       No templates yet — click <span className="font-[600] text-gray-600">Create New</span> to add one.
                     </td>
                   </tr>
@@ -860,31 +1118,64 @@ function EmailTemplatesPage({ onBack }) {
                       className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                     >
                       <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{t.name}</td>
-                      <td className="px-5 py-3.5 text-[13px] text-gray-600">{t.subject}</td>
-                      <td className="px-5 py-3.5 text-[12px] text-gray-400 max-w-[220px] truncate">
-                        {/* Strip HTML tags for plain-text preview */}
-                        {t.body.replace(/<[^>]*>/g, "").slice(0, 60) || "(no body)"}
-                        {t.body.replace(/<[^>]*>/g, "").length > 60 ? "…" : ""}
+                      <td className="px-5 py-3.5 text-[13px] text-gray-600 max-w-[200px] truncate">{t.subject}</td>
+                      <td className="px-5 py-3.5">
+                        {Array.isArray(t.placeholders) && t.placeholders.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {t.placeholders.slice(0, 3).map((p) => (
+                              <span key={p} className="inline-block rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-[600] text-violet-700">
+                                {`{{${p}}}`}
+                              </span>
+                            ))}
+                            {t.placeholders.length > 3 && (
+                              <span className="text-[10px] text-gray-400">+{t.placeholders.length - 3}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[12px] text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => setPreview(t)}
-                          className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </button>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => del(t.id)}
-                          disabled={deleting === t.id}
-                          className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
-                        >
-                          {deleting === t.id
-                            ? <RefreshCw className="h-4 w-4 animate-spin" />
-                            : <Trash2 className="h-4 w-4" />}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {/* View */}
+                          <button
+                            onClick={() => openView(t)}
+                            title="View template"
+                            className="flex items-center gap-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-1.5 text-[11px] font-[600] text-indigo-700 hover:bg-indigo-100 transition"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </button>
+                          {/* Edit */}
+                          <button
+                            onClick={() => openEdit(t)}
+                            title="Edit template"
+                            className="flex items-center gap-1 rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-1.5 text-[11px] font-[600] text-amber-700 hover:bg-amber-100 transition"
+                          >
+                            <Wrench className="h-3.5 w-3.5" />
+                            Edit
+                          </button>
+                          {/* Preview with custom fields */}
+                          <button
+                            onClick={() => openPreview(t)}
+                            title="Preview with custom fields"
+                            className="flex items-center gap-1 rounded-lg border border-teal-100 bg-teal-50 px-2.5 py-1.5 text-[11px] font-[600] text-teal-700 hover:bg-teal-100 transition"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            Preview
+                          </button>
+                          {/* Delete */}
+                          <button
+                            onClick={() => !deleting && setDeleteTarget({ id: t.id, name: t.name })}
+                            disabled={deleting === t.id}
+                            title="Delete template"
+                            className="rounded-lg border border-red-100 bg-red-50 p-1.5 text-red-500 hover:bg-red-100 transition disabled:opacity-40"
+                          >
+                            {deleting === t.id
+                              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -900,43 +1191,82 @@ function EmailTemplatesPage({ onBack }) {
 
       {/* ── Create Modal ── */}
       {showModal && (
-        <Modal title="Create Template" onClose={closeModal}>
-          <div className="space-y-4">
-            <Field
-              label="Name"
-              required
-              placeholder="e.g. Enterprise Intro"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-            <Field
-              label="Subject"
-              required
-              placeholder="Email subject line…"
-              value={form.subject}
-              onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-            />
-            <div>
-              <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
-                HTML Body <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                rows={5}
-                placeholder="Paste your HTML email body here, or upload an .html file below…"
-                value={form.body}
-                onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none mb-2 font-mono"
-              />
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[12px] font-[500] text-gray-600 hover:bg-gray-50 transition"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                  Browse HTML File
-                </button>
-                <span className="text-[12px] text-gray-400 truncate max-w-[180px]">{fileName}</span>
+        <Modal title="Create Email Template" onClose={closeCreateModal} width="max-w-2xl">
+          <div className="space-y-5">
+
+            {/* ── Section 1: Basic Info ── */}
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-4">
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">Basic Info</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field
+                  label="Name"
+                  required
+                  placeholder="e.g. Enterprise Intro"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                />
+                <Field
+                  label="Subject"
+                  required
+                  placeholder="Email subject line…"
+                  value={form.subject}
+                  onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* ── Section 2: AI Settings ── */}
+            <div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-4">
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-violet-400">AI Settings <span className="normal-case font-[400] text-gray-400">(optional)</span></p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field
+                  label="Category"
+                  placeholder="e.g. onboarding, follow-up"
+                  value={form.category}
+                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                />
+                <Field
+                  label="AI Tone"
+                  placeholder="e.g. professional, friendly"
+                  value={form.ai_tone}
+                  onChange={(e) => setForm((f) => ({ ...f, ai_tone: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">AI Context</label>
+                <textarea
+                  rows={2}
+                  placeholder="Additional context for AI personalisation…"
+                  value={form.ai_context}
+                  onChange={(e) => setForm((f) => ({ ...f, ai_context: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* ── Section 3: HTML Content ── */}
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-3">
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">
+                HTML Content <span className="text-red-400">*</span>
+              </p>
+
+              {/* File upload zone */}
+              <div
+                onClick={() => fileRef.current?.click()}
+                className={`flex items-center gap-3 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 transition
+                  ${htmlFile ? "border-violet-300 bg-violet-50/60" : "border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50/30"}`}
+              >
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${htmlFile ? "bg-violet-100" : "bg-gray-100"}`}>
+                  <Upload className={`h-4 w-4 ${htmlFile ? "text-violet-600" : "text-gray-400"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[13px] font-[500] ${htmlFile ? "text-violet-700 font-[600]" : "text-gray-700"} truncate`}>
+                    {htmlFile ? fileName : "Browse HTML File"}
+                  </p>
+                  <p className={`text-[11px] ${htmlFile ? "text-violet-400" : "text-gray-400"}`}>
+                    {htmlFile ? "Click to change file" : <>Click to upload a <code className="bg-gray-100 px-1 rounded">.html</code> or <code className="bg-gray-100 px-1 rounded">.htm</code> file</>}
+                  </p>
+                </div>
                 <input
                   ref={fileRef}
                   type="file"
@@ -954,48 +1284,348 @@ function EmailTemplatesPage({ onBack }) {
                   }}
                 />
               </div>
-              <p className="text-[11px] text-gray-400 mt-1.5">
-                HTML is sent as <code className="bg-gray-100 px-1 rounded text-[10px]">html_content</code> to the upload endpoint.
-              </p>
+
+              {/* Selected file row with clear button */}
+              {htmlFile && (
+                <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
+                  <FileText className="h-4 w-4 text-violet-500 shrink-0" />
+                  <span className="flex-1 text-[12px] font-[500] text-violet-700 truncate">{fileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setHtmlFile(null); setFileName("No file selected"); setForm((f) => ({ ...f, body: "" })); if (fileRef.current) fileRef.current.value = ""; }}
+                    className="shrink-0 flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-[11px] font-[600] text-red-500 hover:bg-red-50 hover:border-red-200 transition"
+                  >
+                    <X className="h-3 w-3" />Remove
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-[11px] text-gray-400 font-[500]">or paste HTML below</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              <textarea
+                rows={6}
+                placeholder="<html>…paste your email HTML here…</html>"
+                value={form.body}
+                onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[12px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none font-mono"
+              />
             </div>
+
+            {/* ── Footer ── */}
             <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
               <button
-                onClick={closeModal}
-                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50"
+                onClick={closeCreateModal}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={create}
                 disabled={saving || !form.name.trim() || !form.subject.trim()}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50 shadow-sm"
               >
-                {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                {saving ? "Uploading…" : "Submit"}
+                {saving ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Uploading…</> : <><Upload className="h-3.5 w-3.5" />Create Template</>}
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* ── Preview Modal ── */}
-      {preview && (
-        <Modal title={preview.name} onClose={() => setPreview(null)} width="max-w-2xl">
-          <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-1">Subject</p>
-          <p className="text-[14px] font-[500] text-gray-800 mb-4">{preview.subject}</p>
-          <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-2">Body</p>
-          {preview.body && /<[a-z]/i.test(preview.body) ? (
-            /* Render HTML preview in a sandboxed iframe-like container */
-            <div
-              className="rounded-xl border border-gray-200 bg-white overflow-auto max-h-[420px] p-4 text-[13px]"
-              dangerouslySetInnerHTML={{ __html: preview.body }}
-            />
+      {/* ── View Modal — GET /api/email-templates/{id} + GET …/preview/html ── */}
+      {viewModal && (
+        <Modal title={viewModal.name} onClose={() => setViewModal(null)} width="max-w-2xl">
+          {viewLoading ? (
+            <div className="flex items-center justify-center py-12 text-[13px] text-gray-400 gap-2">
+              <RefreshCw className="h-4 w-4 animate-spin text-indigo-400" />Loading template…
+            </div>
           ) : (
-            <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-[13px] text-gray-700 whitespace-pre-line max-h-[420px] overflow-auto">
-              {preview.body || "(no body)"}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-1">Subject</p>
+                  <p className="text-[13px] font-[500] text-gray-800">{viewModal.subject || "—"}</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-1">File</p>
+                  <p className="text-[13px] text-gray-600 truncate">{viewModal.originalFilename || "—"}</p>
+                </div>
+              </div>
+              {Array.isArray(viewModal.placeholders) && viewModal.placeholders.length > 0 && (
+                <div className="rounded-xl bg-violet-50 border border-violet-100 p-3">
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Placeholders</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {viewModal.placeholders.map((p) => (
+                      <span key={p} className="inline-block rounded-md bg-white border border-violet-200 px-2 py-0.5 text-[11px] font-[600] text-violet-700">
+                        {`{{${p}}}`}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Tabs: Rendered | HTML Source */}
+              <div>
+                <div className="flex gap-1 mb-3 p-1 bg-gray-100 rounded-xl w-fit">
+                  {[
+                    { key: "rendered", label: "Rendered" },
+                    { key: "html", label: "HTML Source" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => {
+                        setViewTab(tab.key);
+                        if (tab.key === "html" && !htmlOnly && !htmlOnlyLoading) {
+                          loadHtmlOnly(viewModal.id);
+                        }
+                      }}
+                      className={`px-3.5 py-1.5 rounded-lg text-[12px] font-[600] transition ${
+                        viewTab === tab.key
+                          ? "bg-white shadow-sm text-gray-900"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {viewTab === "rendered" ? (
+                  viewModal.body && /<[a-z]/i.test(viewModal.body) ? (
+                    <div
+                      className="rounded-xl border border-gray-200 bg-white overflow-auto max-h-[380px] p-4 text-[13px]"
+                      dangerouslySetInnerHTML={{ __html: viewModal.body }}
+                    />
+                  ) : (
+                    <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-[13px] text-gray-700 whitespace-pre-line max-h-[380px] overflow-auto">
+                      {viewModal.body || "(no body)"}
+                    </div>
+                  )
+                ) : (
+                  htmlOnlyLoading ? (
+                    <div className="flex items-center justify-center py-10 text-[13px] text-gray-400 gap-2">
+                      <RefreshCw className="h-4 w-4 animate-spin text-indigo-400" />Loading HTML…
+                    </div>
+                  ) : (
+                    <pre className="rounded-xl bg-gray-900 text-green-300 p-4 text-[11px] font-mono overflow-auto max-h-[380px] whitespace-pre-wrap break-all">
+                      {htmlOnly || viewModal.body || "(empty)"}
+                    </pre>
+                  )
+                )}
+              </div>
             </div>
           )}
         </Modal>
+      )}
+
+      {/* ── Edit Modal — PUT /api/email-templates/{id} ── */}
+      {editModal && (
+        <Modal title={`Edit Template — ${editModal.name}`} onClose={() => setEditModal(null)} width="max-w-2xl">
+          <div className="space-y-5">
+
+            {/* ── Basic Info ── */}
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-4">
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">Basic Info</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field
+                  label="Name"
+                  required
+                  placeholder="Template name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+                <Field
+                  label="Subject"
+                  required
+                  placeholder="Email subject line…"
+                  value={editForm.subject}
+                  onChange={(e) => setEditForm((f) => ({ ...f, subject: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* ── AI Settings ── */}
+            <div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-4">
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-violet-400">AI Settings <span className="normal-case font-[400] text-gray-400">(optional)</span></p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field
+                  label="Category"
+                  placeholder="e.g. onboarding, follow-up"
+                  value={editForm.category}
+                  onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
+                />
+                <Field
+                  label="AI Tone"
+                  placeholder="e.g. professional, friendly"
+                  value={editForm.ai_tone}
+                  onChange={(e) => setEditForm((f) => ({ ...f, ai_tone: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">AI Context</label>
+                <textarea
+                  rows={2}
+                  placeholder="Additional context for AI personalisation…"
+                  value={editForm.ai_context}
+                  onChange={(e) => setEditForm((f) => ({ ...f, ai_context: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* ── HTML Content ── */}
+            <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-3">
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">HTML Content</p>
+              <div
+                onClick={() => editFileRef.current?.click()}
+                className={`flex items-center gap-3 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 transition
+                  ${editFile ? "border-violet-300 bg-violet-50/60" : "border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50/30"}`}
+              >
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${editFile ? "bg-violet-100" : "bg-gray-100"}`}>
+                  <Upload className={`h-4 w-4 ${editFile ? "text-violet-600" : "text-gray-400"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[13px] font-[500] ${editFile ? "text-violet-700 font-[600]" : "text-gray-700"} truncate`}>
+                    {editFile ? editFileName : "Replace HTML File"}
+                  </p>
+                  <p className={`text-[11px] ${editFile ? "text-violet-400" : "text-gray-400"}`}>
+                    {editFile ? "Click to change file" : <>Click to upload a <code className="bg-gray-100 px-1 rounded">.html</code> or <code className="bg-gray-100 px-1 rounded">.htm</code> file</>}
+                  </p>
+                </div>
+                <input
+                  ref={editFileRef}
+                  type="file"
+                  accept=".html,.htm"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setEditFile(f);
+                    setEditFileName(f?.name ?? "No file selected");
+                    if (f) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setEditForm((frm) => ({ ...frm, body: ev.target.result ?? "" }));
+                      reader.readAsText(f);
+                    }
+                  }}
+                />
+              </div>
+              {editFile && (
+                <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
+                  <FileText className="h-4 w-4 text-violet-500 shrink-0" />
+                  <span className="flex-1 text-[12px] font-[500] text-violet-700 truncate">{editFileName}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setEditFile(null); setEditFileName("No file selected"); if (editFileRef.current) editFileRef.current.value = ""; }}
+                    className="shrink-0 flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-[11px] font-[600] text-red-500 hover:bg-red-50 hover:border-red-200 transition"
+                  >
+                    <X className="h-3 w-3" />Remove
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-[11px] text-gray-400 font-[500]">or paste HTML below</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+              <textarea
+                rows={6}
+                placeholder="<html>…paste your email HTML here…</html>"
+                value={editForm.body}
+                onChange={(e) => setEditForm((f) => ({ ...f, body: e.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[12px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none font-mono"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
+              <button
+                onClick={() => setEditModal(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitEdit}
+                disabled={editSaving || !editForm.name.trim() || !editForm.subject.trim()}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50 shadow-sm"
+              >
+                {editSaving ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Saving…</> : <>Save Changes</>}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Preview Modal — POST /api/email-templates/{id}/preview ── */}
+      {previewModal && (
+        <Modal title={`Preview — ${previewModal.name}`} onClose={() => { setPreviewModal(null); setPreviewResult(null); }} width="max-w-2xl">
+          <div className="space-y-4">
+            {Array.isArray(previewModal.placeholders) && previewModal.placeholders.length > 0 ? (
+              <>
+                <p className="text-[12px] text-gray-500">
+                  Fill in custom values for each placeholder, then click <span className="font-[600] text-gray-700">Generate Preview</span>.
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {previewModal.placeholders.map((p) => (
+                    <div key={p}>
+                      <label className="block text-[11px] font-[600] text-gray-700 mb-1">
+                        {`{{${p}}}`}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder={`Value for ${p}`}
+                        value={previewFields[p] ?? ""}
+                        onChange={(e) => setPreviewFields((prev) => ({ ...prev, [p]: e.target.value }))}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-[12px] text-gray-400">
+                No placeholders detected — a direct preview will be generated.
+              </p>
+            )}
+            <button
+              onClick={submitPreview}
+              disabled={previewLoading}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0a0a0a] py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
+            >
+              {previewLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+              {previewLoading ? "Generating…" : "Generate Preview"}
+            </button>
+            {previewResult && (
+              <div className="space-y-3 pt-2 border-t border-gray-100">
+                <div className="rounded-xl bg-teal-50 border border-teal-100 px-4 py-2.5">
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-teal-400 mb-0.5">Subject</p>
+                  <p className="text-[13px] font-[500] text-teal-900">{previewResult.subject}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-2">Rendered Email</p>
+                  {previewResult.html && /<[a-z]/i.test(previewResult.html) ? (
+                    <div
+                      className="rounded-xl border border-gray-200 bg-white overflow-auto max-h-[360px] p-4 text-[13px]"
+                      dangerouslySetInnerHTML={{ __html: previewResult.html }}
+                    />
+                  ) : (
+                    <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 text-[13px] text-gray-700 whitespace-pre-line max-h-[360px] overflow-auto">
+                      {previewResult.html || "(no content)"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={deleteTarget.name}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => { del(deleteTarget.id); setDeleteTarget(null); }}
+          loading={deleting === deleteTarget?.id}
+        />
       )}
     </div>
   );
@@ -1353,6 +1983,7 @@ function SMTPProvidersPage({ onBack }) {
   const [form, setForm] = useState(EMPTY_SMTP_FORM);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   /* fetch available providers + configured status in parallel */
   const fetchList = async () => {
@@ -1374,6 +2005,7 @@ function SMTPProvidersPage({ onBack }) {
           provider: key,
           name:     p.display_name ?? p.label ?? labelMap[key] ?? key,
           ready:    typeof p === "string" ? isReady : (p.ready ?? p.is_active ?? isReady),
+          description: p.description ?? "",
         };
       };
 
@@ -1381,22 +2013,9 @@ function SMTPProvidersPage({ onBack }) {
       if (availRes.status === "fulfilled") {
         const d = availRes.value.data;
 
-        /* available_providers — ready ones */
+        /* only map available_providers — ready ones returned by API */
         const rawAvail = d?.available_providers ?? (Array.isArray(d) ? d : []);
-        const availItems = rawAvail.map((p) => normalizeProvider(p, true));
-
-        /* unavailable_providers — not yet configured */
-        const rawUnavail = d?.unavailable_providers ?? [];
-        const unavailItems = rawUnavail.map((p) => normalizeProvider(p, false));
-
-        /* merge: available first, then unavailable; dedupe by provider key */
-        const seen = new Set();
-        const merged = [...availItems, ...unavailItems].filter((p) => {
-          if (seen.has(p.provider)) return false;
-          seen.add(p.provider);
-          return true;
-        });
-        available = merged;
+        available = rawAvail.map((p) => normalizeProvider(p, true));
       }
       setList(available);
 
@@ -1532,7 +2151,7 @@ function SMTPProvidersPage({ onBack }) {
                     </td>
                     <td className="px-5 py-3.5">
                       {isConfigured && (
-                        <button onClick={() => del(s.provider ?? s.name)} className="text-red-400 hover:text-red-600 transition">
+                        <button onClick={() => setDeleteTarget({ key: s.provider ?? s.name, name: s.name ?? s.provider })} className="text-red-400 hover:text-red-600 transition">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -1614,6 +2233,13 @@ function SMTPProvidersPage({ onBack }) {
           </div>
         </Modal>
       )}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={deleteTarget.name}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => { del(deleteTarget.key); setDeleteTarget(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -1648,6 +2274,7 @@ function LeadsPage({ onBack }) {
   const [excelUploading, setExcelUploading] = useState(false);
   const [crmImporting, setCrmImporting] = useState(false);
   const [deletingLeadId, setDeletingLeadId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   /* ── GET /lead-lists ── */
   const fetchLists = async () => {
@@ -1939,7 +2566,7 @@ function LeadsPage({ onBack }) {
                             </td>
                             <td className="px-5 py-3.5">
                               <button
-                                onClick={() => handleDeleteLead(leadId)}
+                                onClick={() => !deletingLeadId && setDeleteTarget({ id: leadId, name: fullName })}
                                 disabled={deletingLeadId === leadId}
                                 className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
                                 title="Remove lead from list"
@@ -1962,6 +2589,14 @@ function LeadsPage({ onBack }) {
             </>
           )}
         </div>
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={deleteTarget.name}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => { handleDeleteLead(deleteTarget.id); setDeleteTarget(null); }}
+          loading={deletingLeadId === deleteTarget?.id}
+        />
+      )}
       </div>
     );
   }
@@ -2287,6 +2922,7 @@ function MappingsPage({ onBack }) {
   const [search,  setSearch]          = useState("");
   const [showAdd, setShowAdd]         = useState(false);
   const [newMap,  setNewMap]          = useState({ sysKey: "", crmField: "" });
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   /* Integration URL config */
   const [config, setConfig] = useState({
@@ -2513,7 +3149,10 @@ function MappingsPage({ onBack }) {
                     <tr key={m.id} className="border-b border-gray-50 hover:bg-violet-50/40 transition-colors group">
                       <td className="px-5 py-3.5 text-[12px] text-gray-400 font-mono">{i + 1}</td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-block rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-[12px] text-gray-600 font-mono">{m.apiKey}</span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[13px] font-[600] text-gray-800">{m.label}</span>
+                          <span className="text-[11px] font-mono text-gray-400">{m.apiKey}</span>
+                        </div>
                       </td>
                       <td className="px-2 py-3.5 text-center text-gray-300 group-hover:text-violet-400 transition-colors">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -2531,7 +3170,7 @@ function MappingsPage({ onBack }) {
                       <td className="px-5 py-3.5 text-center">
                         <button
                           type="button"
-                          onClick={() => remove(m.id)}
+                          onClick={() => setDeleteTarget({ id: m.id, label: m.apiKey })}
                           className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-90 transition"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -2589,6 +3228,13 @@ function MappingsPage({ onBack }) {
             </div>
           </div>
         </Modal>
+      )}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={deleteTarget.label}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => { remove(deleteTarget.id); setDeleteTarget(null); }}
+        />
       )}
     </div>
   );
