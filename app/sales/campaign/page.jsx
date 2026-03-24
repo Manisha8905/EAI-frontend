@@ -63,9 +63,14 @@ import {
 } from "recharts";
 
 const CALL_STATUS_STYLE = {
-  COMPLETED: "bg-green-500 text-white",
+  COMPLETED:   "bg-green-500 text-white",
   "VOICE MAIL": "bg-yellow-400 text-white",
-  "NO ANSWER": "bg-gray-400 text-white",
+  "NO ANSWER":  "bg-gray-400 text-white",
+  FAILED:      "bg-red-100 text-red-700 border border-red-200",
+  BUSY:        "bg-orange-100 text-orange-700 border border-orange-200",
+  CANCELLED:   "bg-gray-100 text-gray-500 border border-gray-200",
+  TIMEOUT:     "bg-rose-100 text-rose-700 border border-rose-200",
+  ERROR:       "bg-red-100 text-red-700 border border-red-200",
 };
 const EMAIL_STATUS_STYLE = {
   OPENED: "bg-blue-50 text-blue-700 border border-blue-200",
@@ -158,15 +163,16 @@ export default function CampaignPage() {
   const [togglingId, setTogglingId] = useState(null); // campaign id currently being toggled
 
   /* ── Create form state ── */
+  const todayDate = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
   const blankForm = {
     campaign_name: "",
     // campaign_type: "CRM",
     // communication_type: "CALL",
-    start_time: "",
-    end_time: "",
-    reengage_days: 7,
-    max_attempts: 3,
-    start_date: "",
+    start_time: "00:00:00",
+    end_time: "23:23:23",
+    reengage_days: 0,
+    max_attempts: 0,
+    start_date: todayDate,
     channel_order: [],
     // Per-channel step config (keyed by channel name)
     channel_steps: {},
@@ -184,7 +190,7 @@ export default function CampaignPage() {
     from_name: "",
     from_email: "",
     reply_to_email: "",
-    enable_ai_personalization: false,
+    enable_ai_personalization: true,
     ai_tone: "professional",
     ai_context: "",
     emails_per_batch: 100,
@@ -227,6 +233,9 @@ export default function CampaignPage() {
 
   /* ── Per-lead channel toggling (Set of "leadId_CHANNEL") ── */
   const [togglingLeadChannel, setTogglingLeadChannel] = useState(new Set());
+
+  /* ── Tracks channels skipped by the user — survives server refreshes ── */
+  const [skippedChannels, setSkippedChannels] = useState(new Set());
 
   /* ── Campaign Journey API Stats ── */
   const [journeyStats, setJourneyStats] = useState(null);
@@ -655,39 +664,51 @@ export default function CampaignPage() {
     }
   };
 
+  /* PATCH /campaigns/{id}/leads/{lead_id}/channel-actions  →  action: "SKIP" */
   const skipChannel = async (campaignId, leadId, channelName) => {
-    // Optimistic update: mark this channel as completed in the table immediately
-    setLeadListLeads((prev) =>
-      prev.map((r) => {
-        if ((r.lead_id ?? r.id) !== leadId) return r;
-        // flat field update
-        const updated = { ...r, [channelName.toLowerCase()]: "completed" };
-        // also update nested channels[] if present
-        if (Array.isArray(r.channels)) {
-          updated.channels = r.channels.map((ch) =>
-            (ch.channel ?? ch.type ?? "").toUpperCase() === channelName
-              ? { ...ch, status: "completed" }
-              : ch,
-          );
-        }
-        return updated;
-      }),
-    );
+    const tKey = `${leadId}_${channelName}`;
+    setTogglingLeadChannel((s) => new Set([...s, tKey]));
+    setSkippedChannels((s) => new Set([...s, tKey])); // optimistic
     try {
       await axiosInstance.patch(
-        `/campaigns/${campaignId}/leads/${leadId}/skip-channels`,
-        { skip_channels: [channelName] },
+        `/campaigns/${campaignId}/leads/${leadId}/channel-actions`,
+        { channel_actions: { [channelName]: "SKIP" } },
       );
-      toast.success(`${channelName} channel skipped.`);
-      // Refresh the table + modal journey after skip
+      toast.success(`${channelName} skipped — next channel will start.`);
       refreshCampaignJourney(campaignId);
       if (selectedLeadJourney?.lead_id === leadId) {
         fetchLeadJourney(campaignId, leadId, selectedLeadJourney.lead_name ?? "");
       }
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to skip channel.");
-      // Revert optimistic update on failure
+      setSkippedChannels((s) => { const ns = new Set(s); ns.delete(tKey); return ns; }); // revert
       refreshCampaignJourney(campaignId);
+    } finally {
+      setTogglingLeadChannel((s) => { const ns = new Set(s); ns.delete(tKey); return ns; });
+    }
+  };
+
+  /* PATCH /campaigns/{id}/leads/{lead_id}/channel-actions  →  action: "RUN"  (undo skip) */
+  const runChannel = async (campaignId, leadId, channelName) => {
+    const tKey = `${leadId}_${channelName}`;
+    setTogglingLeadChannel((s) => new Set([...s, tKey]));
+    setSkippedChannels((s) => { const ns = new Set(s); ns.delete(tKey); return ns; }); // optimistic
+    try {
+      await axiosInstance.patch(
+        `/campaigns/${campaignId}/leads/${leadId}/channel-actions`,
+        { channel_actions: { [channelName]: "RUN" } },
+      );
+      toast.success(`${channelName} re-enabled — it will run in sequence.`);
+      refreshCampaignJourney(campaignId);
+      if (selectedLeadJourney?.lead_id === leadId) {
+        fetchLeadJourney(campaignId, leadId, selectedLeadJourney.lead_name ?? "");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to re-enable channel.");
+      setSkippedChannels((s) => new Set([...s, tKey])); // revert
+      refreshCampaignJourney(campaignId);
+    } finally {
+      setTogglingLeadChannel((s) => { const ns = new Set(s); ns.delete(tKey); return ns; });
     }
   };
 
@@ -1126,45 +1147,59 @@ export default function CampaignPage() {
               Agent & Voice Config
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Field label="VAPI Model">
-                <div className="relative">
-                  <select
-                    name="vapi_model"
-                    value={form.vapi_model}
-                    onChange={handleFormChange}
-                    className={selectCls}
-                  >
-                    {[""].map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                </div>
-              </Field>
-              <Field label="VAPI Voice ID">
-                <div className="relative">
-                  <select
-                    name="vapi_voice_id"
-                    value={form.vapi_voice_id}
-                    onChange={handleFormChange}
-                    className={selectCls}
-                  >
-                    <option value="">— Select Voice —</option>
-                    {[
-                      { label: "Cassidy", value: "56AoDkrOh6qfVPDXZ7Pt", description: "Confident female podcaster" },
-                      { label: "Jessica", value: "flHkNRp1BlvT73UL6gyz", description: "The Villain! Wickedly eloquent." },
-                      { label: "William", value: "8Es4wFxsDlHBmFWAOWRS", description: "Neutral US English, rich depth" },
-                      { label: "Dan",     value: "fvVBPXuE7f1iX3dZLKFy", description: "Warm, conversational, friendly" },
-                      { label: "Eric",    value: "cjVigY5qzO86Huf0OWal", description: "Smooth tenor, man in his 40s" },
-                    ].map((v) => (
-                      <option key={v.value} value={v.value}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                </div>
-              </Field>
+              {form.channel_order.map((c) => c.toUpperCase()).includes("CALL") && (
+                <>
+                  <Field label="VAPI Model">
+                    <div className="relative">
+                      <select
+                        name="vapi_model"
+                        value={form.vapi_model}
+                        onChange={handleFormChange}
+                        className={selectCls}
+                      >
+                        {[""].map((o) => (
+                          <option key={o}>{o}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    </div>
+                  </Field>
+                  <Field label="VAPI Voice ID">
+                    <div className="relative">
+                      <select
+                        name="vapi_voice_id"
+                        value={form.vapi_voice_id}
+                        onChange={handleFormChange}
+                        className={selectCls}
+                      >
+                        <option value="">— Select Voice —</option>
+                        {[
+                          { label: "Cassidy", value: "56AoDkrOh6qfVPDXZ7Pt", description: "Confident female podcaster" },
+                          { label: "Jessica", value: "flHkNRp1BlvT73UL6gyz", description: "The Villain! Wickedly eloquent." },
+                          { label: "William", value: "8Es4wFxsDlHBmFWAOWRS", description: "Neutral US English, rich depth" },
+                          { label: "Dan",     value: "fvVBPXuE7f1iX3dZLKFy", description: "Warm, conversational, friendly" },
+                          { label: "Eric",    value: "cjVigY5qzO86Huf0OWal", description: "Smooth tenor, man in his 40s" },
+                        ].map((v) => (
+                          <option key={v.value} value={v.value}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    </div>
+                  </Field>
+                  <Field label="Campaign Parallel Calls">
+                    <input
+                      type="number"
+                      name="campaign_parallel_calls"
+                      value={form.campaign_parallel_calls}
+                      onChange={handleFormChange}
+                      min={1}
+                      className={inputCls}
+                    />
+                  </Field>
+                </>
+              )}
               <Field label="Agent">
                 <input
                   name="agent_name"
@@ -1176,23 +1211,13 @@ export default function CampaignPage() {
                   className={inputCls}
                 />
               </Field>
-              <Field label="Logged in User Email">
+              <Field label="Meeting Invite Sender Email">
                 <input
                   type="email"
                   name="logged_in_user_email"
                   value={form.logged_in_user_email}
                   onChange={handleFormChange}
                   placeholder="user@company.com"
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Campaign Parallel Calls">
-                <input
-                  type="number"
-                  name="campaign_parallel_calls"
-                  value={form.campaign_parallel_calls}
-                  onChange={handleFormChange}
-                  min={1}
                   className={inputCls}
                 />
               </Field>
@@ -1970,9 +1995,11 @@ export default function CampaignPage() {
                         </td>
                         {channelCols.map((col) => {
                           const chName = col.label.toUpperCase() === "WHATSAPP" ? "WHATSAPP" : col.label.toUpperCase();
-                          const chStatus = (resolveChannelStatus(row, col.field) ?? "").toLowerCase();
                           const tKey = `${leadId}_${chName}`;
                           const busy = togglingLeadChannel.has(tKey);
+                          // skippedChannels overrides server data — prevents refresh from reverting the badge
+                          const isSkipped = skippedChannels.has(tKey);
+                          const chStatus = isSkipped ? "skipped" : (resolveChannelStatus(row, col.field) ?? "").toLowerCase();
 
                           // ── Completed / converted → green tick (not skippable)
                           if (chStatus === "completed" || chStatus === "converted") {
@@ -1995,53 +2022,72 @@ export default function CampaignPage() {
                             );
                           }
 
-                          // ── Processing → blue spinner chip (click to skip)
+          // ── Processing → blue spinner chip (NOT skippable — actively running)
                           if (chStatus === "processing") {
                             return (
                               <td key={col.field} className="px-4 py-3.5">
-                                <button
-                                  disabled={busy}
-                                  onClick={() => toggleLeadChannel(c.id, leadId, chName, true)}
-                                  title={`${col.label}: Processing — click to skip`}
-                                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[10px] font-[700] border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition disabled:opacity-60"
+                                <span
+                                  title={`${col.label}: Live — cannot skip while processing`}
+                                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[10px] font-[700] border border-blue-200 bg-blue-50 text-blue-600 cursor-not-allowed select-none"
                                 >
-                                  {busy ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Loader2 className="h-3 w-3 animate-spin" />}
-                                  {busy ? "…" : "Live"}
-                                </button>
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Live
+                                </span>
                               </td>
                             );
                           }
 
-                          // ── Waiting → amber clock chip (click to skip)
+                          // ── Waiting/Queue → amber chip with Skip action
                           if (chStatus === "waiting") {
                             return (
                               <td key={col.field} className="px-4 py-3.5">
-                                <button
-                                  disabled={busy}
-                                  onClick={() => toggleLeadChannel(c.id, leadId, chName, true)}
-                                  title={`${col.label}: Waiting — click to skip`}
-                                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[10px] font-[700] border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition disabled:opacity-60"
-                                >
-                                  {busy ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Clock className="h-3 w-3" />}
-                                  {busy ? "…" : "Queue"}
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  {/* Queue status badge */}
+                                  <span className="inline-flex items-center gap-1 px-2 h-6 rounded-lg text-[10px] font-[600] border border-amber-200 bg-amber-50 text-amber-600">
+                                    <Clock className="h-2.5 w-2.5" />
+                                    Queue
+                                  </span>
+                                  {/* Skip button */}
+                                  <button
+                                    disabled={busy}
+                                    onClick={() => skipChannel(c.id, leadId, chName)}
+                                    title={`Skip ${col.label} — next channel will start`}
+                                    className="inline-flex items-center gap-1 px-2 h-6 rounded-lg text-[10px] font-[600] border border-gray-200 bg-white text-gray-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-50"
+                                  >
+                                    {busy
+                                      ? <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                      : <SkipForward className="h-2.5 w-2.5" />}
+                                    {busy ? "…" : "Skip"}
+                                  </button>
+                                </div>
                               </td>
                             );
                           }
 
-                          // ── Skipped → gray chip (click to re-enable)
+                          // ── Skipped → gray badge + Run button to re-enable
                           if (chStatus === "skipped") {
                             return (
                               <td key={col.field} className="px-4 py-3.5">
-                                <button
-                                  disabled={busy}
-                                  onClick={() => toggleLeadChannel(c.id, leadId, chName, false)}
-                                  title={`${col.label}: Skipped — click to re-enable`}
-                                  className="inline-flex items-center gap-1 px-2.5 h-7 rounded-lg text-[10px] font-[700] border border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 transition disabled:opacity-60 line-through"
-                                >
-                                  {busy ? <RefreshCw className="h-3 w-3 animate-spin" /> : null}
-                                  {busy ? "…" : col.label}
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    title={`${col.label}: Skipped`}
+                                    className="inline-flex items-center gap-1 px-2.5 h-6 rounded-lg text-[10px] font-[600] border border-gray-200 bg-gray-100 text-gray-400 select-none"
+                                  >
+                                    <SkipForward className="h-2.5 w-2.5" />
+                                    Skipped
+                                  </span>
+                                  <button
+                                    disabled={busy}
+                                    onClick={() => runChannel(c.id, leadId, chName)}
+                                    title={`Re-enable ${col.label} — it will run in sequence`}
+                                    className="inline-flex items-center gap-1 px-2 h-6 rounded-lg text-[10px] font-[600] border border-green-200 bg-green-50 text-green-600 hover:bg-green-100 transition disabled:opacity-50"
+                                  >
+                                    {busy
+                                      ? <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                      : <Play className="h-2.5 w-2.5" />}
+                                    {busy ? "…" : "Run"}
+                                  </button>
+                                </div>
                               </td>
                             );
                           }
@@ -2080,7 +2126,7 @@ export default function CampaignPage() {
       const callHistory_data = callHistory ?? [];
       const callStatuses = [
         "All Status",
-        ...new Set(callHistory_data.map((r) => r.status)),
+        ...new Set(callHistory_data.map((r) => r.status).filter(Boolean)),
       ];
       const callRows = callHistory_data.filter((r) => {
         const ms =
@@ -2097,7 +2143,7 @@ export default function CampaignPage() {
         (r) => r.status === "VOICE MAIL",
       ).length;
       const noAnswer = callHistory_data.filter(
-        (r) => r.status === "NO ANSWER",
+        (r) => ["NO ANSWER", "FAILED", "TIMEOUT", "BUSY", "ERROR", "CANCELLED"].includes(r.status),
       ).length;
       const meetingBooked = callHistory_data.filter((r) => r.meeting).length;
       const avgDuration =
@@ -2450,10 +2496,10 @@ export default function CampaignPage() {
               onClick={() => setTranscript(null)}
             >
               <div
-                className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+                className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
                   <h2 className="text-[16px] font-[700] text-[#0a0a0a]">
                     Call Transcript
                   </h2>
@@ -2465,7 +2511,7 @@ export default function CampaignPage() {
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 overflow-y-auto">
                   <div className="grid grid-cols-2 gap-4">
                     {[
                       ["Lead Name", transcript.name],
@@ -2487,11 +2533,18 @@ export default function CampaignPage() {
                     <p className="text-[12px] font-[600] text-gray-700 mb-2">
                       Transcript
                     </p>
-                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 min-h-[100px]">
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
                       {transcript.transcript ? (
                         <p className="text-[12px] text-gray-600 leading-relaxed whitespace-pre-wrap">
                           {transcript.transcript}
                         </p>
+                      ) : transcript.summary ? (
+                        <>
+                          <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400 mb-1.5">Call Summary</p>
+                          <p className="text-[12px] text-gray-600 leading-relaxed whitespace-pre-wrap">
+                            {transcript.summary}
+                          </p>
+                        </>
                       ) : (
                         <p className="text-[12px] text-gray-400 italic">
                           No transcript available for this call.
@@ -4166,7 +4219,9 @@ export default function CampaignPage() {
                     </p>
                     <div className="space-y-2">
                       {channels.map((ch) => {
-                        const count = countByKey[ch.key] ?? 0;
+                        const rawCount = countByKey[ch.key] ?? 0;
+                        // When campaign is fully completed, show full count to match the 100% bar
+                        const count = (c.status === "COMPLETED" && rawCount === 0) ? c.totalLeads : rawCount;
                         const pct   = Math.min((count / total) * 100, 100);
                         const st    = stepStatus[ch.key];
                         const badge = statusLabel(st);
@@ -4190,11 +4245,11 @@ export default function CampaignPage() {
                             </div>
                             <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
                               <div
-                                className={`h-full rounded-full transition-all duration-700${pct === 0 ? " animate-pulse" : ""}`}
+                                className={`h-full rounded-full transition-all duration-700`}
                                 style={{
-                                  width: pct === 0 ? "5%" : `${pct}%`,
+                                  width: c.status === "COMPLETED" ? "100%" : (pct === 0 ? "5%" : `${pct}%`),
                                   background: ch.fill,
-                                  opacity: pct === 0 ? 0.35 : 1,
+                                  opacity: c.status === "COMPLETED" ? 1 : (pct === 0 ? 0.35 : 1),
                                 }}
                               />
                             </div>
@@ -4211,9 +4266,9 @@ export default function CampaignPage() {
                 <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
                   <Calendar className="h-3.5 w-3.5" />
                   {formatDate(c.startDate)}
-                  {c.completionPct > 0 && (
+                  {(c.completionPct > 0 || c.status === "COMPLETED") && (
                     <span className="ml-1 text-violet-500 font-[600]">
-                      {c.completionPct}% done
+                      {c.status === "COMPLETED" && c.completionPct === 0 ? 100 : Math.round(c.completionPct)}% done
                     </span>
                   )}
                 </div>
@@ -4251,7 +4306,7 @@ export default function CampaignPage() {
                       )}
                       {togglingId === c.id ? "..." : "Resume"}
                     </button>
-                  ) : (
+                  ) : c.status !== "COMPLETED" ? (
                     <button
                       onClick={() => {
                         setTogglingId(c.id);
@@ -4267,7 +4322,7 @@ export default function CampaignPage() {
                       )}
                       {togglingId === c.id ? "..." : "Activate"}
                     </button>
-                  )}
+                  ) : null}
                   <button
                     onClick={() => setSelectedCampaign(c)}
                     className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"

@@ -75,6 +75,7 @@ export const loginUser = (values, router) => async (dispatch) => {
 
     // ✅ SAVE TOKEN + ROLE + USER INFO
     localStorage.setItem("session_token", response.data.session_token);
+    localStorage.setItem("userEmail", values.email);
     if (response.data.role)
       localStorage.setItem("userRole", response.data.role.toUpperCase());
     if (response.data.name || response.data.username)
@@ -87,6 +88,16 @@ export const loginUser = (values, router) => async (dispatch) => {
       payload: response.data,
     });
     toast.success(response?.data?.message ?? "Login Successful");
+
+    // Notify backend of the current frontend base URL
+    try {
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      if (baseUrl) {
+        await axiosInstance.post("/api/globalsetting/base-url", { base_url: baseUrl });
+      }
+    } catch (_) {
+      // Non-critical — ignore errors silently
+    }
 
     // Redirect based on role
     const role = (response.data.role || "").toUpperCase().replace(/[\s_-]/g, "");
@@ -502,16 +513,36 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
   try {
     const res = await axiosInstance.get(`/campaigns/${campaignId}/call-history/`);
     const raw = extractArray(res.data);
-    const normalized = raw.map((r) => ({
-      name:       r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",
-      phone:      r.phone_number    ?? r.phone         ?? r.contact_phone ?? "—",
-      company:    r.campaign_name    ?? r.company       ?? r.organization  ?? "—",
-      dateTime:   r.call_time       ?? r.created_at    ?? r.date          ?? "—",
-      duration:   r.duration        ?? r.call_duration ?? "0",
-      status:     (r.call_status    ?? r.status        ?? "").toUpperCase(),
-      meeting:    r.meeting_scheduled ?? r.meeting     ?? r.is_meeting_scheduled ?? false,
-      transcript: r.transcript      ?? r.call_transcript ?? "",
-    }));
+    const normalized = raw.map((r) => {
+      /* ── date+time ── prefer full ISO datetime, fall back to date+time combo */
+      let dateTime = "—";
+      if (r.call_datetime) {
+        const d = new Date(r.call_datetime);
+        const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        const timePart = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+        dateTime = `${datePart}\n${timePart}`;
+      } else if (r.call_date && r.call_time) {
+        const d = new Date(r.call_date);
+        const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        dateTime = `${datePart}\n${r.call_time}`;
+      } else if (r.created_at) {
+        const d = new Date(r.created_at);
+        dateTime = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + "\n" + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+      }
+
+      return {
+        name:       r.lead_name          ?? r.name             ?? r.contact_name  ?? "—",
+        phone:      r.phone_number        ?? r.phone             ?? r.contact_phone ?? "—",
+        company:    r.company_name        ?? r.company           ?? r.organization  ?? r.campaign_name ?? "—",
+        dateTime,
+        duration:   r.call_duration       ?? r.duration          ?? "0",
+        status:     (r.call_status        ?? r.status            ?? "").toUpperCase(),
+        meeting:    r.meeting_scheduled   ?? r.meeting           ?? r.is_meeting_scheduled ?? false,
+        transcript: r.call_transcript     ?? r.transcript        ?? r.call_summary  ?? "",
+        summary:    r.call_summary        ?? "",
+        recording:  r.recording_url       ?? null,
+      };
+    });
     dispatch({ type: CALL_HISTORY_SUCCESS, payload: normalized });
     toast.success(`Call history loaded (${normalized.length} records)`);
   } catch (err) {

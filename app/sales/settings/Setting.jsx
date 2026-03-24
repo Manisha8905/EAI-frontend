@@ -33,6 +33,10 @@ import {
   ToggleRight,
   AlertCircle,
   Zap,
+  Copy,
+  Phone,
+  MessageCircle,
+  Linkedin,
 } from "lucide-react";
 
 /* ═══════════════════════ SHARED INPUT ═══════════════════════ */
@@ -260,25 +264,129 @@ function AnimStyles() {
 }
 
 /* ── CRM Integration ── */
-function CRMPage({ onBack }) {
+const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
+
+function CRMPage({ onBack, onConnectionChange }) {
   const [form, setForm] = useState({
     clientId: "",
     clientSecret: "",
     authUrl: "",
     tokenUrl: "https://test.salesforce.com/services/oauth2/token",
   });
-  const [saved, setSaved] = useState(false);
+  const [generatedUrl, setGeneratedUrl] = useState("");
+  const [copied, setCopied] = useState(false);
   const [connecting, setConn] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [connError, setConnError] = useState("");
+
+  /* ── OAuth status — no loading spinner; fetched silently in background ── */
+  const [isOAuthConnected, setIsOAuthConnected] = useState(false);
+  const [oauthInfo, setOauthInfo] = useState(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  /* Fetch /oauth/status silently on mount (no popup, no spinner) */
+  useEffect(() => {
+    axiosInstance.get("/oauth/status")
+      .then((res) => {
+        const d = res.data;
+        const isConn =
+          d?.has_credentials === true &&
+          d?.has_tokens === true &&
+          d?.token_expired !== true;
+        setIsOAuthConnected(isConn);
+        setOauthInfo(d);
+        onConnectionChange?.(isConn);
+      })
+      .catch(() => {
+        setIsOAuthConnected(false);
+        onConnectionChange?.(false);
+      });
+  }, []);
+
+  /* Disconnect — DELETE /oauth/tokens, then verify via GET /oauth/status */
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      await axiosInstance.delete("/oauth/tokens");
+      // Verify disconnect succeeded
+      try {
+        const res = await axiosInstance.get("/oauth/status");
+        const d = res.data;
+        const stillConn =
+          d?.has_credentials === true &&
+          d?.has_tokens === true &&
+          d?.token_expired !== true;
+        setIsOAuthConnected(stillConn);
+        setOauthInfo(stillConn ? d : null);
+        onConnectionChange?.(!stillConn ? false : true);
+        if (!stillConn) toast.success("CRM disconnected successfully.");
+        else toast.error("Disconnect may not have completed. Please try again.");
+      } catch {
+        setIsOAuthConnected(false);
+        setOauthInfo(null);
+        onConnectionChange?.(false);
+        toast.success("CRM disconnected successfully.");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to disconnect CRM.");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  /* Build full_oauth_url → POST all 5 fields to /auth_cred → check status → redirect if needed */
+  const handleSave = async (e) => {
     e.preventDefault();
+    const userEmail = (typeof window !== "undefined" ? localStorage.getItem("userEmail") : "") || "";
+    const fullOauthUrl =
+      `${form.authUrl}?response_type=code` +
+      `&client_id=${encodeURIComponent(form.clientId)}` +
+      `&redirect_uri=${encodeURIComponent(OAUTH_REDIRECT_URI)}` +
+      (userEmail ? `&state=${encodeURIComponent(userEmail)}` : "");
+    setGeneratedUrl(fullOauthUrl);
     setConn(true);
-    setTimeout(() => {
+    setConnError("");
+    try {
+      await axiosInstance.post("/auth_cred", {
+        client_id:      form.clientId,
+        client_secret:  form.clientSecret,
+        authorize_url:  form.authUrl,
+        token_url:      form.tokenUrl,
+        full_oauth_url: fullOauthUrl,
+      });
+      // Check if backend already completed the connection
+      try {
+        const statusRes = await axiosInstance.get("/oauth/status");
+        const d = statusRes.data;
+        const isConn =
+          d?.has_credentials === true &&
+          d?.has_tokens === true &&
+          d?.token_expired !== true;
+        if (isConn) {
+          setIsOAuthConnected(true);
+          setOauthInfo(d);
+          setConnected(true);
+          onConnectionChange?.(true);
+          return; // already connected — no redirect needed
+        }
+      } catch { /* status check failed — proceed with OAuth redirect */ }
+      // Not connected yet — redirect browser to Salesforce OAuth
+      setConnected(true);
+      window.location.href = fullOauthUrl;
+    } catch (err) {
+      setConnError(err?.response?.data?.message || "Failed to connect. Please check your credentials.");
+    } finally {
       setConn(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3500);
-    }, 1600);
+    }
+  };
+
+  /* Copy generated URL to clipboard */
+  const handleCopy = () => {
+    navigator.clipboard.writeText(generatedUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -293,110 +401,182 @@ function CRMPage({ onBack }) {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden crm-hover">
+            {/* Header banner */}
             <div className="relative bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 px-7 py-6 overflow-hidden">
               <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 blur-3xl pointer-events-none" />
               <div className="absolute right-24 bottom-0 h-24 w-24 rounded-full bg-white/10 pointer-events-none" />
-              <div className="relative flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm ring-1 ring-white/30">
-                  <Database className="h-6 w-6 text-white" />
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm ring-1 ring-white/30">
+                    <Database className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-[16px] font-[700] text-white">OAuth 2.0 Configuration</h3>
+                    <p className="text-[12px] text-indigo-200 mt-0.5">
+                      Secure handshake — credentials are AES-256 encrypted at rest
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-[16px] font-[700] text-white">
-                    OAuth 2.0 Configuration
-                  </h3>
-                  <p className="text-[12px] text-indigo-200 mt-0.5">
-                    Secure handshake — credentials are AES-256 encrypted at rest
-                  </p>
-                </div>
+
               </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-7 space-y-5">
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {/* ── Already Connected ── */}
+            {isOAuthConnected && (
+              <div className="p-7 space-y-5">
+                <div className="flex items-center gap-4 p-4 bg-green-50 border border-green-200 rounded-2xl">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100">
+                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-[700] text-green-800">CRM Connected</p>
+                    <p className="text-[12px] text-green-600 mt-0.5">
+                      {oauthInfo?.message || "Your CRM is successfully connected via OAuth 2.0."}
+                    </p>
+                    {oauthInfo?.instance_url && (
+                      <p className="text-[11px] text-green-700 font-mono mt-1 truncate">
+                        {oauthInfo.instance_url}
+                      </p>
+                    )}
+                    {oauthInfo?.token_expires_at && (
+                      <p className="text-[10px] text-green-500 mt-1">
+                        Token expires: {new Date(oauthInfo.token_expires_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse shrink-0" />
+                </div>
+
+                <div className="rounded-xl border border-red-100 bg-red-50/60 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[12px] font-[700] text-red-700 mb-0.5">Disconnect CRM</p>
+                      <p className="text-[11px] text-red-600 leading-relaxed">
+                        This will revoke the OAuth tokens and disconnect your CRM. You will need to re-authenticate to reconnect.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={handleDisconnect}
+                      disabled={disconnecting}
+                      className="action-btn flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-[600] text-white bg-red-600 hover:bg-red-700 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {disconnecting ? (
+                        <><RefreshCw className="h-4 w-4 animate-spin" />Disconnecting…</>
+                      ) : (
+                        <><Link2Off className="h-4 w-4" />Disconnect CRM</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Credential form (only when not connected) ── */}
+            {!isOAuthConnected && (
+              <form onSubmit={handleSave} className="p-7 space-y-5">
+                <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wider">
+                  Enter your CRM credentials
+                </p>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <Field
+                    label="Client ID"
+                    required
+                    placeholder="Enter your CRM client ID"
+                    value={form.clientId}
+                    onChange={set("clientId")}
+                    icon={Key}
+                  />
+                  <Field
+                    label="Client Secret"
+                    required
+                    type="password"
+                    placeholder="••••••••••"
+                    value={form.clientSecret}
+                    onChange={set("clientSecret")}
+                    icon={Shield}
+                  />
+                </div>
                 <Field
-                  label="Client ID"
+                  label="Authorize URL"
                   required
-                  placeholder="Enter your CRM client ID"
-                  value={form.clientId}
-                  onChange={set("clientId")}
-                  icon={Key}
+                  placeholder="https://login.salesforce.com/services/oauth2/authorize"
+                  value={form.authUrl}
+                  onChange={set("authUrl")}
+                  icon={Globe}
                 />
                 <Field
-                  label="Client Secret"
+                  label="Token URL"
                   required
-                  type="password"
-                  placeholder="••••••••••"
-                  value={form.clientSecret}
-                  onChange={set("clientSecret")}
-                  icon={Shield}
+                  placeholder="https://test.salesforce.com/services/oauth2/token"
+                  value={form.tokenUrl}
+                  onChange={set("tokenUrl")}
+                  icon={Globe}
+                  hint="Sandbox URL pre-filled — use login.salesforce.com for production."
                 />
-              </div>
-              <Field
-                label="Authorize URL"
-                required
-                placeholder="https://login.salesforce.com/services/oauth2/authorize"
-                value={form.authUrl}
-                onChange={set("authUrl")}
-                icon={Globe}
-              />
-              <Field
-                label="Token URL"
-                required
-                placeholder="https://test.salesforce.com/services/oauth2/token"
-                value={form.tokenUrl}
-                onChange={set("tokenUrl")}
-                icon={Globe}
-                hint="Sandbox URL pre-filled — use login.salesforce.com for production."
-              />
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  disabled={connecting}
-                  className={`action-btn w-full rounded-xl py-3.5 text-[14px] font-[600] text-white flex items-center justify-center gap-2 shadow-lg
-                    ${
-                      saved
-                        ? "bg-gradient-to-r from-green-500 to-emerald-600 shadow-green-200/70"
-                        : connecting
-                          ? "bg-gradient-to-r from-indigo-400 to-violet-400 shadow-indigo-200/60 cursor-wait"
-                          : "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-indigo-200/60"
-                    }`}
-                >
-                  {connecting ? (
-                    <><RefreshCw className="h-4 w-4 animate-spin" />Connecting…</>
-                  ) : saved ? (
-                    <><CheckCircle2 className="h-4 w-4" />Connected Successfully!</>
-                  ) : (
-                    <><Link2 className="h-4 w-4" />Connect to CRM</>
-                  )}
-                </button>
-              </div>
-            </form>
+                {connError && (
+                  <p className="text-[12px] text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    {connError}
+                  </p>
+                )}
+
+                <div className="pt-1">
+                  <button
+                    type="submit"
+                    disabled={connecting}
+                    className={`action-btn w-full rounded-xl py-3.5 text-[14px] font-[600] text-white flex items-center justify-center gap-2 shadow-lg
+                      ${
+                        connected
+                          ? "bg-gradient-to-r from-green-500 to-emerald-600 shadow-green-200/70"
+                          : connecting
+                            ? "bg-gradient-to-r from-indigo-400 to-violet-400 shadow-indigo-200/60 cursor-wait"
+                            : "bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-indigo-200/60"
+                      }`}
+                  >
+                    {connecting ? (
+                      <><RefreshCw className="h-4 w-4 animate-spin" />Connecting…</>
+                    ) : connected ? (
+                      <><CheckCircle2 className="h-4 w-4" />Connected Successfully!</>
+                    ) : (
+                      <><Link2 className="h-4 w-4" />Save &amp; Connect
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className={`info-card rounded-2xl border p-5 ${saved ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50" : "border-gray-100 bg-white shadow-sm"}`}>
+          <div className={`info-card rounded-2xl border p-5 ${
+            isOAuthConnected || connected ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50"
+            : "border-gray-100 bg-white shadow-sm"
+          }`}>
             <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3">
               Connection Status
             </p>
             <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${saved ? "bg-green-100" : "bg-amber-50"}`}>
-                {saved ? (
+              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isOAuthConnected || connected ? "bg-green-100" : "bg-amber-50"}`}>
+                {isOAuthConnected || connected ? (
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                 ) : (
                   <AlertCircle className="h-5 w-5 text-amber-500" />
                 )}
               </div>
               <div>
-                <span className={`block text-[14px] font-[700] ${saved ? "text-green-700" : "text-amber-700"}`}>
-                  {saved ? "Connected" : "Not Connected"}
+                <span className={`block text-[14px] font-[700] ${isOAuthConnected || connected ? "text-green-700" : "text-amber-700"}`}>
+                  {isOAuthConnected || connected ? "Connected" : "Not Connected"}
                 </span>
                 <span className="text-[11px] text-gray-400">
-                  {saved ? "CRM sync active" : "Configure & connect"}
+                  {isOAuthConnected || connected ? "CRM sync active" : "Configure & connect"}
                 </span>
               </div>
             </div>
-            {saved && (
+            {(isOAuthConnected || connected) && (
               <div className="mt-3 flex items-center gap-1.5 text-[11px] text-green-600">
                 <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                 Live data sync enabled
@@ -1156,14 +1336,14 @@ function EmailTemplatesPage({ onBack }) {
                             Edit
                           </button>
                           {/* Preview with custom fields */}
-                          <button
+                          {/* <button
                             onClick={() => openPreview(t)}
                             title="Preview with custom fields"
                             className="flex items-center gap-1 rounded-lg border border-teal-100 bg-teal-50 px-2.5 py-1.5 text-[11px] font-[600] text-teal-700 hover:bg-teal-100 transition"
                           >
                             <FileText className="h-3.5 w-3.5" />
                             Preview
-                          </button>
+                          </button> */}
                           {/* Delete */}
                           <button
                             onClick={() => !deleting && setDeleteTarget({ id: t.id, name: t.name })}
@@ -1976,7 +2156,8 @@ function CredInput({ field, value, error, onChange }) {
 }
 
 function SMTPProvidersPage({ onBack }) {
-  const [list, setList] = useState([]);          // available providers (from available-providers API)
+  const [list, setList] = useState([]);          // available/configured providers (table)
+  const [allProviderOpts, setAllProviderOpts] = useState([]); // all supported types (modal dropdown)
   const [configuredMap, setConfiguredMap] = useState({}); // provider key → configured record
   const [loadingList, setLoadingList] = useState(false);
   const [showModal, setShow] = useState(false);
@@ -1989,46 +2170,44 @@ function SMTPProvidersPage({ onBack }) {
   const fetchList = async () => {
     setLoadingList(true);
     try {
-      const [availRes, cfgRes] = await Promise.allSettled([
+      const [availRes, provRes] = await Promise.allSettled([
         axiosInstance.get("/api/smtp/available-providers"),
         axiosInstance.get("/api/smtp/providers"),
       ]);
 
-      /* ── available providers ── */
-      /* Build a label lookup from the hardcoded list so API keys like "mailgun"
-         render as "Mailgun", "outlook" → "Outlook / Office365", etc. */
       const labelMap = Object.fromEntries(SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]));
 
-      const normalizeProvider = (p, isReady) => {
-        const key = typeof p === "string" ? p : (p.name ?? p.provider ?? String(p));
-        return {
-          provider: key,
-          name:     p.display_name ?? p.label ?? labelMap[key] ?? key,
-          ready:    typeof p === "string" ? isReady : (p.ready ?? p.is_active ?? isReady),
-          description: p.description ?? "",
-        };
-      };
-
-      let available = [];
+      /* ── Table: available (configured) providers from /available-providers ── */
       if (availRes.status === "fulfilled") {
         const d = availRes.value.data;
-
-        /* only map available_providers — ready ones returned by API */
         const rawAvail = d?.available_providers ?? (Array.isArray(d) ? d : []);
-        available = rawAvail.map((p) => normalizeProvider(p, true));
-      }
-      setList(available);
+        const available = rawAvail.map((p) => ({
+          provider: p.name ?? p.provider ?? String(p),
+          name:     labelMap[p.name ?? p.provider] ?? p.display_name ?? p.name ?? p.provider,
+          ready:    p.ready ?? true,
+          description: p.description ?? "",
+        }));
+        setList(available);
 
-      /* ── configured / saved providers → build a lookup map ── */
-      if (cfgRes.status === "fulfilled") {
-        const d = cfgRes.value.data;
-        const raw = Array.isArray(d) ? d : (d?.providers ?? d?.data ?? d?.results ?? []);
+        /* build configuredMap from available-providers (they are all configured) */
         const map = {};
-        raw.forEach((p) => {
-          const key = (p.provider ?? p.name ?? "").toLowerCase();
+        rawAvail.forEach((p) => {
+          const key = (p.name ?? p.provider ?? "").toLowerCase();
           if (key) map[key] = p;
         });
         setConfiguredMap(map);
+      }
+
+      /* ── Modal dropdown: all supported provider types from /providers ── */
+      if (provRes.status === "fulfilled") {
+        const d = provRes.value.data;
+        const raw = Array.isArray(d) ? d : (d?.providers ?? d?.data ?? d?.results ?? []);
+        setAllProviderOpts(
+          raw.map((p) => ({
+            value: p.name ?? p.provider ?? p.value,
+            label: labelMap[p.name ?? p.provider] ?? p.display_name ?? p.label ?? p.name ?? p.provider,
+          }))
+        );
       }
     } catch {
       // silently ignore
@@ -2042,7 +2221,7 @@ function SMTPProvidersPage({ onBack }) {
     setForm((f) => ({ ...f, credentials: { ...f.credentials, [key]: val } }));
 
   const openCreate = () => {
-    const firstProvider = list[0]?.provider ?? "mailgun";
+    const firstProvider = allProviderOpts[0]?.value ?? "mailgun";
     setForm({ name: "", provider: firstProvider, credentials: {} });
     setErrors({});
     setShow(true);
@@ -2134,8 +2313,9 @@ function SMTPProvidersPage({ onBack }) {
               <tr><td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">No SMTP providers available</td></tr>
             ) : (
               list.map((s, i) => {
-                const cfgEntry = configuredMap[(s.provider ?? s.name ?? "").toLowerCase()];
-                const isConfigured = Boolean(cfgEntry);
+                const provKey = (s.provider ?? s.name ?? "").toLowerCase();
+                const cfgEntry = configuredMap[provKey];
+                const isConfigured = Boolean(cfgEntry) || s.ready;
                 return (
                   <tr key={s.provider ?? i} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
                     <td className="px-5 py-3.5">
@@ -2185,25 +2365,16 @@ function SMTPProvidersPage({ onBack }) {
             {/* Provider selector — populated from available-providers API */}
             <div>
               <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">Provider</label>
+              {/* Provider selector — populated from /providers API (all supported types) */}
               <div className="relative">
                 <select
                   value={form.provider}
                   onChange={(e) => setForm({ name: form.name, provider: e.target.value, credentials: {} })}
                   className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
                 >
-                  {list.length > 0
-                    ? list.map((p) => {
-                        const found = SMTP_PROVIDER_LIST.find((x) => x.value === p.provider);
-                        return (
-                          <option key={p.provider} value={p.provider}>
-                            {found?.label ?? p.name}
-                          </option>
-                        );
-                      })
-                    : SMTP_PROVIDER_LIST.map((p) => (
-                        <option key={p.value} value={p.value}>{p.label}</option>
-                      ))
-                  }
+                  {(allProviderOpts.length > 0 ? allProviderOpts : SMTP_PROVIDER_LIST.map((p) => ({ value: p.value, label: p.label }))).map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>
@@ -2244,6 +2415,14 @@ function SMTPProvidersPage({ onBack }) {
   );
 }
 
+/* ── Leads page channel definitions ── */
+const LEAD_CHANNELS = [
+  { key: "call_enabled",     label: "Call",     icon: Phone,          pillClass: "bg-violet-600 text-white border-violet-700" },
+  { key: "email_enabled",    label: "Email",    icon: Mail,           pillClass: "bg-sky-500 text-white border-sky-600" },
+  { key: "linkedin_enabled", label: "LinkedIn", icon: Linkedin,       pillClass: "bg-blue-800 text-white border-blue-900" },
+  { key: "whatsapp_enabled", label: "WhatsApp", icon: MessageCircle,  pillClass: "bg-green-600 text-white border-green-700" },
+];
+
 /* ── Leads ── */
 function LeadsPage({ onBack }) {
   const fileRef = useRef(null);
@@ -2269,6 +2448,8 @@ function LeadsPage({ onBack }) {
   const [listLeads, setListLeads] = useState([]);
   const [listLeadsLoading, setListLeadsLoading] = useState(false);
   const [leadSearch, setLeadSearch] = useState("");
+  const [leadsPage, setLeadsPage] = useState(1);
+  const LEADS_PER_PAGE = 10;
 
   /* ── Upload / import ── */
   const [excelUploading, setExcelUploading] = useState(false);
@@ -2383,6 +2564,7 @@ function LeadsPage({ onBack }) {
     setViewList(list);
     setListLeads([]);
     setLeadSearch("");
+    setLeadsPage(1);
     setListLeadsLoading(true);
     try {
       const res = await axiosInstance.get(`/lead-lists/${list.id}`);
@@ -2455,13 +2637,22 @@ function LeadsPage({ onBack }) {
     }
   };
 
-  /* ── PATCH /lead-lists/{listId}/leads/{leadId} — toggle channel ── */
+  /* ── PATCH /lead-lists/{listId}/leads/{leadId}/channel-flags ── */
   const [togglingChannel, setTogglingChannel] = useState(new Set());
 
   const handleToggleLeadChannel = async (leadId, channelKey, currentValue) => {
     if (!viewList) return;
     const tKey = `${leadId}_${channelKey}`;
     setTogglingChannel((s) => new Set([...s, tKey]));
+    // Capture current channel flags before optimistic update
+    const currentLead = listLeads.find((l) => (l.id ?? l._id ?? l.list_lead_id) === leadId);
+    const newFlags = {
+      call_enabled:     !!(currentLead?.call_enabled),
+      email_enabled:    !!(currentLead?.email_enabled),
+      linkedin_enabled: !!(currentLead?.linkedin_enabled),
+      whatsapp_enabled: !!(currentLead?.whatsapp_enabled),
+      [channelKey]: !currentValue,
+    };
     // Optimistic update
     setListLeads((prev) =>
       prev.map((l) => {
@@ -2470,7 +2661,10 @@ function LeadsPage({ onBack }) {
       })
     );
     try {
-      await axiosInstance.patch(`/lead-lists/${viewList.id}/leads/${leadId}`, { [channelKey]: !currentValue });
+      await axiosInstance.put(
+        `/lead-lists/${viewList.id}/leads/${leadId}/channel-flags`,
+        newFlags
+      );
     } catch (err) {
       // Revert on failure
       setListLeads((prev) =>
@@ -2479,7 +2673,7 @@ function LeadsPage({ onBack }) {
           return id === leadId ? { ...l, [channelKey]: currentValue } : l;
         })
       );
-      toast.error(err?.response?.data?.message || "Failed to update channel.");
+      toast.error(err?.response?.data?.message || "Failed to update channel flags.");
     } finally {
       setTogglingChannel((s) => { const ns = new Set(s); ns.delete(tKey); return ns; });
     }
@@ -2506,7 +2700,7 @@ function LeadsPage({ onBack }) {
         <PageHeader
           title={viewList.name ?? "Lead List"}
           subtitle={`${viewList.total_leads ?? listLeads.length} lead${(viewList.total_leads ?? listLeads.length) !== 1 ? "s" : ""}`}
-          onBack={() => { setViewList(null); setListLeads([]); setLeadSearch(""); }}
+          onBack={() => { setViewList(null); setListLeads([]); setLeadSearch(""); setLeadsPage(1); }}
           action={
             <div className="flex items-center gap-2">
               <input
@@ -2547,7 +2741,7 @@ function LeadsPage({ onBack }) {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <input
                 value={leadSearch}
-                onChange={(e) => setLeadSearch(e.target.value)}
+                onChange={(e) => { setLeadSearch(e.target.value); setLeadsPage(1); }}
                 placeholder="Search leads…"
                 className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400"
               />
@@ -2571,7 +2765,7 @@ function LeadsPage({ onBack }) {
                     {filteredLeads.length === 0 ? (
                       <tr><td colSpan={8} className="px-5 py-12 text-center text-[13px] text-gray-400">No leads found</td></tr>
                     ) : (
-                      filteredLeads.map((lead, i) => {
+                      filteredLeads.slice((leadsPage - 1) * LEADS_PER_PAGE, leadsPage * LEADS_PER_PAGE).map((lead, i) => {
                         const leadId = lead.id ?? lead._id ?? lead.list_lead_id ?? i;
                         const ld = lead.lead_data ?? {};
                         const fullName = ld.name ?? "—";
@@ -2579,6 +2773,11 @@ function LeadsPage({ onBack }) {
                         const phone   = ld.contact_number ?? "—";
                         const company = ld.company ?? "—";
                         const status  = ld.lead_status ?? ld.lead_rating ?? null;
+                        // Format status: replace underscores with spaces, title-case each word
+                        // e.g. "open_not_contacted" → "Open Not Contacted"
+                        const statusLabel = status
+                          ? status.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+                          : null;
                         const statusCls =
                           status === "dead"      ? "bg-red-50 text-red-600 border-red-200" :
                           status === "active"    ? "bg-green-50 text-green-700 border-green-200" :
@@ -2586,9 +2785,38 @@ function LeadsPage({ onBack }) {
                           "bg-gray-100 text-gray-600 border-gray-200";
                         return (
                           <tr key={leadId} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
-                            <td className="px-5 py-3.5 text-[12px] text-gray-400">{i + 1}</td>
-                            <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-800 whitespace-nowrap max-w-[160px] truncate">{fullName}</td>
-                            <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">{email}</td>
+                            <td className="px-5 py-3.5 text-[12px] text-gray-400">{(leadsPage - 1) * LEADS_PER_PAGE + i + 1}</td>
+                            <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-800 whitespace-nowrap max-w-[160px]">
+                              <div className="relative group/name inline-block max-w-full">
+                                <span className="block truncate cursor-default max-w-[150px]">{fullName}</span>
+                                {fullName !== "—" && (
+                                  <div className="pointer-events-none absolute bottom-full left-0 mb-1.5 z-50
+                                                  hidden group-hover/name:flex
+                                                  items-center gap-1.5 px-2.5 py-1.5
+                                                  bg-gray-900 text-white text-[11px] font-[500]
+                                                  rounded-lg shadow-lg whitespace-nowrap">
+                                    {fullName}
+                                    <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap max-w-[160px]">
+                              <div className="relative group/email inline-block max-w-full">
+                                <span className="block truncate cursor-default max-w-[150px]">{email}</span>
+                                {email !== "—" && (
+                                  <div className="pointer-events-none absolute bottom-full left-0 mb-1.5 z-50
+                                                  hidden group-hover/email:flex
+                                                  items-center gap-1.5 px-2.5 py-1.5
+                                                  bg-gray-900 text-white text-[11px] font-[500]
+                                                  rounded-lg shadow-lg whitespace-nowrap">
+                                    <Mail className="h-3 w-3 text-gray-400 shrink-0" />
+                                    {email}
+                                    <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                  </div>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-5 py-3.5 text-[12px] text-gray-600 font-mono whitespace-nowrap">{phone}</td>
                             <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">{company}</td>
                             <td className="px-5 py-3.5">
@@ -2599,28 +2827,39 @@ function LeadsPage({ onBack }) {
                               ) : <span className="text-gray-300">—</span>}
                             </td>
                             <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1">
-                                {[
-                                  { key: "call_enabled",     label: "Call",  on: "bg-indigo-600 text-white border-indigo-600",  off: "bg-gray-100 text-gray-400 border-gray-200" },
-                                  { key: "email_enabled",    label: "Email", on: "bg-sky-600 text-white border-sky-600",        off: "bg-gray-100 text-gray-400 border-gray-200" },
-                                  { key: "linkedin_enabled", label: "Li",    on: "bg-blue-700 text-white border-blue-700",      off: "bg-gray-100 text-gray-400 border-gray-200" },
-                                  { key: "whatsapp_enabled", label: "WA",    on: "bg-green-600 text-white border-green-600",    off: "bg-gray-100 text-gray-400 border-gray-200" },
-                                ].map(({ key, label, on, off }) => {
-                                  const isOn = !!lead[key];
+                              <div className="flex items-center gap-1.5">
+                                {/* Enabled channels as icon-only pill badges */}
+                                {LEAD_CHANNELS.filter(({ key }) => !!lead[key]).map(({ key, label, icon: Icon, pillClass }) => {
                                   const tKey = `${leadId}_${key}`;
                                   const busy = togglingChannel.has(tKey);
                                   return (
-                                    <button
-                                       key={key}
-                                      disabled={busy}
-                                      onClick={() => handleToggleLeadChannel(leadId, key, isOn)}
-                                      title={`${isOn ? "Disable" : "Enable"} ${label}`}
-                                      className={`inline-flex items-center justify-center w-8 h-6 rounded-md text-[10px] font-[700] border transition disabled:opacity-60 ${isOn ? on : off}`}
-                                    >
-                                      {busy ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : label}
-                                    </button>
+                                    <div key={key} className="relative group/ch">
+                                      <button
+                                        disabled={busy}
+                                        onClick={() => handleToggleLeadChannel(leadId, key, true)}
+                                        className={`inline-flex items-center justify-center h-6 w-6 rounded-full border transition disabled:opacity-60 hover:scale-110 hover:shadow-md ${pillClass}`}
+                                      >
+                                        {busy
+                                          ? <RefreshCw className="h-3 w-3 animate-spin" />
+                                          : <Icon className="h-3 w-3" />}
+                                      </button>
+                                      {/* Custom tooltip */}
+                                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
+                                                      hidden group-hover/ch:flex
+                                                      items-center px-2 py-1
+                                                      bg-gray-900 text-white text-[10px] font-[600]
+                                                      rounded-md shadow-lg whitespace-nowrap">
+                                        {label}
+                                        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                      </div>
+                                    </div>
                                   );
                                 })}
+
+                                {/* Dash if no channels enabled */}
+                                {!LEAD_CHANNELS.some(({ key }) => !!lead[key]) && (
+                                  <span className="text-[12px] text-gray-300">—</span>
+                                )}
                               </div>
                             </td>
                             <td className="px-5 py-3.5">
@@ -2642,8 +2881,41 @@ function LeadsPage({ onBack }) {
                   </tbody>
                 </table>
               </div>
-              <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
-                {filteredLeads.length} of {viewList.total_leads ?? listLeads.length} leads
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+                <span className="text-[12px] text-gray-400">
+                  {filteredLeads.length} of {viewList.total_leads ?? listLeads.length} leads
+                </span>
+                {Math.ceil(filteredLeads.length / LEADS_PER_PAGE) > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setLeadsPage((p) => Math.max(1, p - 1))}
+                      disabled={leadsPage === 1}
+                      className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-[600] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    >
+                      ‹ Prev
+                    </button>
+                    {Array.from({ length: Math.ceil(filteredLeads.length / LEADS_PER_PAGE) }, (_, idx) => idx + 1).map((pg) => (
+                      <button
+                        key={pg}
+                        onClick={() => setLeadsPage(pg)}
+                        className={`w-7 h-7 rounded-lg border text-[11px] font-[600] transition ${
+                          pg === leadsPage
+                            ? "bg-gray-900 text-white border-gray-900"
+                            : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setLeadsPage((p) => Math.min(Math.ceil(filteredLeads.length / LEADS_PER_PAGE), p + 1))}
+                      disabled={leadsPage === Math.ceil(filteredLeads.length / LEADS_PER_PAGE)}
+                      className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-[600] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    >
+                      Next ›
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -3337,7 +3609,60 @@ export default function Setting() {
   const [smtpProviderLoading, setSmtpProviderLoading] = useState(false);
   const [smtpSelectSaving, setSmtpSelectSaving] = useState(false);
   const [crmConnected, setCRM] = useState(false);
+  const [crmStatusLoading, setCrmStatusLoading] = useState(true);
+  const [crmDisconnecting, setCrmDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch CRM OAuth status on mount — show toast if connected, silently mark disconnected
+  useEffect(() => {
+    const fetchCrmStatus = async () => {
+      setCrmStatusLoading(true);
+      try {
+        const res = await axiosInstance.get("/oauth/status");
+        const d = res.data;
+        // Connected only when BOTH credentials and tokens are present and not expired
+        const isConn =
+          d?.has_credentials === true &&
+          d?.has_tokens === true &&
+          d?.token_expired !== true;
+        setCRM(isConn);
+        if (isConn) {
+          toast.success("CRM is connected and active.", { id: "crm-status" });
+        }
+      } catch {
+        setCRM(false);
+      } finally {
+        setCrmStatusLoading(false);
+      }
+    };
+    fetchCrmStatus();
+  }, []);
+
+  const handleCrmDisconnect = async () => {
+    setCrmDisconnecting(true);
+    try {
+      await axiosInstance.delete("/oauth/tokens");
+      // Confirm disconnection via status check
+      try {
+        const res = await axiosInstance.get("/oauth/status");
+        const d = res.data;
+        const stillConn =
+          d?.has_credentials === true &&
+          d?.has_tokens === true &&
+          d?.token_expired !== true;
+        setCRM(stillConn);
+        if (!stillConn) toast.success("CRM disconnected successfully.");
+        else toast.error("Disconnect may not have completed. Please try again.");
+      } catch {
+        setCRM(false);
+        toast.success("CRM disconnected successfully.");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to disconnect CRM.");
+    } finally {
+      setCrmDisconnecting(false);
+    }
+  };
 
   // Fetch available SMTP providers + currently selected provider on mount
   useEffect(() => {
@@ -3420,7 +3745,7 @@ export default function Setting() {
     }
   };
 
-  if (activePage === "crm") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><CRMPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "crm") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><CRMPage onBack={() => setActivePage(null)} onConnectionChange={setCRM} /></div>;
   if (activePage === "agents") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><AgentsPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "email-templates") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><EmailTemplatesPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "graph-config") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><GraphConfigPage onBack={() => setActivePage(null)} /></div>;
@@ -3487,18 +3812,33 @@ export default function Setting() {
           title="Configure CRM" desc="Connect & authorise your CRM via OAuth2 credentials"
           action={
             <div className="flex flex-col gap-2">
-              <button onClick={() => setActivePage("crm")} className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#0a0a0a] py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition">
-                <Link2 className="h-3.5 w-3.5" />
-                {crmConnected ? "Manage CRM" : "+ Connect CRM"}
-              </button>
               {crmConnected ? (
-                <button onClick={() => setCRM(false)} className="w-full rounded-xl bg-red-500 py-2 text-[12px] font-[600] text-white hover:bg-red-600 transition flex items-center justify-center gap-1.5">
-                  <Link2Off className="h-3.5 w-3.5" />Disconnect
-                </button>
+                <>
+                  <div className="flex items-center justify-center gap-1.5 text-[12px] font-[600] text-green-700 bg-green-50 border border-green-200 rounded-xl py-2">
+                    <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    CRM Connected
+                  </div>
+                  <button onClick={() => setActivePage("crm")} className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-[500] text-gray-600 hover:bg-white hover:border-violet-300 hover:text-violet-700 transition">
+                    <Settings className="h-3.5 w-3.5" />Manage
+                  </button>
+                  <button
+                    onClick={handleCrmDisconnect}
+                    disabled={crmDisconnecting}
+                    className="w-full rounded-xl bg-red-500 py-2 text-[12px] font-[600] text-white hover:bg-red-600 transition flex items-center justify-center gap-1.5 disabled:opacity-60"
+                  >
+                    {crmDisconnecting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link2Off className="h-3.5 w-3.5" />}
+                    {crmDisconnecting ? "Disconnecting…" : "Disconnect"}
+                  </button>
+                </>
               ) : (
-                <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                  <AlertCircle className="h-3 w-3 text-amber-400" />Not connected
-                </div>
+                <>
+                  <button onClick={() => setActivePage("crm")} className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#0a0a0a] py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition">
+                    <Link2 className="h-3.5 w-3.5" />+ Connect CRM
+                  </button>
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                    <AlertCircle className="h-3 w-3 text-amber-400" />Not connected
+                  </div>
+                </>
               )}
             </div>
           }

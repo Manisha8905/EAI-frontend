@@ -222,6 +222,11 @@ const CALL_STATUS_STYLE = {
   "COMPLETED":  "bg-green-500 text-white",
   "VOICE MAIL": "bg-yellow-400 text-white",
   "NO ANSWER":  "bg-gray-400 text-white",
+  "FAILED":     "bg-red-100 text-red-700 border border-red-200",
+  "BUSY":       "bg-orange-100 text-orange-700 border border-orange-200",
+  "CANCELLED":  "bg-gray-100 text-gray-500 border border-gray-200",
+  "TIMEOUT":    "bg-rose-100 text-rose-700 border border-rose-200",
+  "ERROR":      "bg-red-100 text-red-700 border border-red-200",
 };
 
 const EMAIL_STATUS_STYLE = {
@@ -1995,7 +2000,7 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
             />
           </Field>
 
-          {/* Row: Model Name + Agent Name + Logged in User Email */}
+          {/* Row: Model Name + Agent Name + Meeting Invite Sender Email */}
           <div className="grid grid-cols-3 gap-4">
             <Field label="Model Name">
               <div className="relative">
@@ -2012,7 +2017,7 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
               <input type="text" value={form.agentName}
                 onChange={(e) => set("agentName", e.target.value)} className={inputCls()} />
             </Field>
-            <Field label="Logged in User Email">
+            <Field label="Meeting Invite Sender Email">
               <input type="email" value={form.loggedInEmail}
                 onChange={(e) => set("loggedInEmail", e.target.value)} className={inputCls()} />
             </Field>
