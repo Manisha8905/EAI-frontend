@@ -559,10 +559,59 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       params: { campaign_id: campaignId },
     });
     const raw = extractArray(res.data);
-    const normalized = raw.map((r) => ({
+    const totalCount = res.data?.total_count ?? raw.length;
+
+    // Build reply map by email id from this same email-history payload only.
+    const toKey = (id) => (id === null || id === undefined ? null : String(id));
+    const replyByEmailId = new Map();
+    raw.forEach((r) => {
+      const rowIdKey = toKey(r.id ?? r.email_history_id);
+      if (rowIdKey && r.replied_to_message_id && !replyByEmailId.has(rowIdKey)) {
+        replyByEmailId.set(rowIdKey, r.replied_to_message_id);
+      }
+
+      const replies = Array.isArray(r.replies) ? r.replies : [];
+      replies.forEach((rep) => {
+        const targetKey = toKey(rep?.auto_response_email_id ?? r.id ?? r.email_history_id);
+        if (targetKey && rep && !replyByEmailId.has(targetKey)) {
+          replyByEmailId.set(targetKey, rep);
+        }
+      });
+    });
+
+    const getMergedReplies = (row) => {
+      const rowIdKey = toKey(row?.id ?? row?.email_history_id);
+      const directReplies = Array.isArray(row?.replies) ? row.replies : [];
+      const filteredDirectReplies = directReplies.filter((rep) => {
+        const targetKey = toKey(rep?.auto_response_email_id);
+        if (!targetKey) return true;
+        return targetKey === rowIdKey;
+      });
+      const repliedTo = row?.replied_to_message_id && typeof row.replied_to_message_id === "object"
+        ? [row.replied_to_message_id]
+        : [];
+      const merged = [...filteredDirectReplies, ...repliedTo].filter(Boolean);
+      const seenReplyIds = new Set();
+
+      return merged.filter((rep) => {
+        const key = rep?.reply_id != null
+          ? `id:${rep.reply_id}`
+          : `${rep?.reply_from ?? ""}|${rep?.sent_at ?? rep?.received_datetime ?? ""}`;
+        if (seenReplyIds.has(key)) return false;
+        seenReplyIds.add(key);
+        return true;
+      });
+    };
+
+    const normalized = raw.map((r) => {
+      const rowIdKey = toKey(r.id ?? r.email_history_id);
+      const replies = getMergedReplies(r);
+      const replyData = replyByEmailId.get(rowIdKey) ?? replies[0] ?? null;
+      return ({
       id:        r.id           ?? r.email_history_id ?? null,
       name:      r.lead_name    ?? r.name          ?? r.contact_name  ?? "—",
       emailAddr: r.to_email     ?? r.email        ?? r.email_address  ?? r.contact_email ?? "—",
+      to_email:  r.to_email     ?? r.email        ?? r.email_address  ?? r.contact_email ?? "—",
       company:   (r.company_name && r.company_name.trim()) ? r.company_name : (r.company ?? r.organization ?? "—"),
       subject:   r.subject      ?? r.email_subject  ?? "—",
       dateTime:  r.sent_at      ?? r.created_at     ?? r.date          ?? "—",
@@ -571,8 +620,20 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       meeting:   r.meeting_requested ?? r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled ?? false,
       skippable: r.skippable    ?? false,
       skipReason: r.skip_reason ?? null,
-    }));
-    dispatch({ type: EMAIL_HISTORY_SUCCESS, payload: normalized });
+      campaign_name: r.campaign_name ?? "",
+      lead_name: r.lead_name ?? r.name ?? r.contact_name ?? "—",
+      company_name: r.company_name ?? r.company ?? r.organization ?? "—",
+      email_subject: r.email_subject ?? r.subject ?? "—",
+      email_body: r.email_body ?? "",
+      sent_at: r.sent_at ?? r.created_at ?? null,
+      replies,
+      replyData,
+      reply_preview: replyData?.body_preview ?? replyData?.reply_body ?? "",
+      hasReply: !!(replyData || r.reply_id || r.reply_body),
+      repliedToMessageId: r.replied_to_message_id ?? null,
+    });
+    });
+    dispatch({ type: EMAIL_HISTORY_SUCCESS, payload: { data: normalized, total_count: totalCount } });
     toast.success(`Email history loaded (${normalized.length} records)`);
   } catch (err) {
     dispatch({ type: EMAIL_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load email history." });

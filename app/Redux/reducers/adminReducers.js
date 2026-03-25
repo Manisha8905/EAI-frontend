@@ -94,6 +94,7 @@ const initialState = {
   emailHistory: [],
   emailHistoryLoading: false,
   emailHistoryError: null,
+  emailHistoryTotalCount: 0,
   // 💼 LinkedIn History
   linkedinHistory: [],
   linkedinHistoryLoading: false,
@@ -282,7 +283,7 @@ const adminReducers = (state = initialState, action) => {
     case EMAIL_HISTORY_REQUEST:
       return { ...state, emailHistoryLoading: true, emailHistoryError: null, emailHistory: [] };
     case EMAIL_HISTORY_SUCCESS:
-      return { ...state, emailHistoryLoading: false, emailHistory: action.payload };
+      return { ...state, emailHistoryLoading: false, emailHistory: action.payload.data || action.payload, emailHistoryTotalCount: action.payload.total_count || 0 };
     case EMAIL_HISTORY_FAILURE:
       return { ...state, emailHistoryLoading: false, emailHistoryError: action.payload };
 

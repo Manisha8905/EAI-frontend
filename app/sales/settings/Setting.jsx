@@ -1333,17 +1333,10 @@ function EmailTemplatesPage({ onBack }) {
                             className="flex items-center gap-1 rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-1.5 text-[11px] font-[600] text-amber-700 hover:bg-amber-100 transition"
                           >
                             <Wrench className="h-3.5 w-3.5" />
-                            Edit
-                          </button>
-                          {/* Preview with custom fields */}
-                          {/* <button
-                            onClick={() => openPreview(t)}
-                            title="Preview with custom fields"
-                            className="flex items-center gap-1 rounded-lg border border-teal-100 bg-teal-50 px-2.5 py-1.5 text-[11px] font-[600] text-teal-700 hover:bg-teal-100 transition"
-                          >
+                    
                             <FileText className="h-3.5 w-3.5" />
                             Preview
-                          </button> */}
+                          </button> 
                           {/* Delete */}
                           <button
                             onClick={() => !deleting && setDeleteTarget({ id: t.id, name: t.name })}
@@ -2773,15 +2766,23 @@ function LeadsPage({ onBack }) {
                         const phone   = ld.contact_number ?? "—";
                         const company = ld.company ?? "—";
                         const status  = ld.lead_status ?? ld.lead_rating ?? null;
-                        // Format status: replace underscores with spaces, title-case each word
-                        // e.g. "open_not_contacted" → "Open Not Contacted"
-                        const statusLabel = status
-                          ? status.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
-                          : null;
+                        const normalizedStatus = String(status ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+                        // Keep this status compact in badges.
+                        const statusLabel =
+                          normalizedStatus === "open_not_contacted"
+                            ? "Not Contacted"
+                            : status
+                              ? String(status)
+                                  .replace(/[_-]+/g, " ")
+                                  .split(" ")
+                                  .filter(Boolean)
+                                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                                  .join(" ")
+                              : null;
                         const statusCls =
-                          status === "dead"      ? "bg-red-50 text-red-600 border-red-200" :
-                          status === "active"    ? "bg-green-50 text-green-700 border-green-200" :
-                          status === "converted" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                          normalizedStatus === "dead"      ? "bg-red-50 text-red-600 border-red-200" :
+                          normalizedStatus === "active"    ? "bg-green-50 text-green-700 border-green-200" :
+                          normalizedStatus === "converted" ? "bg-blue-50 text-blue-700 border-blue-200" :
                           "bg-gray-100 text-gray-600 border-gray-200";
                         return (
                           <tr key={leadId} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
@@ -2821,23 +2822,32 @@ function LeadsPage({ onBack }) {
                             <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">{company}</td>
                             <td className="px-5 py-3.5">
                               {status ? (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[700] capitalize border ${statusCls}`}>
-                                  {status}
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full font-[700] capitalize border ${
+                                    statusLabel === "Not Contacted" ? "text-[9px]" : "text-[10px]"
+                                  } ${statusCls}`}
+                                >
+                                  {statusLabel}
                                 </span>
                               ) : <span className="text-gray-300">—</span>}
                             </td>
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-1.5">
-                                {/* Enabled channels as icon-only pill badges */}
-                                {LEAD_CHANNELS.filter(({ key }) => !!lead[key]).map(({ key, label, icon: Icon, pillClass }) => {
+                                {/* Show all channels so disabled ones can be enabled quickly */}
+                                {LEAD_CHANNELS.map(({ key, label, icon: Icon, pillClass }) => {
                                   const tKey = `${leadId}_${key}`;
                                   const busy = togglingChannel.has(tKey);
+                                  const isEnabled = !!lead[key];
                                   return (
                                     <div key={key} className="relative group/ch">
                                       <button
                                         disabled={busy}
-                                        onClick={() => handleToggleLeadChannel(leadId, key, true)}
-                                        className={`inline-flex items-center justify-center h-6 w-6 rounded-full border transition disabled:opacity-60 hover:scale-110 hover:shadow-md ${pillClass}`}
+                                        onClick={() => handleToggleLeadChannel(leadId, key, isEnabled)}
+                                        className={`inline-flex items-center justify-center h-6 w-6 rounded-full border transition disabled:opacity-60 hover:scale-110 hover:shadow-md ${
+                                          isEnabled
+                                            ? pillClass
+                                            : "bg-white text-gray-400 border-gray-300"
+                                        }`}
                                       >
                                         {busy
                                           ? <RefreshCw className="h-3 w-3 animate-spin" />
@@ -2849,17 +2859,12 @@ function LeadsPage({ onBack }) {
                                                       items-center px-2 py-1
                                                       bg-gray-900 text-white text-[10px] font-[600]
                                                       rounded-md shadow-lg whitespace-nowrap">
-                                        {label}
+                                        {isEnabled ? `Disable ${label}` : `Enable ${label}`}
                                         <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                                       </div>
                                     </div>
                                   );
                                 })}
-
-                                {/* Dash if no channels enabled */}
-                                {!LEAD_CHANNELS.some(({ key }) => !!lead[key]) && (
-                                  <span className="text-[12px] text-gray-300">—</span>
-                                )}
                               </div>
                             </td>
                             <td className="px-5 py-3.5">
@@ -3598,6 +3603,460 @@ function MappingsPage({ onBack }) {
 /* ════════════════════════════════════════════════════════════
    MAIN SETTINGS DASHBOARD
 ════════════════════════════════════════════════════════════ */
+function GlobalIntegrationsPage({ onBack, canAccess }) {
+  const [forms, setForms] = useState({
+    twilio: {
+      twilio_auth_token: "",
+      twilio_sid: "",
+    },
+    elevenlabs: {
+      ELEVENLABS_API_KEY: "",
+      ELEVENLABS_INBOUND_AGENT_ID: "",
+      ELEVENLABS_INBOUND_PHONE_NUMBER: "",
+      ELEVEN_LABS_AGENT_ID: "",
+      ELEVEN_LABS_API_KEY: "",
+      ELEVEN_LABS_BASE_URL: "https://api.elevenlabs.io/v1/convai",
+      ELEVEN_LABS_PHONE_NUMBER: "",
+      ELEVEN_LABS_PHONE_NUMBER_ID: "",
+      OUTBOUND_CALL_ENDPOINT_URL: "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
+    },
+    linkedin: {
+      APIFY_API_TOKEN: "",
+      APOLLO_API_KEY: "",
+      ENRICHMENT_CACHE_TTL_DAYS: "30",
+      ENRICHMENT_ENABLED: "true",
+      LINKEDIN_CACHE_TTL_DAYS: "7",
+      LINKEDIN_SCRAPING_ENABLED: "true",
+    },
+    azure: {
+      AZURE_OPENAI_API_KEY: "",
+      AZURE_OPENAI_API_MODEL: "text-embedding-ada-002",
+      AZURE_OPENAI_ENDPOINT: "",
+      AZURE_OPENAI_VERSION: "2023-03-15-preview",
+    },
+    tmOwnSolution: {
+      TM_OWN_SOLUTION_AGENT_ID: "",
+      TM_OWN_SOLUTION_API_KEY: "",
+      TM_OWN_SOLUTION_API_URL: "",
+      TM_OWN_SOLUTION_PHONE_NUMBER_ID: "",
+    },
+    groq: {
+      groq_api_key: "",
+    },
+    appConfig: {
+      target_mailbox_for_replies: "",
+      timezone_configuration: "",
+      graph_client_state: "",
+      agent_name: "",
+      company_name: "",
+      default_agent_name: "",
+      company_sales_pain_solution: "",
+      about_company: "",
+      call_service_provider: "elevenlabs",
+      skip_weekend_check: true,
+      enable_logs: true,
+    },
+  });
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState(null);
+
+  const setField = (section, key) => (e) => {
+    const value = e?.target?.type === "checkbox" ? e.target.checked : e.target.value;
+    setForms((prev) => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [key]: value,
+      },
+    }));
+  };
+
+  useEffect(() => {
+    if (!canAccess) {
+      setLoading(false);
+      return;
+    }
+
+    const getObject = (raw) => {
+      const payload = raw?.data ?? raw ?? {};
+      return payload?.credentials ?? payload?.data?.credentials ?? payload?.data ?? payload;
+    };
+    const asBoolean = (v, fallback) => {
+      if (typeof v === "boolean") return v;
+      if (typeof v === "string") {
+        const low = v.toLowerCase();
+        if (low === "true") return true;
+        if (low === "false") return false;
+      }
+      return fallback;
+    };
+
+    (async () => {
+      setLoading(true);
+      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes] = await Promise.allSettled([
+        axiosInstance.get("/api/globalsetting/twilio"),
+        axiosInstance.get("/api/globalsetting/elevenlabs"),
+        axiosInstance.get("/api/globalsetting/linkedin-scraping"),
+        axiosInstance.get("/api/globalsetting/azure"),
+        axiosInstance.get("/api/globalsetting/tm-own-solution"),
+        axiosInstance.get("/api/globalsetting/groq"),
+        axiosInstance.get("/api/globalsetting/app-config"),
+      ]);
+
+      setForms((prev) => {
+        const next = { ...prev };
+
+        if (twilioRes.status === "fulfilled") {
+          const d = getObject(twilioRes.value);
+          next.twilio = {
+            twilio_auth_token: d.twilio_auth_token ?? d.TWILIO_AUTH_TOKEN ?? prev.twilio.twilio_auth_token,
+            twilio_sid: d.twilio_sid ?? d.TWILIO_SID ?? prev.twilio.twilio_sid,
+          };
+        }
+
+        if (elevenlabsRes.status === "fulfilled") {
+          const d = getObject(elevenlabsRes.value);
+          next.elevenlabs = {
+            ELEVENLABS_API_KEY: d.ELEVENLABS_API_KEY ?? prev.elevenlabs.ELEVENLABS_API_KEY,
+            ELEVENLABS_INBOUND_AGENT_ID: d.ELEVENLABS_INBOUND_AGENT_ID ?? prev.elevenlabs.ELEVENLABS_INBOUND_AGENT_ID,
+            ELEVENLABS_INBOUND_PHONE_NUMBER: d.ELEVENLABS_INBOUND_PHONE_NUMBER ?? prev.elevenlabs.ELEVENLABS_INBOUND_PHONE_NUMBER,
+            ELEVEN_LABS_AGENT_ID: d.ELEVEN_LABS_AGENT_ID ?? prev.elevenlabs.ELEVEN_LABS_AGENT_ID,
+            ELEVEN_LABS_API_KEY: d.ELEVEN_LABS_API_KEY ?? prev.elevenlabs.ELEVEN_LABS_API_KEY,
+            ELEVEN_LABS_BASE_URL: d.ELEVEN_LABS_BASE_URL ?? prev.elevenlabs.ELEVEN_LABS_BASE_URL,
+            ELEVEN_LABS_PHONE_NUMBER: d.ELEVEN_LABS_PHONE_NUMBER ?? prev.elevenlabs.ELEVEN_LABS_PHONE_NUMBER,
+            ELEVEN_LABS_PHONE_NUMBER_ID: d.ELEVEN_LABS_PHONE_NUMBER_ID ?? prev.elevenlabs.ELEVEN_LABS_PHONE_NUMBER_ID,
+            OUTBOUND_CALL_ENDPOINT_URL: d.OUTBOUND_CALL_ENDPOINT_URL ?? prev.elevenlabs.OUTBOUND_CALL_ENDPOINT_URL,
+          };
+        }
+
+        if (linkedinRes.status === "fulfilled") {
+          const d = getObject(linkedinRes.value);
+          next.linkedin = {
+            APIFY_API_TOKEN: d.APIFY_API_TOKEN ?? prev.linkedin.APIFY_API_TOKEN,
+            APOLLO_API_KEY: d.APOLLO_API_KEY ?? prev.linkedin.APOLLO_API_KEY,
+            ENRICHMENT_CACHE_TTL_DAYS: String(d.ENRICHMENT_CACHE_TTL_DAYS ?? prev.linkedin.ENRICHMENT_CACHE_TTL_DAYS),
+            ENRICHMENT_ENABLED: String(d.ENRICHMENT_ENABLED ?? prev.linkedin.ENRICHMENT_ENABLED),
+            LINKEDIN_CACHE_TTL_DAYS: String(d.LINKEDIN_CACHE_TTL_DAYS ?? prev.linkedin.LINKEDIN_CACHE_TTL_DAYS),
+            LINKEDIN_SCRAPING_ENABLED: String(d.LINKEDIN_SCRAPING_ENABLED ?? prev.linkedin.LINKEDIN_SCRAPING_ENABLED),
+          };
+        }
+
+        if (azureRes.status === "fulfilled") {
+          const d = getObject(azureRes.value);
+          next.azure = {
+            AZURE_OPENAI_API_KEY: d.AZURE_OPENAI_API_KEY ?? prev.azure.AZURE_OPENAI_API_KEY,
+            AZURE_OPENAI_API_MODEL: d.AZURE_OPENAI_API_MODEL ?? prev.azure.AZURE_OPENAI_API_MODEL,
+            AZURE_OPENAI_ENDPOINT: d.AZURE_OPENAI_ENDPOINT ?? prev.azure.AZURE_OPENAI_ENDPOINT,
+            AZURE_OPENAI_VERSION: d.AZURE_OPENAI_VERSION ?? prev.azure.AZURE_OPENAI_VERSION,
+          };
+        }
+
+        if (tmRes.status === "fulfilled") {
+          const d = getObject(tmRes.value);
+          next.tmOwnSolution = {
+            TM_OWN_SOLUTION_AGENT_ID: d.TM_OWN_SOLUTION_AGENT_ID ?? prev.tmOwnSolution.TM_OWN_SOLUTION_AGENT_ID,
+            TM_OWN_SOLUTION_API_KEY: d.TM_OWN_SOLUTION_API_KEY ?? prev.tmOwnSolution.TM_OWN_SOLUTION_API_KEY,
+            TM_OWN_SOLUTION_API_URL: d.TM_OWN_SOLUTION_API_URL ?? prev.tmOwnSolution.TM_OWN_SOLUTION_API_URL,
+            TM_OWN_SOLUTION_PHONE_NUMBER_ID: d.TM_OWN_SOLUTION_PHONE_NUMBER_ID ?? prev.tmOwnSolution.TM_OWN_SOLUTION_PHONE_NUMBER_ID,
+          };
+        }
+
+        if (groqRes.status === "fulfilled") {
+          const d = groqRes.value?.data ?? {};
+          next.groq = {
+            groq_api_key:
+              d.groq_api_key ?? d.GROQ_API_KEY ?? d?.credentials?.groq_api_key ?? prev.groq.groq_api_key,
+          };
+        }
+
+        if (appConfigRes.status === "fulfilled") {
+          const d = appConfigRes.value?.data ?? {};
+          next.appConfig = {
+            target_mailbox_for_replies: d.target_mailbox_for_replies ?? prev.appConfig.target_mailbox_for_replies,
+            timezone_configuration: d.timezone_configuration ?? prev.appConfig.timezone_configuration,
+            graph_client_state: d.graph_client_state ?? prev.appConfig.graph_client_state,
+            agent_name: d.agent_name ?? prev.appConfig.agent_name,
+            company_name: d.company_name ?? prev.appConfig.company_name,
+            default_agent_name: d.default_agent_name ?? prev.appConfig.default_agent_name,
+            company_sales_pain_solution: d.company_sales_pain_solution ?? prev.appConfig.company_sales_pain_solution,
+            about_company: d.about_company ?? prev.appConfig.about_company,
+            call_service_provider: d.call_service_provider ?? prev.appConfig.call_service_provider,
+            skip_weekend_check: asBoolean(d.skip_weekend_check, prev.appConfig.skip_weekend_check),
+            enable_logs: asBoolean(d.enable_logs, prev.appConfig.enable_logs),
+          };
+        }
+
+        return next;
+      });
+
+      setLoading(false);
+    })();
+  }, [canAccess]);
+
+  const save = async (section) => {
+    if (!canAccess) {
+      toast.error("Only admin users can update Global Integrations.");
+      return;
+    }
+
+    setSavingKey(section);
+    try {
+      if (section === "twilio") {
+        await axiosInstance.put("/api/globalsetting/twilio", { credentials: forms.twilio });
+      }
+      if (section === "elevenlabs") {
+        await axiosInstance.put("/api/globalsetting/elevenlabs", { credentials: forms.elevenlabs });
+      }
+      if (section === "linkedin") {
+        await axiosInstance.put("/api/globalsetting/linkedin-scraping", { credentials: forms.linkedin });
+      }
+      if (section === "azure") {
+        await axiosInstance.put("/api/globalsetting/azure", { credentials: forms.azure });
+      }
+      if (section === "tmOwnSolution") {
+        await axiosInstance.put("/api/globalsetting/tm-own-solution", { credentials: forms.tmOwnSolution });
+      }
+      if (section === "groq") {
+        await axiosInstance.put("/api/globalsetting/groq", { groq_api_key: forms.groq.groq_api_key });
+      }
+      if (section === "appConfig") {
+        await axiosInstance.put("/api/globalsetting/app-config", {
+          target_mailbox_for_replies: forms.appConfig.target_mailbox_for_replies,
+          timezone_configuration: forms.appConfig.timezone_configuration,
+          graph_client_state: forms.appConfig.graph_client_state,
+          agent_name: forms.appConfig.agent_name,
+          company_name: forms.appConfig.company_name,
+          default_agent_name: forms.appConfig.default_agent_name,
+          company_sales_pain_solution: forms.appConfig.company_sales_pain_solution,
+          about_company: forms.appConfig.about_company,
+          call_service_provider: forms.appConfig.call_service_provider,
+          skip_weekend_check: !!forms.appConfig.skip_weekend_check,
+          enable_logs: !!forms.appConfig.enable_logs,
+        });
+      }
+      toast.success("Configuration saved successfully.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail ?? err?.response?.data?.message ?? "Failed to save configuration.");
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const SaveBtn = ({ section }) => (
+    <button
+      type="button"
+      onClick={() => save(section)}
+      disabled={savingKey === section}
+      className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
+    >
+      {savingKey === section ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Settings className="h-3.5 w-3.5" />}
+      {savingKey === section ? "Saving…" : "Save"}
+    </button>
+  );
+
+  return (
+    <div className="anim-fade">
+      <AnimStyles />
+      <PageHeader
+        title="Global Integrations"
+        subtitle="Configure Twilio, ElevenLabs, LinkedIn scraping, Azure, TM solution, Groq and app-level settings"
+        onBack={onBack}
+      />
+
+      {!canAccess ? (
+        <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-8">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+            <div>
+              <h3 className="text-[15px] font-[700] text-gray-900">Access Restricted</h3>
+              <p className="text-[13px] text-gray-500 mt-1">
+                Global Integrations can be viewed and updated only by admin users.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : loading ? (
+
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex items-center justify-center gap-2 text-[13px] text-gray-500">
+          <RefreshCw className="h-4 w-4 animate-spin text-blue-500" /> Loading global settings...
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-blue-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">Twilio</h3>
+              </div>
+              <SaveBtn section="twilio" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Twilio SID" value={forms.twilio.twilio_sid} onChange={setField("twilio", "twilio_sid")} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+              <Field label="Twilio Auth Token" type="password" value={forms.twilio.twilio_auth_token} onChange={setField("twilio", "twilio_auth_token")} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-violet-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">ElevenLabs Configuration</h3>
+              </div>
+              <SaveBtn section="elevenlabs" />
+            </div>
+            <div className="space-y-5">
+              {/* ── INBOUND CALLS ── */}
+              <div className="border-l-4 border-green-400 pl-4">
+                <h4 className="text-[12px] font-[700] uppercase tracking-wider text-green-700 mb-3">📲 Inbound Calls Configuration</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="API Key" type="password" value={forms.elevenlabs.ELEVENLABS_API_KEY} onChange={setField("elevenlabs", "ELEVENLABS_API_KEY")} placeholder="sk_..." />
+                  <Field label="Agent ID" value={forms.elevenlabs.ELEVENLABS_INBOUND_AGENT_ID} onChange={setField("elevenlabs", "ELEVENLABS_INBOUND_AGENT_ID")} placeholder="agent_..." />
+                  <div className="sm:col-span-2">
+                    <Field label="Inbound Phone Number" value={forms.elevenlabs.ELEVENLABS_INBOUND_PHONE_NUMBER} onChange={setField("elevenlabs", "ELEVENLABS_INBOUND_PHONE_NUMBER")} placeholder="+1 929 329 3858" hint="Phone number customers call for inbound calls" />
+                  </div>
+                </div>
+              </div>
+
+              {/* ── OUTBOUND CALLS ── */}
+              <div className="border-l-4 border-blue-400 pl-4">
+                <h4 className="text-[12px] font-[700] uppercase tracking-wider text-blue-700 mb-3">☎️ Outbound Calls Configuration</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="API Key" type="password" value={forms.elevenlabs.ELEVEN_LABS_API_KEY} onChange={setField("elevenlabs", "ELEVEN_LABS_API_KEY")} placeholder="sk_..." />
+                  <Field label="Agent ID" value={forms.elevenlabs.ELEVEN_LABS_AGENT_ID} onChange={setField("elevenlabs", "ELEVEN_LABS_AGENT_ID")} placeholder="agent_..." />
+                  <Field label="Phone Number" value={forms.elevenlabs.ELEVEN_LABS_PHONE_NUMBER} onChange={setField("elevenlabs", "ELEVEN_LABS_PHONE_NUMBER")} placeholder="+1 929 329 3858" hint="Phone number used for outbound calls" />
+                  <Field label="Phone Number ID" value={forms.elevenlabs.ELEVEN_LABS_PHONE_NUMBER_ID} onChange={setField("elevenlabs", "ELEVEN_LABS_PHONE_NUMBER_ID")} placeholder="phnum_..." />
+                  <Field label="Base URL" value={forms.elevenlabs.ELEVEN_LABS_BASE_URL} onChange={setField("elevenlabs", "ELEVEN_LABS_BASE_URL")} placeholder="https://api.elevenlabs.io/v1/convai" />
+                  <div className="sm:col-span-2">
+                    <Field label="Outbound Call Endpoint URL" value={forms.elevenlabs.OUTBOUND_CALL_ENDPOINT_URL} onChange={setField("elevenlabs", "OUTBOUND_CALL_ENDPOINT_URL")} placeholder="https://api.elevenlabs.io/v1/convai/twilio/outbound-call" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Linkedin className="h-4 w-4 text-sky-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">LinkedIn Scraping</h3>
+              </div>
+              <SaveBtn section="linkedin" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="APIFY API Token" type="password" value={forms.linkedin.APIFY_API_TOKEN} onChange={setField("linkedin", "APIFY_API_TOKEN")} />
+              <Field label="APOLLO API Key" type="password" value={forms.linkedin.APOLLO_API_KEY} onChange={setField("linkedin", "APOLLO_API_KEY")} />
+              <Field label="Enrichment Cache TTL (days)" value={forms.linkedin.ENRICHMENT_CACHE_TTL_DAYS} onChange={setField("linkedin", "ENRICHMENT_CACHE_TTL_DAYS")} />
+              <SelectField
+                label="Enrichment Enabled"
+                value={forms.linkedin.ENRICHMENT_ENABLED}
+                onChange={setField("linkedin", "ENRICHMENT_ENABLED")}
+                options={[{ label: "true", value: "true" }, { label: "false", value: "false" }]}
+              />
+              <Field label="LinkedIn Cache TTL (days)" value={forms.linkedin.LINKEDIN_CACHE_TTL_DAYS} onChange={setField("linkedin", "LINKEDIN_CACHE_TTL_DAYS")} />
+              <SelectField
+                label="LinkedIn Scraping Enabled"
+                value={forms.linkedin.LINKEDIN_SCRAPING_ENABLED}
+                onChange={setField("linkedin", "LINKEDIN_SCRAPING_ENABLED")}
+                options={[{ label: "true", value: "true" }, { label: "false", value: "false" }]}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-indigo-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">Azure OpenAI</h3>
+              </div>
+              <SaveBtn section="azure" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="AZURE_OPENAI_API_KEY" type="password" value={forms.azure.AZURE_OPENAI_API_KEY} onChange={setField("azure", "AZURE_OPENAI_API_KEY")} />
+              <Field label="AZURE_OPENAI_API_MODEL" value={forms.azure.AZURE_OPENAI_API_MODEL} onChange={setField("azure", "AZURE_OPENAI_API_MODEL")} />
+              <Field label="AZURE_OPENAI_ENDPOINT" value={forms.azure.AZURE_OPENAI_ENDPOINT} onChange={setField("azure", "AZURE_OPENAI_ENDPOINT")} />
+              <Field label="AZURE_OPENAI_VERSION" value={forms.azure.AZURE_OPENAI_VERSION} onChange={setField("azure", "AZURE_OPENAI_VERSION")} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-emerald-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">TM Own Solution</h3>
+              </div>
+              <SaveBtn section="tmOwnSolution" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="TM_OWN_SOLUTION_AGENT_ID" value={forms.tmOwnSolution.TM_OWN_SOLUTION_AGENT_ID} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_AGENT_ID")} />
+              <Field label="TM_OWN_SOLUTION_API_KEY" type="password" value={forms.tmOwnSolution.TM_OWN_SOLUTION_API_KEY} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_API_KEY")} />
+              <Field label="TM_OWN_SOLUTION_API_URL" value={forms.tmOwnSolution.TM_OWN_SOLUTION_API_URL} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_API_URL")} />
+              <Field label="TM_OWN_SOLUTION_PHONE_NUMBER_ID" value={forms.tmOwnSolution.TM_OWN_SOLUTION_PHONE_NUMBER_ID} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_PHONE_NUMBER_ID")} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">Groq</h3>
+              </div>
+              <SaveBtn section="groq" />
+            </div>
+            <Field label="Groq API Key" type="password" value={forms.groq.groq_api_key} onChange={setField("groq", "groq_api_key")} />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Settings className="h-4 w-4 text-gray-700" />
+                <h3 className="text-[14px] font-[700] text-gray-900">App Config</h3>
+              </div>
+              <SaveBtn section="appConfig" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Target Mailbox For Replies" value={forms.appConfig.target_mailbox_for_replies} onChange={setField("appConfig", "target_mailbox_for_replies")} />
+              <Field label="Timezone Configuration" value={forms.appConfig.timezone_configuration} onChange={setField("appConfig", "timezone_configuration")} />
+              <Field label="Graph Client State" value={forms.appConfig.graph_client_state} onChange={setField("appConfig", "graph_client_state")} />
+              <Field label="Agent Name" value={forms.appConfig.agent_name} onChange={setField("appConfig", "agent_name")} />
+              <Field label="Company Name" value={forms.appConfig.company_name} onChange={setField("appConfig", "company_name")} />
+              <Field label="Default Agent Name" value={forms.appConfig.default_agent_name} onChange={setField("appConfig", "default_agent_name")} />
+              <Field label="Company Sales Pain Solution" value={forms.appConfig.company_sales_pain_solution} onChange={setField("appConfig", "company_sales_pain_solution")} />
+              <Field label="About Company" value={forms.appConfig.about_company} onChange={setField("appConfig", "about_company")} />
+              <SelectField
+                label="Call Service Provider"
+                value={forms.appConfig.call_service_provider || "elevenlabs"}
+                onChange={setField("appConfig", "call_service_provider")}
+                options={[
+                  { label: "ElevenLabs", value: "elevenlabs" },
+                  { label: "TM Own Solution", value: "tm_own_solution" },
+                ]}
+              />
+              <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={forms.appConfig.skip_weekend_check}
+                  onChange={setField("appConfig", "skip_weekend_check")}
+                  className="h-4 w-4 accent-violet-600"
+                />
+                Skip Weekend Check
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={forms.appConfig.enable_logs}
+                  onChange={setField("appConfig", "enable_logs")}
+                  className="h-4 w-4 accent-violet-600"
+                />
+                Enable Logs
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Setting() {
   const [activePage, setActivePage] = useState(null);
   const [emailPlatform, setEP] = useState(() =>
@@ -3612,6 +4071,22 @@ export default function Setting() {
   const [crmStatusLoading, setCrmStatusLoading] = useState(true);
   const [crmDisconnecting, setCrmDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [userCanAccessGlobalSettings, setUserCanAccessGlobalSettings] = useState(false);
+
+  useEffect(() => {
+    const normalizeRole = (role) =>
+      (role || "").toUpperCase().replace(/[\s_-]/g, "");
+    const isAdminRole = (role) => {
+      const r = normalizeRole(role);
+      return r === "ADMIN" || r === "SUPERADMIN";
+    };
+
+    if (typeof window !== "undefined") {
+      const userRole = localStorage.getItem("userRole");
+      const userRoleDisplay = localStorage.getItem("userRoleDisplay");
+      setUserCanAccessGlobalSettings(isAdminRole(userRole) || isAdminRole(userRoleDisplay));
+    }
+  }, []);
 
   // Fetch CRM OAuth status on mount — show toast if connected, silently mark disconnected
   useEffect(() => {
@@ -3749,6 +4224,7 @@ export default function Setting() {
   if (activePage === "agents") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><AgentsPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "email-templates") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><EmailTemplatesPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "graph-config") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><GraphConfigPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "global-integrations") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><GlobalIntegrationsPage onBack={() => setActivePage(null)} canAccess={userCanAccessGlobalSettings} /></div>;
   if (activePage === "smtp-providers") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><SMTPProvidersPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "leads") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><LeadsPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "mappings") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><MappingsPage onBack={() => setActivePage(null)} /></div>;
@@ -3793,13 +4269,26 @@ export default function Setting() {
             <p className="text-[12px] text-gray-400 mt-0.5">Manage integrations, agents, email, and system preferences</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 700); }}
-          className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          {userCanAccessGlobalSettings && (
+            <button
+              type="button"
+              onClick={() => setActivePage("global-integrations")}
+              title="Open Global Integrations"
+              className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-violet-700 hover:bg-violet-50 transition shadow-sm"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 700); }}
+            title="Refresh"
+            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
 
       {/* ═══ SECTION 1 — CONNECTION ═══ */}
@@ -3807,6 +4296,16 @@ export default function Setting() {
         <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Connection & Integration</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+        {userCanAccessGlobalSettings && (
+          <SettingCard
+            icon={Settings}
+            iconBg="bg-blue-50"
+            iconColor="text-blue-600"
+            title="Global Integrations"
+            desc="Configure Twilio, ElevenLabs, LinkedIn scraping, Azure, Groq, TM solution and app config"
+            action={<GearBtn page="global-integrations" />}
+          />
+        )}
         <SettingCard
           icon={Database} iconBg="bg-indigo-50" iconColor="text-indigo-600"
           title="Configure CRM" desc="Connect & authorise your CRM via OAuth2 credentials"

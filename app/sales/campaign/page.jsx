@@ -142,6 +142,7 @@ export default function CampaignPage() {
     callHistoryLoading,
     emailHistory,
     emailHistoryLoading,
+    emailHistoryTotalCount,
     linkedinHistory,
     linkedinHistoryLoading,
     whatsappHistory,
@@ -261,24 +262,58 @@ export default function CampaignPage() {
   /* ── Email Stats (from /campaigns/{id}/email-stats/) ── */
   const [emailStats, setEmailStats] = useState(null);
   const [emailStatsLoading, setEmailStatsLoading] = useState(false);
+  const [emailCardAnalytics, setEmailCardAnalytics] = useState(null);
+  const [emailCardAnalyticsLoading, setEmailCardAnalyticsLoading] = useState(false);
 
   /* ── Email Detail Modal ── */
   const [emailDetailModal, setEmailDetailModal] = useState(null);
   const [emailDetailLoading, setEmailDetailLoading] = useState(false);
+  const [emailModalView, setEmailModalView] = useState("email");
 
-  const handleViewEmail = async (id) => {
-    if (!id) return;
-    setEmailDetailLoading(true);
-    setEmailDetailModal({});
-    try {
-      const res = await axiosInstance.get(`/email-history/${id}/`);
-      setEmailDetailModal(res.data);
-    } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to load email detail.");
-      setEmailDetailModal(null);
-    } finally {
-      setEmailDetailLoading(false);
-    }
+  const getMergedReplies = (row) => {
+    if (!row) return [];
+    const rowIdKey = String(row.id ?? row.email_history_id ?? "");
+    const directReplies = Array.isArray(row.replies) ? row.replies : [];
+    const filteredDirectReplies = directReplies.filter((rep) => {
+      const targetId = rep?.auto_response_email_id;
+      if (targetId === null || targetId === undefined || targetId === "") return true;
+      return String(targetId) === rowIdKey;
+    });
+    const repliedTo = row.replied_to_message_id && typeof row.replied_to_message_id === "object"
+      ? [row.replied_to_message_id]
+      : (row.repliedToMessageId && typeof row.repliedToMessageId === "object" ? [row.repliedToMessageId] : []);
+    const merged = [...filteredDirectReplies, ...repliedTo].filter(Boolean);
+    const seenReplyIds = new Set();
+
+    return merged.filter((rep) => {
+      const key = rep?.reply_id != null
+        ? `id:${rep.reply_id}`
+        : `${rep?.reply_from ?? ""}|${rep?.sent_at ?? rep?.received_datetime ?? ""}`;
+      if (seenReplyIds.has(key)) return false;
+      seenReplyIds.add(key);
+      return true;
+    });
+  };
+
+  const handleViewEmail = (row, view = "email") => {
+    if (!row) return;
+    const replies = getMergedReplies(row);
+    const replyData = row.replyData ?? replies[0] ?? null;
+    const hasReply = !!replyData;
+    setEmailModalView(view === "reply" && !hasReply ? "email" : view);
+    setEmailDetailLoading(false);
+    setEmailDetailModal({
+      ...row,
+      lead_name: row.lead_name ?? row.name ?? "—",
+      campaign_name: row.campaign_name ?? "",
+      company_name: row.company_name ?? row.company ?? "—",
+      email_subject: row.email_subject ?? row.subject ?? "—",
+      email_body: row.email_body ?? row.emailBody ?? "",
+      to_email: row.to_email ?? row.emailAddr ?? row.email ?? "—",
+      sent_at: row.sent_at ?? row.dateTime ?? null,
+      replied_to_message_id: replyData,
+      replies,
+    });
   };
 
   const handleFormChange = (e) => {
@@ -301,7 +336,56 @@ export default function CampaignPage() {
   };
 
   const handleCreate = async (mode = "run") => {
-    if (!form.campaign_name.trim()) return;
+    const hasEmailChannel = form.channel_order
+      .map((c) => c.toUpperCase())
+      .includes("EMAIL");
+    const isValidEmail = (value) =>
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
+
+    if (!form.campaign_name.trim()) {
+      toast.error("Campaign name is required.");
+      return;
+    }
+    if (!form.start_time || !form.end_time) {
+      toast.error("Start time and end time are required.");
+      return;
+    }
+    if (!form.start_date) {
+      toast.error("Start date is required.");
+      return;
+    }
+    if (!form.list_id) {
+      toast.error("Please select a lead list.");
+      return;
+    }
+    if (hasEmailChannel) {
+      if (!form.logged_in_user_email?.trim()) {
+        toast.error("Meeting invite sender email is required for Email channel.");
+        return;
+      }
+      if (!isValidEmail(form.logged_in_user_email)) {
+        toast.error("Please enter a valid meeting invite sender email.");
+        return;
+      }
+      if (emailSendingService !== "CRM") {
+        if (!form.template_id) {
+          toast.error("Please select an email template.");
+          return;
+        }
+        if (!form.from_email?.trim()) {
+          toast.error("From Email is required.");
+          return;
+        }
+        if (!isValidEmail(form.from_email)) {
+          toast.error("Please enter a valid From Email address.");
+          return;
+        }
+        if (form.reply_to_email?.trim() && !isValidEmail(form.reply_to_email)) {
+          toast.error("Please enter a valid Reply to Email address.");
+          return;
+        }
+      }
+    }
     setCreating(true);
     try {
 
@@ -549,6 +633,22 @@ export default function CampaignPage() {
       });
   }, [showCreate]);
 
+  useEffect(() => {
+    if (!showCreate || editingCampaignId) return;
+    const savedEmail =
+      typeof window !== "undefined" ? localStorage.getItem("userEmail") || "" : "";
+    if (!savedEmail) return;
+    setForm((prev) => {
+      if ((prev.logged_in_user_email ?? "").trim()) return prev;
+      return {
+        ...prev,
+        logged_in_user_email: savedEmail,
+        from_email: prev.from_email || savedEmail,
+        reply_to_email: prev.reply_to_email || savedEmail,
+      };
+    });
+  }, [showCreate, editingCampaignId]);
+
   /* ── Fetch history data when a campaign activity tab is opened ── */
   useEffect(() => {
     if (!selectedCampaign) return;
@@ -562,6 +662,21 @@ export default function CampaignPage() {
         .then((res) => setEmailStats(res.data))
         .catch(() => {})
         .finally(() => setEmailStatsLoading(false));
+
+      if (selectedCampaign?.isSmtp) {
+        setEmailCardAnalytics(null);
+        setEmailCardAnalyticsLoading(true);
+        axiosInstance
+          .get("/api/analytics/dashboard", {
+            params: { campaign_id: selectedCampaign.id },
+          })
+          .then((res) => setEmailCardAnalytics(res.data))
+          .catch(() => {})
+          .finally(() => setEmailCardAnalyticsLoading(false));
+      } else {
+        setEmailCardAnalytics(null);
+        setEmailCardAnalyticsLoading(false);
+      }
     }
     if (activeTab === "LINKEDIN")
       dispatch(fetchLinkedinHistory(selectedCampaign.id));
@@ -767,17 +882,17 @@ export default function CampaignPage() {
       label: "Active",
       value: (campaigns ?? []).filter((c) => c.status === "ACTIVE").length,
       icon: Play,
-      color: "text-green-600",
-      bg: "bg-green-50",
-      border: "border-green-100",
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      border: "border-blue-100",
     },
     {
       label: "Paused",
       value: (campaigns ?? []).filter((c) => c.status === "PAUSED").length,
       icon: Pause,
-      color: "text-amber-500",
-      bg: "bg-amber-50",
-      border: "border-amber-100",
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      border: "border-blue-100",
     },
     {
       label: "Completed",
@@ -791,9 +906,9 @@ export default function CampaignPage() {
       label: "Total Campaigns",
       value: (campaigns ?? []).length,
       icon: TrendingUp,
-      color: "text-violet-600",
-      bg: "bg-violet-50",
-      border: "border-violet-100",
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+      border: "border-blue-100",
     },
   ];
 
@@ -824,10 +939,185 @@ export default function CampaignPage() {
         month: "short",
         day: "numeric",
         year: "numeric",
+        timeZone: "Asia/Kolkata",
       });
     } catch {
       return d;
     }
+  };
+
+  const formatTableDateTime = (value) => {
+    if (!value) return "—";
+    if (typeof value !== "string") return String(value);
+    if (value.includes("\n")) return value;
+    const dt = new Date(value);
+    if (!Number.isNaN(dt.getTime())) {
+      return dt.toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Kolkata",
+      });
+    }
+    return value;
+  };
+
+  const formatApiDateTime = (value) => {
+    if (!value) return "—";
+    const str = String(value);
+    const dt = new Date(str);
+    if (!Number.isNaN(dt.getTime())) {
+      return `${dt.toLocaleString("en-IN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Kolkata",
+      })}`;
+    }
+    return formatTableDateTime(str);
+  };
+
+  const escapeHtml = (value) =>
+    String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const isHtmlLike = (value) => /<\/?[a-z][\s\S]*>/i.test(String(value ?? ""));
+
+  const sanitizeEmailHtml = (value) => {
+    const html = String(value ?? "");
+    return html
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+      .replace(/<img[^>]*\bwidth=["']?1["']?[^>]*\bheight=["']?1["']?[^>]*>/gi, "")
+      .replace(/<img[^>]*\bheight=["']?1["']?[^>]*\bwidth=["']?1["']?[^>]*>/gi, "")
+      .replace(/(src|href)=(["'])http:\/\//gi, "$1=$2https://");
+  };
+
+  const toRenderableEmailHtml = (value) => {
+    if (!value) return "";
+    if (isHtmlLike(value)) return sanitizeEmailHtml(value);
+    const safeText = escapeHtml(value).replace(/\r\n|\n|\r/g, "<br />");
+    return `<div style="padding:20px; font-family:Arial, sans-serif; font-size:14px; line-height:1.6; color:#111827; background:#ffffff;">${safeText}</div>`;
+  };
+
+  const getReplyRecord = (detail) => {
+    if (!detail) return null;
+    if (detail.replyData) return detail.replyData;
+    if (detail.replied_to_message_id) return detail.replied_to_message_id;
+    const replies = getMergedReplies(detail);
+    const rowId = detail.id != null ? String(detail.id) : null;
+    if (rowId) {
+      const matched = replies.find((r) => String(r?.auto_response_email_id ?? "") === rowId);
+      if (matched) return matched;
+    }
+    return replies[0] ?? null;
+  };
+
+  const getEmailSubjectLabel = (row) => {
+    const rawSubject = row?.subject ?? "";
+    const normalized = rawSubject.toLowerCase();
+    const isSkippedRow = row?.skippable || !!row?.skipReason || !!row?.skip_reason;
+    const isSkippedSubject =
+      normalized.includes("not sent - lead skipped") ||
+      normalized.includes("lead skipped");
+    if (isSkippedRow && (row?.status === "NOT_SENT" || isSkippedSubject)) {
+      return "Skipped";
+    }
+    return rawSubject || "—";
+  };
+
+  const toPlainText = (value) =>
+    String(value ?? "")
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const buildConversation = (selectedRow, allRows = []) => {
+    if (!selectedRow) return [];
+
+    const normalizeEmail = (row) =>
+      String(row?.to_email ?? row?.emailAddr ?? row?.email ?? "")
+        .trim()
+        .toLowerCase();
+    const normalizeLead = (row) =>
+      String(row?.lead_name ?? row?.name ?? "")
+        .trim()
+        .toLowerCase();
+
+    const selectedEmail = normalizeEmail(selectedRow);
+    const selectedLead = normalizeLead(selectedRow);
+
+    const sourceRows = (Array.isArray(allRows) ? allRows : []).filter((row) => {
+      const sameEmail = selectedEmail && normalizeEmail(row) === selectedEmail;
+      const sameLead = selectedLead && normalizeLead(row) === selectedLead;
+      return sameEmail || sameLead;
+    });
+
+    const selectedId = String(selectedRow?.id ?? "");
+    const hasSelected = sourceRows.some((row) => String(row?.id ?? "") === selectedId);
+    const rows = hasSelected ? sourceRows : [...sourceRows, selectedRow];
+
+    const timeline = [];
+    const seenReplyIds = new Set();
+
+    rows.forEach((row) => {
+      const rowId = row?.id ?? row?.email_history_id ?? Math.random();
+      timeline.push({
+        id: `email-${rowId}`,
+        type: "sent",
+        timestamp: row?.sent_at ?? row?.dateTime ?? row?.created_at ?? null,
+        subject: row?.email_subject ?? row?.subject ?? "",
+        content: row?.email_body ?? "",
+        full_html: row?.email_body ?? "",
+        meta: {
+          to: row?.to_email ?? row?.emailAddr ?? row?.email ?? "—",
+          lead_name: row?.lead_name ?? row?.name ?? "—",
+        },
+      });
+
+      const replies = getMergedReplies(row);
+      replies.forEach((reply) => {
+        const replyKey = reply?.reply_id != null
+          ? String(reply.reply_id)
+          : `${reply?.reply_from ?? ""}|${reply?.sent_at ?? reply?.received_datetime ?? ""}`;
+        if (seenReplyIds.has(replyKey)) return;
+        seenReplyIds.add(replyKey);
+
+        timeline.push({
+          id: `reply-${replyKey}`,
+          type: "reply",
+          timestamp: reply?.sent_at ?? reply?.received_datetime ?? null,
+          subject: reply?.reply_subject ?? "",
+          content: reply?.body_preview ?? reply?.reply_body ?? "",
+          full_html: reply?.reply_body ?? reply?.body_preview ?? "",
+          meta: {
+            from: reply?.reply_from ?? "—",
+            name: reply?.reply_from_name ?? "",
+            sentiment: reply?.reply_sentiment ?? "",
+            intent: reply?.reply_intent ?? "",
+          },
+        });
+      });
+    });
+
+    timeline.sort((a, b) => {
+      const aTime = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bTime = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    return timeline;
   };
 
   /* ── Shared form helpers (stable references — must NOT be inside if-block) ── */
@@ -1000,6 +1290,7 @@ export default function CampaignPage() {
                             className="ml-0.5 rounded-full p-0.5 hover:bg-white/30 transition"
                           >
                             <X className="h-3 w-3" />
+                                "Reply",
                           </button>
                         </span>
                       );
@@ -1218,6 +1509,7 @@ export default function CampaignPage() {
                   value={form.logged_in_user_email}
                   onChange={handleFormChange}
                   placeholder="user@company.com"
+                  required={form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL")}
                   className={inputCls}
                 />
               </Field>
@@ -1269,9 +1561,18 @@ export default function CampaignPage() {
                       name="template_id"
                       value={form.template_id}
                       onChange={handleFormChange}
+                      required
                       className={selectCls}
                     >
                       <option value="">— Select a template —</option>
+                      {form.template_id &&
+                        !(emailTemplates ?? []).some(
+                          (t) => String(t.id) === String(form.template_id),
+                        ) && (
+                          <option value={form.template_id}>
+                            Current template ({form.template_id})
+                          </option>
+                        )}
                       {(emailTemplates ?? []).map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.name}
@@ -1540,7 +1841,7 @@ export default function CampaignPage() {
     outerRadius,
     percent,
   }) => {
-    if (percent < 0.08) return null;
+    if (!Number.isFinite(percent) || percent < 0.08) return null;
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -1606,23 +1907,23 @@ export default function CampaignPage() {
         {
           channel: "Call",
           reached: allData.filter((r) => r.call).length,
-          fill: "#6366f1",
+          fill: "#1d4ed8",
         },
         {
           channel: "Email",
           reached: allData.filter((r) => r.email).length,
-          fill: "#0ea5e9",
+          fill: "#2563eb",
         },
         {
           channel: "LinkedIn",
           reached: allData.filter((r) => r.linkedin).length,
-          fill: "#0284c7",
+          fill: "#60a5fa",
         },
       ];
       const coverageDonut = [
-        { name: "Full", value: fullCoverage, color: "#22c55e" },
-        { name: "Partial", value: partialCoverage, color: "#f59e0b" },
-        { name: "None", value: noCoverage, color: "#e5e7eb" },
+        { name: "Full", value: fullCoverage, color: "#1d4ed8" },
+        { name: "Partial", value: partialCoverage, color: "#3b82f6" },
+        { name: "None", value: noCoverage, color: "#bfdbfe" },
       ].filter((s) => s.value > 0);
       /* helpers for journey modal status rendering */
       const overallStatusBadge = (s) => {
@@ -1792,8 +2093,8 @@ export default function CampaignPage() {
               {
                 label: "Total Leads",
                 value: journeyStats?.total ?? c.totalLeads ?? 0,
-                color: "text-gray-900",
-                ring: "ring-gray-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "In Progress",
@@ -1804,14 +2105,14 @@ export default function CampaignPage() {
               {
                 label: "Converted",
                 value: journeyStats?.converted ?? 0,
-                color: "text-green-600",
-                ring: "ring-green-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Finished",
                 value: journeyStats?.finished ?? 0,
-                color: "text-violet-600",
-                ring: "ring-violet-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
             ].map((k) => (
               <article
@@ -1997,6 +2298,8 @@ export default function CampaignPage() {
                           const chName = col.label.toUpperCase() === "WHATSAPP" ? "WHATSAPP" : col.label.toUpperCase();
                           const tKey = `${leadId}_${chName}`;
                           const busy = togglingLeadChannel.has(tKey);
+                          const channelEnabled = row[col.enabledField];
+                          const isChannelDisabled = channelEnabled === false;
                           // skippedChannels overrides server data — prevents refresh from reverting the badge
                           const isSkipped = skippedChannels.has(tKey);
                           const chStatus = isSkipped ? "skipped" : (resolveChannelStatus(row, col.field) ?? "").toLowerCase();
@@ -2011,6 +2314,34 @@ export default function CampaignPage() {
                                 >
                                   <CheckCircle2 className="h-4 w-4 text-green-500" />
                                 </span>
+                              </td>
+                            );
+                          }
+
+                          // ── Explicitly disabled channel → show Disabled + Enable action
+                          if (isChannelDisabled) {
+                            return (
+                              <td key={col.field} className="px-4 py-3.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    title={`${col.label}: Disabled`}
+                                    className="inline-flex items-center gap-1 px-2 h-6 rounded-lg text-[10px] font-[600] border border-gray-200 bg-gray-100 text-gray-500 select-none"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                    Disabled
+                                  </span>
+                                  <button
+                                    disabled={busy}
+                                    onClick={() => runChannel(c.id, leadId, chName)}
+                                    title={`Enable ${col.label}`}
+                                    className="inline-flex items-center gap-1 px-2 h-6 rounded-lg text-[10px] font-[600] border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition disabled:opacity-50"
+                                  >
+                                    {busy
+                                      ? <RefreshCw className="h-2.5 w-2.5 animate-spin" />
+                                      : <Play className="h-2.5 w-2.5" />}
+                                    {busy ? "…" : "Enable"}
+                                  </button>
+                                </div>
                               </td>
                             );
                           }
@@ -2156,16 +2487,16 @@ export default function CampaignPage() {
             ).toFixed(1)
           : "0.0";
       const statusBarData = [
-        { name: "Completed", value: completed, fill: "#22c55e" },
-        { name: "Voice Mail", value: voiceMail, fill: "#f59e0b" },
-        { name: "No Answer", value: noAnswer, fill: "#94a3b8" },
+        { name: "Completed", value: completed, fill: "#1d4ed8" },
+        { name: "Voice Mail", value: voiceMail, fill: "#3b82f6" },
+        { name: "No Answer", value: noAnswer, fill: "#93c5fd" },
       ];
       const meetingDonut = [
-        { name: "Meeting Booked", value: meetingBooked, color: "#6366f1" },
+        { name: "Meeting Booked", value: meetingBooked, color: "#1d4ed8" },
         {
           name: "No Meeting",
           value: totalCalls - meetingBooked,
-          color: "#e2e8f0",
+          color: "#bfdbfe",
         },
       ].filter((s) => s.value > 0);
       return (
@@ -2200,36 +2531,36 @@ export default function CampaignPage() {
                     label: "Total Calls",
                     value: totalCalls || c.called,
                     sub: "all calls",
-                    color: "text-gray-900",
-                    ring: "ring-gray-200",
+                    color: "text-blue-600",
+                    ring: "ring-blue-200",
                   },
                   {
                     label: "Completed",
                     value: completed || c.completed,
                     sub: "successful",
-                    color: "text-green-600",
-                    ring: "ring-green-200",
+                    color: "text-blue-600",
+                    ring: "ring-blue-200",
                   },
                   {
                     label: "Voice Mail",
                     value: voiceMail,
                     sub: "left message",
-                    color: "text-amber-600",
-                    ring: "ring-amber-200",
+                    color: "text-blue-600",
+                    ring: "ring-blue-200",
                   },
                   {
                     label: "No Answer",
                     value: noAnswer || c.noAnswer,
                     sub: "unreachable",
-                    color: "text-gray-400",
-                    ring: "ring-gray-200",
+                    color: "text-blue-600",
+                    ring: "ring-blue-200",
                   },
                   {
                     label: "Meetings",
                     value: meetingBooked || c.meetings,
                     sub: "booked",
-                    color: "text-violet-600",
-                    ring: "ring-violet-200",
+                    color: "text-blue-600",
+                    ring: "ring-blue-200",
                   },
                   {
                     label: "Avg Duration",
@@ -2242,13 +2573,13 @@ export default function CampaignPage() {
                   <article
                     key={k.label}
                     className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring}`}
+                    style={{ background: k.bg }}
                   >
                     <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
                       {k.label}
                     </p>
                     <p
-                      className={`text-[28px] font-[800] leading-none ${k.color}`}
-                    >
+                      className={`text-[28px] font-[800] leading-none ${k.color}`}>
                       {k.value}
                     </p>
                     <p className="text-[11px] text-gray-400">{k.sub}</p>
@@ -2434,7 +2765,7 @@ export default function CampaignPage() {
                         callRows.map((row, idx) => (
                           <tr
                             key={idx}
-                            className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-[#eff6ff]/40" : ""}`}
+                            className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                           >
                             <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">
                               {row.name}
@@ -2446,7 +2777,7 @@ export default function CampaignPage() {
                               {row.company}
                             </td>
                             <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-pre-line leading-tight">
-                              {row.dateTime}
+                              {formatTableDateTime(row.dateTime)}
                             </td>
                             <td className="px-3 py-3 text-[12px] text-gray-700 text-center">
                               {row.duration}
@@ -2575,42 +2906,102 @@ export default function CampaignPage() {
         return ms && ss;
       });
       // ── Email Stats derived from email history data ──
-      const ehSent     = emailHistoryData.filter((r) => r.status === "SENT").length;
-      const ehNotSent  = emailHistoryData.filter((r) => r.status === "NOT_SENT").length;
+      const emailHistoryApiCount = emailHistoryTotalCount || 0;
+      const ehSent     = Math.max(emailHistoryData.filter((r) => r.status === "SENT").length, emailHistoryApiCount);
+      const ehNotSentTotal = emailHistoryData.filter((r) => r.status === "NOT_SENT").length;
       const ehFailed   = emailHistoryData.filter((r) => r.status === "FAILED").length;
       const ehPending  = emailHistoryData.filter((r) => r.status === "PENDING").length;
       const ehClicked  = emailHistoryData.filter((r) => r.clicked).length;
       const ehMeetings = emailHistoryData.filter((r) => r.meeting).length;
-      const ehSkipped  = emailHistoryData.filter((r) => r.skippable).length;
+      const ehSkipped  = emailHistoryData.filter((r) => r.skippable || !!r.skip_reason).length;
+      const ehNotSentOther = emailHistoryData.filter(
+        (r) => r.status === "NOT_SENT" && !(r.skippable || !!r.skip_reason),
+      ).length;
       const ehTotal    = emailHistoryData.length;
-      // Fall back to /email-stats/ API values if history is empty (e.g. paginated)
+      // Merge history + /email-stats/ API values so paginated history does not hide counts.
       const es = emailStats ?? {};
-      const statSent    = ehTotal > 0 ? ehSent    : (es.emails_sent    ?? es.total_sent  ?? es.sent    ?? c.emailsSent  ?? 0);
-      const statNotSent = ehTotal > 0 ? ehNotSent : (es.emails_not_sent ?? es.not_sent   ?? 0);
-      const statFailed  = ehTotal > 0 ? ehFailed  : (es.emails_failed   ?? es.failed     ?? c.emailsFailed  ?? 0);
-      const statPending = ehTotal > 0 ? ehPending : (es.emails_pending  ?? es.pending    ?? c.emailsPending ?? 0);
-      const statClicked = ehTotal > 0 ? ehClicked : (es.emails_clicked  ?? es.clicked    ?? 0);
-      const statMeetings= ehTotal > 0 ? ehMeetings: (es.meetings_booked ?? es.meetings   ?? c.meetings  ?? 0);
-      const statSkipped = ehTotal > 0 ? ehSkipped : 0;
+      const maxNum = (...vals) => vals.reduce((max, v) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.max(max, n) : max;
+      }, 0);
+      const mergeCount = (historyCount, ...apiVals) => Math.max(Number(historyCount) || 0, maxNum(...apiVals));
+
+      const statSent = mergeCount(ehSent, es.emails_sent, es.total_sent, es.sent, es.sent_count, es.total_count, c.emailsSent);
+      const statFailed = mergeCount(ehFailed, es.emails_failed, es.failed, es.failed_count, es.total_count, c.emailsFailed);
+      const statPending = mergeCount(ehPending, es.emails_pending, es.pending, es.pending_count, c.emailsPending);
+      const statClicked = mergeCount(ehClicked, es.emails_clicked, es.clicked, es.clicked_count);
+      const statMeetings = mergeCount(ehMeetings, es.meetings_booked, es.meetings, es.meeting_count, c.meetings);
+      const statSkipped = mergeCount(ehSkipped, es.emails_skipped, es.skipped, es.skipped_count, es.total_count);
+      const statNotSentTotal = mergeCount(ehNotSentTotal, es.emails_not_sent, es.not_sent, es.not_sent_count, es.total_count);
+      const statNotSentOther = Math.max(mergeCount(ehNotSentOther, es.emails_not_sent_other, es.not_sent_other), statNotSentTotal - statSkipped, 0);
+      const statTotalEmails = mergeCount(
+        ehTotal,
+        es.total_emails,
+        es.total,
+        es.emails_total,
+        es.total_count,
+        statSent + statNotSentTotal + statFailed + statPending + statSkipped,
+      );
       const statOpened  = es.emails_opened  ?? es.opened ?? 0;
       const statOpenRate= es.open_rate != null
         ? Math.round(Number(es.open_rate))
         : (statSent > 0 ? Math.round((statOpened / statSent) * 100) : 0);
+
+      const analyticsCampaign = (() => {
+        const d = emailCardAnalytics;
+        if (!d) return null;
+        const rows = Array.isArray(d?.campaigns)
+          ? d.campaigns
+          : Array.isArray(d?.data?.campaigns)
+            ? d.data.campaigns
+            : Array.isArray(d?.data)
+              ? d.data
+              : Array.isArray(d)
+                ? d
+                : [];
+        if (!rows.length) return null;
+        return rows.find(
+          (r) =>
+            String(r?.campaign_id ?? r?.id ?? "") === String(c.id) ||
+            String(r?.campaign_name ?? "") === String(c.name ?? ""),
+        ) ?? null;
+      })();
+      const useSmtpCards = !!c.isSmtp && !!analyticsCampaign;
+      const cardSent = useSmtpCards
+        ? mergeCount(
+            statSent,
+            analyticsCampaign?.emails_sent_count,
+            analyticsCampaign?.emails_sent,
+            analyticsCampaign?.total_sent,
+            analyticsCampaign?.sent,
+          )
+        : statSent;
+      const cardFailed = useSmtpCards
+        ? mergeCount(
+            statFailed,
+            analyticsCampaign?.emails_failed_count,
+            analyticsCampaign?.emails_failed,
+            analyticsCampaign?.failed,
+          )
+        : statFailed;
+      const cardSkipped = useSmtpCards
+        ? mergeCount(
+            statSkipped,
+            analyticsCampaign?.emails_skipped_count,
+            analyticsCampaign?.emails_skipped,
+            analyticsCampaign?.skipped,
+          )
+        : statSkipped;
       const funnelData = [
-        { stage: "Sent",     value: statSent,     fill: "#6366f1" },
-        { stage: "Not Sent", value: statNotSent,  fill: "#94a3b8" },
-        { stage: "Failed",   value: statFailed,   fill: "#f87171" },
-        { stage: "Pending",  value: statPending,  fill: "#f59e0b" },
-        { stage: "Meeting",  value: statMeetings, fill: "#22c55e" },
-      ].filter((d) => d.value > 0);
+        { stage: "Sent",    value: cardSent,    fill: "#1d4ed8" },
+        { stage: "Failed",  value: cardFailed,  fill: "#3b82f6" },
+        { stage: "Skipped", value: cardSkipped, fill: "#93c5fd" },
+      ];
       const statusDonut = [
-        { name: "Sent",     value: statSent,     color: "#6366f1" },
-        { name: "Not Sent", value: statNotSent,  color: "#94a3b8" },
-        { name: "Failed",   value: statFailed,   color: "#f87171" },
-        { name: "Pending",  value: statPending,  color: "#f59e0b" },
-        { name: "Skipped",  value: statSkipped,  color: "#e879f9" },
-        { name: "Meeting",  value: statMeetings, color: "#22c55e" },
-      ].filter((s) => s.value > 0);
+        { name: "Sent",    value: cardSent,    color: "#1d4ed8" },
+        { name: "Failed",  value: cardFailed,  color: "#3b82f6" },
+        { name: "Skipped", value: cardSkipped, color: "#93c5fd" },
+      ];
       return (
         <main className="min-h-screen bg-[#f4f5f7] p-4">
           <div className="mb-5">
@@ -2632,65 +3023,33 @@ export default function CampaignPage() {
           </div>
 
           {/* KPI strip — only cards with a non-zero value are shown */}
-          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-3">
             {[
               {
-                label: "Total Emails",
-                value: emailHistoryLoading ? "…" : ehTotal,
-                raw: ehTotal,
-                sub: "in campaign",
-                color: "text-gray-900",
-                ring: "ring-gray-200",
-              },
-              {
-                label: "Sent",
-                value: emailHistoryLoading ? "…" : statSent,
-                raw: statSent,
+                label: "Total Sent",
+                value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSent,
+                raw: cardSent,
                 sub: "delivered",
-                color: "text-indigo-600",
-                ring: "ring-indigo-200",
-              },
-              {
-                label: "Not Sent",
-                value: emailHistoryLoading ? "…" : statNotSent,
-                raw: statNotSent,
-                sub: "not delivered",
-                color: "text-slate-500",
-                ring: "ring-slate-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Failed",
-                value: emailHistoryLoading ? "…" : statFailed,
-                raw: statFailed,
+                value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardFailed,
+                raw: cardFailed,
                 sub: "delivery failed",
-                color: "text-red-500",
-                ring: "ring-red-200",
-              },
-              {
-                label: "Pending",
-                value: emailHistoryLoading ? "…" : statPending,
-                raw: statPending,
-                sub: "in queue",
-                color: "text-amber-500",
-                ring: "ring-amber-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Skipped",
-                value: emailHistoryLoading ? "…" : statSkipped,
-                raw: statSkipped,
+                value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSkipped,
+                raw: cardSkipped,
                 sub: "skipped",
-                color: "text-fuchsia-500",
-                ring: "ring-fuchsia-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
-              {
-                label: "Meetings",
-                value: emailHistoryLoading ? "…" : statMeetings,
-                raw: statMeetings,
-                sub: "booked",
-                color: "text-green-600",
-                ring: "ring-green-200",
-              },
-            ].filter((k) => emailHistoryLoading || k.raw > 0).map((k) => (
+            ].map((k) => (
               <article
                 key={k.label}
                 className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring}`}
@@ -2705,16 +3064,21 @@ export default function CampaignPage() {
               </article>
             ))}
           </section>
+          {c.isSmtp && (
+            <p className="-mt-2 mb-4 text-[11px] text-gray-400">
+              Cards source: Analytics Dashboard (SMTP campaign)
+                      "Reply",
+            </p>
+          )}
 
           {/* Charts */}
-          {funnelData.some((d) => d.value > 0) && (
-            <section className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <section className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
                   Email Engagement Funnel
                 </h3>
                 <p className="text-[12px] text-gray-400 mb-4">
-                  From sent to meeting booked
+                  Sent vs failed vs skipped
                 </p>
                 <ResponsiveContainer width="100%" height={170}>
                   <BarChart
@@ -2753,13 +3117,12 @@ export default function CampaignPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              {statusDonut.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col">
                   <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
                     Email Status Split
                   </h3>
                   <p className="text-[12px] text-gray-400 mb-2">
-                    Opened vs clicked vs failed
+                    Status distribution across email outcomes
                   </p>
                   <div className="flex-1 flex flex-col items-center justify-center gap-3">
                     <ResponsiveContainer width={140} height={140}>
@@ -2810,10 +3173,7 @@ export default function CampaignPage() {
                     </div>
                   </div>
                 </div>
-              )}
             </section>
-          )}
-
           {/* Table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-wrap">
@@ -2881,7 +3241,14 @@ export default function CampaignPage() {
                       </td>
                     </tr>
                   ) : (
-                    emailRows.map((row, idx) => (
+                    emailRows.map((row, idx) => {
+                      const emailValue = row.emailAddr ?? row.to_email ?? row.email ?? "—";
+                      const atIdx = emailValue.indexOf("@");
+                      const emailUser = atIdx > 0 ? emailValue.slice(0, atIdx) : emailValue;
+                      const emailHost = atIdx > 0 ? `@${emailValue.slice(atIdx + 1)}` : "";
+                      const displaySubject = getEmailSubjectLabel(row);
+                      const hasReply = !!(row.hasReply || row.repliedToMessageId || row.replyData || (Array.isArray(row.replies) && row.replies.length));
+                      return (
                       <tr
                         key={idx}
                         className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
@@ -2889,8 +3256,16 @@ export default function CampaignPage() {
                         <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">
                           {row.name}
                         </td>
-                        <td className="px-3 py-3 text-[11px] text-gray-500">
-                          {row.emailAddr}
+                        <td
+                          className="px-3 py-3 text-[11px] text-gray-500 w-[180px]"
+                          title={emailValue}
+                        >
+                          <div className="max-w-[170px] leading-tight">
+                            <p className="truncate">{emailUser}</p>
+                            {emailHost ? (
+                              <p className="truncate text-[10px] text-gray-400 mt-0.5">{emailHost}</p>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-3 text-[12px] text-blue-600 font-[500]">
                           {row.company}
@@ -2899,10 +3274,10 @@ export default function CampaignPage() {
                           className="px-3 py-3 text-[11px] text-gray-600"
                           title={row.subject}
                         >
-                          {row.subject}
+                          {displaySubject}
                         </td>
                         <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-pre-line leading-tight">
-                          {row.dateTime}
+                          {formatTableDateTime(row.dateTime)}
                         </td>
                         <td className="px-3 py-3">
                           {row.skippable ? (
@@ -2938,16 +3313,41 @@ export default function CampaignPage() {
                           </span>
                         </td>
                         <td className="px-3 py-3">
-                          <button
-                            type="button"
-                            onClick={() => handleViewEmail(row.id)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1d4ed8] text-white text-[11px] font-[600] hover:bg-blue-700 transition"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> View
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleViewEmail(row, "thread")}
+                              className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition"
+                              title="View Conversation"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleViewEmail(row, "email")}
+                              className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                              title="View Email"
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => hasReply && handleViewEmail(row, "reply")}
+                              disabled={!hasReply}
+                              className={`inline-flex items-center justify-center h-7 w-7 rounded-lg border transition ${
+                                hasReply
+                                  ? "border-green-200 bg-green-50 text-green-600 hover:bg-green-100"
+                                  : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                              }`}
+                              title={hasReply ? "View Reply" : "No Reply"}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -2965,12 +3365,12 @@ export default function CampaignPage() {
         {/* ── Email Detail Modal ── */}
         {emailDetailModal !== null && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-            onClick={() => setEmailDetailModal(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-3 py-2 md:px-4 md:py-3"
+            onClick={() => { setEmailDetailModal(null); setEmailModalView("email"); }}
           >
             <div
               className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl mx-4"
-              style={{ height: "80vh" }}
+              style={{ height: "100%", maxHeight: "calc(100vh - 16px)" }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -2988,7 +3388,7 @@ export default function CampaignPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEmailDetailModal(null)}
+                  onClick={() => { setEmailDetailModal(null); setEmailModalView("email"); }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
@@ -3002,44 +3402,163 @@ export default function CampaignPage() {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  {/* ── Meta Info (top) ── */}
-                  <div className="shrink-0 border-b border-gray-100 px-6 py-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-3">
-                      {[
-                        { label: "Lead Name",         value: emailDetailModal.lead_name },
-                        { label: "To Email",           value: emailDetailModal.to_email ?? emailDetailModal.email },
-                        { label: "Company",            value: emailDetailModal.company_name || "—" },
-                        { label: "Campaign",           value: emailDetailModal.campaign_name },
-                        { label: "Subject",            value: emailDetailModal.email_subject ?? emailDetailModal.subject },
-                        { label: "Status",             value: emailDetailModal.status },
-                        // { label: "Lead Type",          value: emailDetailModal.lead_type },
-                        { label: "Sent At",            value: emailDetailModal.sent_at ? new Date(emailDetailModal.sent_at).toLocaleString() : "—" },
-                        // { label: "Skippable",          value: emailDetailModal.skippable ? `Yes — ${emailDetailModal.skip_reason || "no reason"}` : "No" },
-                        // { label: "Meeting Requested",  value: emailDetailModal.meeting_requested ? "Yes" : "No" },
-                        // { label: "Meeting Link",       value: emailDetailModal.meeting_link || "—" },
-                        // { label: "Error",              value: emailDetailModal.error_message || "—" },
-                      ].map(({ label, value }) => (
-                        <div key={label}>
-                          <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400 mb-0.5">{label}</p>
-                          <p className="text-[12px] text-gray-800 break-all leading-relaxed">{value ?? "—"}</p>
+                  {(() => {
+                    const replyRecord = getReplyRecord(emailDetailModal);
+                    const hasReply = !!replyRecord;
+                    const isReplyView = emailModalView === "reply" && hasReply;
+                    const isThreadView = emailModalView === "thread";
+                    const conversationTimeline = buildConversation(emailDetailModal, emailHistoryData ?? []);
+                    return (
+                      <>
+                        <div className="shrink-0 border-b border-gray-100 px-6 py-2.5 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEmailModalView("thread")}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-[600] border transition ${
+                              isThreadView
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                : "bg-white text-gray-500 border-gray-200"
+                            }`}
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" /> Conversation
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmailModalView("email")}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-[600] border transition ${
+                              !isReplyView && !isThreadView
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-white text-gray-500 border-gray-200"
+                            }`}
+                          >
+                            <Mail className="h-3.5 w-3.5" /> Email
+                          </button>
+                          {hasReply && (
+                            <button
+                              type="button"
+                              onClick={() => setEmailModalView("reply")}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-[600] border transition ${
+                                isReplyView
+                                  ? "bg-green-50 text-green-700 border-green-200"
+                                  : "bg-white text-gray-500 border-gray-200"
+                              }`}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Reply
+                            </button>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* ── Email Body (bottom, fills remaining) ── */}
-                  {emailDetailModal.email_body ? (
-                    <iframe
-                      srcDoc={emailDetailModal.email_body}
-                      title="Email Body"
-                      className="flex-1 w-full border-0"
-                      sandbox="allow-same-origin"
-                    />
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                      <p className="text-[13px] text-gray-400 italic">No email body available.</p>
-                    </div>
-                  )}
+                        {/* ── Compact Meta Info (top) ── */}
+                        <div className="shrink-0 border-b border-gray-100 px-6 py-2">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-600">
+                            {(isReplyView
+                              ? [
+                                  { label: "From", value: replyRecord?.reply_from_name || replyRecord?.reply_from || "—" },
+                                  { label: "Subject", value: replyRecord?.reply_subject || "—" },
+                                  { label: "Received", value: formatApiDateTime(replyRecord?.received_datetime ?? replyRecord?.sent_at) },
+                                ]
+                              : [
+                                  { label: "To", value: emailDetailModal.to_email ?? emailDetailModal.email ?? "—" },
+                                  { label: "Subject", value: emailDetailModal.email_subject ?? emailDetailModal.subject ?? "—" },
+                                  { label: "Sent", value: formatApiDateTime(emailDetailModal.sent_at) },
+                                ]).map(({ label, value }) => (
+                              <span
+                                key={label}
+                                className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5"
+                                title={String(value ?? "—")}
+                              >
+                                <span className="font-[700] text-gray-500">{label}:</span>
+                                <span className="max-w-[280px] truncate">{value ?? "—"}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* ── Email/Reply Body (bottom, fills remaining) ── */}
+                        {isThreadView ? (
+                          <div className="flex-1 overflow-auto p-4 bg-gray-50 space-y-3">
+                            {conversationTimeline.length ? conversationTimeline.map((item) => {
+                              const isReplyItem = item.type === "reply";
+                              return (
+                                <div
+                                  key={item.id}
+                                  className={`rounded-xl border bg-white p-3 ${isReplyItem ? "border-green-200" : "border-blue-200"}`}
+                                >
+                                  <div className="flex items-center justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[700] ${
+                                        isReplyItem
+                                          ? "bg-green-50 text-green-700 border border-green-200"
+                                          : "bg-blue-50 text-blue-700 border border-blue-200"
+                                      }`}>
+                                        {isReplyItem ? "Reply" : "Sent Email"}
+                                      </span>
+                                      <span className="text-[11px] text-gray-500">
+                                        {formatApiDateTime(item.timestamp)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 mb-2">
+                                    <p className="text-[11px] text-gray-600"><span className="font-[600]">Subject:</span> {item.subject || "—"}</p>
+                                    {isReplyItem ? (
+                                      <p className="text-[11px] text-gray-600"><span className="font-[600]">From:</span> {item.meta?.name || item.meta?.from || "—"}</p>
+                                    ) : (
+                                      <p className="text-[11px] text-gray-600"><span className="font-[600]">To:</span> {item.meta?.to || "—"}</p>
+                                    )}
+                                  </div>
+
+                                  {item.full_html ? (
+                                    <iframe
+                                      srcDoc={toRenderableEmailHtml(item.full_html)}
+                                      title={`Conversation item ${item.id}`}
+                                      className="w-full border border-gray-200 rounded-lg bg-white"
+                                      style={{ height: "220px" }}
+                                      sandbox="allow-same-origin"
+                                    />
+                                  ) : (
+                                    <p className="text-[12px] text-gray-600 whitespace-pre-wrap">
+                                      {toPlainText(item.content) || "No content"}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            }) : (
+                              <p className="text-[13px] text-gray-400 italic">No conversation data available.</p>
+                            )}
+                          </div>
+                        ) : isReplyView ? (
+                          <div className="flex-1 overflow-auto p-2 bg-gray-50">
+                            {(replyRecord?.reply_body || replyRecord?.body_preview) ? (
+                              <iframe
+                                srcDoc={toRenderableEmailHtml(replyRecord.reply_body ?? replyRecord.body_preview)}
+                                title="Reply Body"
+                                className="w-full border border-gray-200 rounded-xl bg-white"
+                                style={{ height: "100%", minHeight: "58vh" }}
+                                sandbox="allow-same-origin"
+                              />
+                            ) : (
+                              <p className="text-[13px] text-gray-400 italic">No reply body available.</p>
+                            )}
+                          </div>
+                        ) : emailDetailModal.email_body ? (
+                          <div className="flex-1 overflow-auto p-2 bg-gray-50">
+                            <iframe
+                              srcDoc={toRenderableEmailHtml(emailDetailModal.email_body)}
+                              title="Email Body"
+                              className="w-full border border-gray-200 rounded-xl bg-white"
+                              style={{ height: "100%", minHeight: "58vh" }}
+                              sandbox="allow-same-origin"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center">
+                            <p className="text-[13px] text-gray-400 italic">No email body available.</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -3080,15 +3599,15 @@ export default function CampaignPage() {
           ? Math.round(((accepted + replied) / totalOutreach) * 100)
           : 0;
       const engagementData = [
-        { metric: "Accepted", value: accepted, fill: "#22c55e" },
-        { metric: "Replied", value: replied, fill: "#6366f1" },
-        { metric: "Meeting", value: meetingBooked, fill: "#f59e0b" },
-        { metric: "No Reply", value: noReply, fill: "#94a3b8" },
+        { metric: "Accepted", value: accepted, fill: "#1d4ed8" },
+        { metric: "Replied", value: replied, fill: "#2563eb" },
+        { metric: "Meeting", value: meetingBooked, fill: "#3b82f6" },
+        { metric: "No Reply", value: noReply, fill: "#93c5fd" },
       ];
       const outcomeDonut = [
-        { name: "Accepted", value: accepted, color: "#22c55e" },
-        { name: "Replied", value: replied, color: "#6366f1" },
-        { name: "No Reply", value: noReply, color: "#e2e8f0" },
+        { name: "Accepted", value: accepted, color: "#1d4ed8" },
+        { name: "Replied", value: replied, color: "#2563eb" },
+        { name: "No Reply", value: noReply, color: "#bfdbfe" },
       ].filter((s) => s.value > 0);
       return (
         <main className="min-h-screen bg-[#f4f5f7] p-4">
@@ -3116,43 +3635,43 @@ export default function CampaignPage() {
                 label: "Total Outreach",
                 value: totalOutreach || c.totalLeads,
                 sub: "all activity",
-                color: "text-gray-900",
-                ring: "ring-gray-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Accepted",
                 value: accepted,
                 sub: "connections",
-                color: "text-green-600",
-                ring: "ring-green-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Replied",
                 value: replied,
                 sub: "InMail replies",
-                color: "text-violet-600",
-                ring: "ring-violet-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "No Reply",
                 value: noReply,
                 sub: "no response",
-                color: "text-gray-400",
-                ring: "ring-gray-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Meetings",
                 value: meetingBooked,
                 sub: "booked",
-                color: "text-amber-600",
-                ring: "ring-amber-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Response Rate",
                 value: `${responseRate}%`,
                 sub: "of outreach",
-                color: "text-sky-600",
-                ring: "ring-sky-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
             ].map((k) => (
               <article
@@ -3286,7 +3805,7 @@ export default function CampaignPage() {
                   placeholder="Search by lead name or company..."
                   value={liSearch}
                   onChange={(e) => setLiSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-2 text-[12px] text-gray-800 placeholder-gray-400 rounded-lg border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-violet-400/30"
+                  className="w-full pl-8 pr-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-violet-400/30"
                 />
               </div>
               <div className="relative">
@@ -3351,9 +3870,6 @@ export default function CampaignPage() {
                         <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">
                           {row.name}
                         </td>
-                        <td className="px-3 py-3 text-[12px] text-blue-600 font-[500]">
-                          {row.company}
-                        </td>
                         <td className="px-3 py-3 text-[12px] text-gray-700">
                           {row.connectionSent ? "Yes" : "No"}
                         </td>
@@ -3373,8 +3889,12 @@ export default function CampaignPage() {
                             {row.status}
                           </span>
                         </td>
-                        <td className="px-3 py-3 text-[11px] text-gray-600">
-                          {row.dateTime ?? row.date}
+                        <td className="px-3 py-3">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${row.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                          >
+                            {row.meeting ? "Yes" : "No"}
+                          </span>
                         </td>
                         <td className="px-3 py-3">
                           <button
@@ -3395,8 +3915,8 @@ export default function CampaignPage() {
                 Showing {liRows.length} of {linkedinHistoryData.length} records
               </p>
               <span className="flex items-center gap-1.5 text-[12px] text-green-600 font-[500]">
-                <CheckCircle2 className="h-3.5 w-3.5" /> {c.meetings} meetings
-                booked
+                <CheckCircle2 className="h-3.5 w-3.5" /> {meetingBooked}{" "}
+                meetings booked
               </span>
             </div>
           </div>
@@ -3439,23 +3959,23 @@ export default function CampaignPage() {
 
       const WA_STATUS_STYLE = {
         DELIVERED: "bg-blue-50 text-blue-700 border border-blue-200",
-        READ: "bg-sky-50 text-sky-700 border border-sky-200",
-        REPLIED: "bg-green-50 text-green-700 border border-green-200",
-        FAILED: "bg-red-50 text-red-600 border border-red-200",
-        SENT: "bg-gray-100 text-gray-600 border border-gray-200",
+        READ: "bg-blue-100 text-blue-700 border border-blue-200",
+        REPLIED: "bg-blue-50 text-blue-700 border border-blue-200",
+        FAILED: "bg-blue-50 text-blue-700 border border-blue-200",
+        SENT: "bg-blue-50 text-blue-700 border border-blue-200",
       };
 
       const statusBarData = [
-        { name: "Delivered", value: delivered, fill: "#3b82f6" },
-        { name: "Read", value: read, fill: "#0ea5e9" },
-        { name: "Replied", value: replied, fill: "#22c55e" },
-        { name: "Failed", value: failed, fill: "#ef4444" },
+        { name: "Delivered", value: delivered, fill: "#1d4ed8" },
+        { name: "Read", value: read, fill: "#2563eb" },
+        { name: "Replied", value: replied, fill: "#3b82f6" },
+        { name: "Failed", value: failed, fill: "#93c5fd" },
       ];
       const outcomeDonut = [
-        { name: "Read", value: read, color: "#0ea5e9" },
-        { name: "Replied", value: replied, color: "#22c55e" },
-        { name: "Delivered", value: delivered, color: "#3b82f6" },
-        { name: "Failed", value: failed, color: "#ef4444" },
+        { name: "Read", value: read, color: "#2563eb" },
+        { name: "Replied", value: replied, color: "#3b82f6" },
+        { name: "Delivered", value: delivered, color: "#1d4ed8" },
+        { name: "Failed", value: failed, color: "#93c5fd" },
       ].filter((s) => s.value > 0);
 
       return (
@@ -3484,8 +4004,8 @@ export default function CampaignPage() {
                 label: "Total Sent",
                 value: totalMessages,
                 sub: "all messages",
-                color: "text-gray-900",
-                ring: "ring-gray-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Delivered",
@@ -3498,29 +4018,29 @@ export default function CampaignPage() {
                 label: "Read",
                 value: read,
                 sub: "opened",
-                color: "text-sky-600",
-                ring: "ring-sky-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Replied",
                 value: replied,
                 sub: "responded",
-                color: "text-green-600",
-                ring: "ring-green-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Meetings",
                 value: meetingBooked,
                 sub: "booked",
-                color: "text-violet-600",
-                ring: "ring-violet-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
               {
                 label: "Read Rate",
                 value: `${readRate}%`,
                 sub: "of all sent",
-                color: "text-teal-600",
-                ring: "ring-teal-200",
+                color: "text-blue-600",
+                ring: "ring-blue-200",
               },
             ].map((k) => (
               <article
@@ -3725,7 +4245,7 @@ export default function CampaignPage() {
                           {row.company}
                         </td>
                         <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-pre-line leading-tight">
-                          {row.dateTime}
+                          {formatTableDateTime(row.dateTime)}
                         </td>
                         <td
                           className="px-3 py-3 text-[11px] text-gray-600 max-w-[200px] truncate"
@@ -3775,7 +4295,7 @@ export default function CampaignPage() {
       );
     }
 
-    /* ─── CAMPAIGN ACTIVITIES MENU (default) ─── */
+    /* ─── CAMPAIGN ACTIVITIES MENU (default) ── */
     const allActivities = [
       {
         key: "ALL",
@@ -3852,37 +4372,44 @@ export default function CampaignPage() {
             {
               label: "Total Leads",
               value: c.totalLeads,
-              color: "text-sky-600",
-              bg: "bg-sky-50",
+              bg: "bg-gradient-to-br from-[#4285F4] to-[#2563EB]",
             },
             {
               label: "Completed",
-              value: c.completed,
-              color: "text-green-600",
-              bg: "bg-green-50",
+              value:
+                (c.completed ??
+                  c.completedLeads ??
+                  c.totalCompleted ??
+                  c.converted ??
+                  0) === 0 && c.status === "COMPLETED"
+                  ? c.totalLeads
+                  : (c.completed ??
+                    c.completedLeads ??
+                    c.totalCompleted ??
+                    c.converted ??
+                    0),
+              bg: "bg-gradient-to-br from-[#22C55E] to-[#16A34A]",
             },
             {
               label: "Meetings",
               value: c.meetings,
-              color: "text-amber-600",
-              bg: "bg-amber-50",
+              bg: "bg-gradient-to-br from-[#A855F7] to-[#7C3AED]",
             },
             {
               label: "Conv. Rate",
               value: `${c.convRate}%`,
-              color: "text-violet-600",
-              bg: "bg-violet-50",
+              bg: "bg-gradient-to-br from-[#2DD4BF] to-[#0D9488]",
             },
-          ].map(({ label, value, color, bg }) => (
+          ].map(({ label, value, bg }) => (
             <article
               key={label}
-              className={`rounded-xl ${bg} border border-white shadow-sm px-4 py-3 flex items-center gap-3`}
+              className={`rounded-xl ${bg} border-none shadow-lg px-4 py-3 flex items-center gap-3`}
             >
               <div>
-                <p className={`text-[22px] font-[800] leading-none ${color}`}>
+                <p className="text-[22px] font-[800] leading-none text-white">
                   {value}
                 </p>
-                <p className="text-[11px] text-gray-500 mt-0.5">{label}</p>
+                <p className="text-[11px] text-white/80 mt-0.5">{label}</p>
               </div>
             </article>
           ))}
@@ -4153,11 +4680,11 @@ export default function CampaignPage() {
                     value: c.totalLeads.toLocaleString(),
                     color: "text-gray-800",
                   },
-                  {
-                    label: "COMPLETED",
-                    value: c.completed.toLocaleString(),
-                    color: "text-green-600",
-                  },
+                  // {
+                  //   label: "COMPLETED",
+                  //   value: c.completed.toLocaleString(),
+                  //   color: "text-green-600",
+                  // },
                   {
                     label: "MEETINGS",
                     value: c.meetings.toLocaleString(),
@@ -4266,11 +4793,11 @@ export default function CampaignPage() {
                 <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
                   <Calendar className="h-3.5 w-3.5" />
                   {formatDate(c.startDate)}
-                  {(c.completionPct > 0 || c.status === "COMPLETED") && (
+                  {/* {(c.completionPct > 0 || c.status === "COMPLETED") && (
                     <span className="ml-1 text-violet-500 font-[600]">
                       {c.status === "COMPLETED" && c.completionPct === 0 ? 100 : Math.round(c.completionPct)}% done
                     </span>
-                  )}
+                  )} */}
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Pause / Resume / Activate button based on status */}
@@ -4567,8 +5094,6 @@ export default function CampaignPage() {
         </div>
       )}
 
-      {/* ── Create Campaign is now a full-page form (early return above) ── */}
-
       {/* ── Delete Confirmation Modal ── */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -4596,8 +5121,8 @@ export default function CampaignPage() {
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(null)}
                 disabled={deleting}
+                onClick={() => setShowDeleteConfirm(null)}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
               >
                 Cancel

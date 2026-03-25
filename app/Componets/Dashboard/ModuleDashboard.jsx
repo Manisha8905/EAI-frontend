@@ -720,7 +720,7 @@ export default function ModuleDashboard({
                 type="button"
                 className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${
                   isActive
-                    ? "bg-[#7c3aed] text-white shadow-md shadow-violet-400/30"
+                    ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-violet-400/30"
                     : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 }`}
               >
@@ -758,7 +758,7 @@ export default function ModuleDashboard({
 
         {/* Card 1: Calls Processed / Emails Sent */}
         <KpiCard
-          gradient="bg-gradient-to-br from-[#6366f1] to-[#8b5cf6]"
+          gradient="border bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-indigo-400/25"
           icon={Phone}
           trend={calls.trend}
@@ -770,7 +770,7 @@ export default function ModuleDashboard({
 
         {/* Meetings Scheduled */}
         <KpiCard
-          gradient="bg-gradient-to-br from-[#14b8a6] to-[#0d9488]"
+          gradient="border bg-gradient-to-br from-green-500 to-green-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-teal-400/25"
           icon={Calendar}
           trend={meetings.trend}
@@ -782,7 +782,7 @@ export default function ModuleDashboard({
 
         {/* Card 3: Tasks Created / Responses Received */}
         <KpiCard
-          gradient="bg-gradient-to-br from-[#a855f7] to-[#7c3aed]"
+          gradient="border bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-purple-400/25"
           icon={CheckSquare}
           trend={tasks.trend}
@@ -793,7 +793,7 @@ export default function ModuleDashboard({
         />
 
         {/* Card 4: Avg Call Duration / Avg Emails per Lead */}
-        <article className="rounded-2xl bg-gradient-to-br from-[#0ea5e9] to-[#0891b2] shadow-lg shadow-sky-400/25 p-5 text-white">
+        <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-5 text-white">
           <div className="flex items-center justify-between mb-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
               <Clock className="h-5 w-5 text-white" />
