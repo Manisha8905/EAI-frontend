@@ -663,7 +663,7 @@ export default function CampaignPage() {
         .catch(() => {})
         .finally(() => setEmailStatsLoading(false));
 
-      if (selectedCampaign?.isSmtp) {
+      if (selectedCampaign?.isSmtp || selectedCampaign?.is_smtp) {
         setEmailCardAnalytics(null);
         setEmailCardAnalyticsLoading(true);
         axiosInstance
@@ -2966,7 +2966,44 @@ export default function CampaignPage() {
             String(r?.campaign_name ?? "") === String(c.name ?? ""),
         ) ?? null;
       })();
-      const useSmtpCards = !!c.isSmtp && !!analyticsCampaign;
+      const isSmtpCampaign = !!(c?.isSmtp || c?.is_smtp);
+      const smtpSummary = emailCardAnalytics?.summary ?? emailCardAnalytics?.data?.summary ?? null;
+      const smtpMetricValue = (...vals) => {
+        for (const v of vals) {
+          const n = Number(v);
+          if (Number.isFinite(n)) return n;
+        }
+        return 0;
+      };
+      const smtpTotals = {
+        total_sent: smtpMetricValue(
+          analyticsCampaign?.total_sent,
+          analyticsCampaign?.emails_sent,
+          smtpSummary?.total_sent,
+          smtpSummary?.emails_sent,
+        ),
+        delivered: smtpMetricValue(
+          analyticsCampaign?.delivered,
+          smtpSummary?.total_delivered,
+          smtpSummary?.delivered,
+        ),
+        opened: smtpMetricValue(
+          analyticsCampaign?.opened,
+          smtpSummary?.total_opened,
+          smtpSummary?.opened,
+        ),
+        clicked: smtpMetricValue(
+          analyticsCampaign?.clicked,
+          smtpSummary?.total_clicked,
+          smtpSummary?.clicked,
+        ),
+        bounced: smtpMetricValue(
+          analyticsCampaign?.bounced,
+          smtpSummary?.total_bounced,
+          smtpSummary?.bounced,
+        ),
+      };
+      const useSmtpCards = isSmtpCampaign && !!analyticsCampaign;
       const cardSent = useSmtpCards
         ? mergeCount(
             statSent,
@@ -3064,11 +3101,35 @@ export default function CampaignPage() {
               </article>
             ))}
           </section>
-          {c.isSmtp && (
+          {isSmtpCampaign && (
             <p className="-mt-2 mb-4 text-[11px] text-gray-400">
               Cards source: Analytics Dashboard (SMTP campaign)
-                      "Reply",
             </p>
+          )}
+
+          {isSmtpCampaign && (
+            <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: "Total Sent", value: smtpTotals.total_sent, sub: "analytics" },
+                { label: "Delivered", value: smtpTotals.delivered, sub: "analytics" },
+                { label: "Opened", value: smtpTotals.opened, sub: "analytics" },
+                { label: "Clicked", value: smtpTotals.clicked, sub: "analytics" },
+                { label: "Bounced", value: smtpTotals.bounced, sub: "analytics" },
+              ].map((k) => (
+                <article
+                  key={k.label}
+                  className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ring-blue-200"
+                >
+                  <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
+                    {k.label}
+                  </p>
+                  <p className="text-[24px] font-[800] leading-none text-blue-600">
+                    {emailCardAnalyticsLoading ? "…" : k.value}
+                  </p>
+                  <p className="text-[11px] text-gray-400">{k.sub}</p>
+                </article>
+              ))}
+            </section>
           )}
 
           {/* Charts */}
