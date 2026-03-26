@@ -707,6 +707,9 @@ export const fetchInboundCallHistory = () => async (dispatch) => {
       duration: r.duration        ?? r.call_duration ?? "0",
       status:   (r.call_status    ?? r.status        ?? "").toUpperCase(),
       meeting:  r.meeting_scheduled ?? r.meeting     ?? r.is_meeting_scheduled ?? false,
+      transcript: r.call_transcript ?? r.transcript ?? "",
+      summary: r.call_summary ?? r.summary ?? "",
+      recording: r.recording_url ?? null,
     }));
     dispatch({ type: INBOUND_HISTORY_SUCCESS, payload: normalized });
   } catch (err) {
