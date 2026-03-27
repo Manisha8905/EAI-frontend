@@ -53,6 +53,20 @@ input, textarea, select, button {
   letter-spacing: inherit;
 }
 
+/* Remove browser default black focus outline across app and use soft custom focus */
+*:focus {
+  outline: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.22);
+  border-color: #a5b4fc;
+}
+
 /* ── Pointer cursor on all interactive elements ── */
 button,
 [role="button"],

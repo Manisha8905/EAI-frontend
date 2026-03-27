@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -23,6 +23,8 @@ import {
   RefreshCw,
   ShieldAlert,
 } from "lucide-react";
+import axiosInstance from "../../Redux/axiosInstance";
+import { toast } from "react-toastify";
 
 const CHANNEL_DATA = {
   webchat: {
@@ -95,6 +97,167 @@ const RANGE_OPTIONS = [
 
 const normalizeRole = (role) => String(role ?? "").toUpperCase().replace(/[\s_-]/g, "");
 
+const toNum = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getFirstNumber = (obj, keys, fallback = 0) => {
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return toNum(value, fallback);
+    }
+  }
+  return fallback;
+};
+
+const mapNameValueArray = (arr, nameKeyCandidates, valueKeyCandidates) => {
+  if (!Array.isArray(arr)) return [];
+
+  return arr
+    .map((item) => {
+      const name =
+        nameKeyCandidates.map((k) => item?.[k]).find((v) => typeof v === "string" && v.trim()) ?? "";
+      const value = getFirstNumber(item, valueKeyCandidates, 0);
+      if (!name) return null;
+      return { name, value };
+    })
+    .filter(Boolean);
+};
+
+const mapEscalationTrend = (arr) => {
+  if (!Array.isArray(arr)) return [];
+
+  return arr
+    .map((item, index) => {
+      const month =
+        item?.month ?? item?.label ?? item?.period ?? item?.name ?? `P${index + 1}`;
+      const escalated = getFirstNumber(item, ["escalated", "escalated_chats", "escalatedChats"], 0);
+      const normal = getFirstNumber(item, ["normal", "non_escalated", "nonEscalated", "non_escalated_chats"], 0);
+      return {
+        month,
+        escalated,
+        normal,
+      };
+    })
+    .filter((point) => point.month);
+};
+
+const mapStatusPie = (arr) => {
+  const colorByLabel = {
+    resolved: "#0ea95a",
+    waiting: "#f59e0b",
+    escalated: "#7c3aed",
+  };
+
+  if (!Array.isArray(arr)) return [];
+
+  return arr
+    .map((item) => {
+      const rawName = item?.name ?? item?.label ?? item?.status ?? "";
+      if (!rawName) return null;
+      const name = String(rawName);
+      const value = getFirstNumber(item, ["value", "count", "total"], 0);
+      const normalized = name.toLowerCase();
+      return {
+        name,
+        value,
+        color: item?.color ?? colorByLabel[normalized] ?? "#94a3b8",
+      };
+    })
+    .filter(Boolean);
+};
+
+const mapStatsResponse = (payload, fallback) => {
+  const root = payload?.webchat ?? payload?.data?.webchat ?? payload?.stats?.webchat ?? payload?.data ?? payload?.stats ?? payload ?? {};
+  const cards = root?.cards ?? root;
+
+  const total = getFirstNumber(cards, ["total", "total_chats", "totalChats", "total_conversations"], fallback.cards.total);
+  const open = getFirstNumber(cards, ["open", "open_chats", "openChats"], fallback.cards.open);
+  const closed = getFirstNumber(cards, ["closed", "closed_chats", "closedChats"], fallback.cards.closed);
+  const avgMessages = getFirstNumber(
+    cards,
+    ["avgMessages", "avg_messages", "avg_messages_per_chat", "average_messages_per_chat"],
+    fallback.cards.avgMessages,
+  );
+
+  const openClosed = mapNameValueArray(
+    root?.openClosed ?? root?.open_closed ?? root?.open_closed_split,
+    ["name", "label", "status"],
+    ["value", "count", "total"],
+  );
+
+  const assignedSplit = mapNameValueArray(
+    root?.assignedSplit ?? root?.assigned_split ?? root?.assignment_split,
+    ["name", "label", "status"],
+    ["value", "count", "total"],
+  );
+
+  const escalationTrend = mapEscalationTrend(
+    root?.escalationTrend ?? root?.escalation_trend ?? root?.escalation_over_time,
+  );
+
+  const statusPie = mapStatusPie(root?.statusPie ?? root?.status_pie ?? root?.status_mix);
+
+  const computedOpenClosed =
+    openClosed.length > 0
+      ? openClosed
+      : [
+          { name: "Open", value: open },
+          { name: "Closed", value: closed },
+        ];
+
+  const computedAssignedSplit =
+    assignedSplit.length > 0
+      ? assignedSplit
+      : [
+          {
+            name: "Assigned",
+            value: getFirstNumber(root, ["assigned", "assigned_chats", "assignedChats"], Math.max(total - open, 0)),
+          },
+          {
+            name: "Unassigned",
+            value: getFirstNumber(root, ["unassigned", "unassigned_chats", "unassignedChats"], open),
+          },
+        ];
+
+  const computedStatusPie =
+    statusPie.length > 0
+      ? statusPie
+      : [
+          {
+            name: "Resolved",
+            value: getFirstNumber(root, ["resolved", "resolved_chats", "resolvedChats"], closed),
+            color: "#0ea95a",
+          },
+          {
+            name: "Waiting",
+            value: getFirstNumber(root, ["waiting", "waiting_chats", "waitingChats"], open),
+            color: "#f59e0b",
+          },
+          {
+            name: "Escalated",
+            value: getFirstNumber(root, ["escalated", "escalated_chats", "escalatedChats"], 0),
+            color: "#7c3aed",
+          },
+        ];
+
+  return {
+    updatedAt: root?.updatedAt ?? root?.updated_at ?? new Date().toLocaleTimeString(),
+    cards: {
+      total,
+      open,
+      closed,
+      avgMessages,
+    },
+    openClosed: computedOpenClosed,
+    assignedSplit: computedAssignedSplit,
+    escalationTrend: escalationTrend.length > 0 ? escalationTrend : fallback.escalationTrend,
+    statusPie: computedStatusPie,
+  };
+};
+
 function StatCard({ icon: Icon, title, value, sub, gradient, badge }) {
   return (
     <article className={`rounded-2xl p-5 text-white shadow-lg ${gradient}`}>
@@ -114,17 +277,63 @@ function StatCard({ icon: Icon, title, value, sub, gradient, badge }) {
 }
 
 export default function SupportChatbotMetrics() {
-  const [activeRange, setActiveRange] = useState("this_year");
+  const [selectedRange, setSelectedRange] = useState("");
+  const [data, setData] = useState(CHANNEL_DATA.webchat);
+  const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   const role = typeof window === "undefined" ? "" : normalizeRole(localStorage.getItem("userRole"));
   const canAccessSupportMetrics = role === "SUPPORT" || role === "MANAGER";
 
-  const data = CHANNEL_DATA.webchat;
+  const fetchMetrics = useCallback(
+    async ({ isManualRefresh = false } = {}) => {
+      if (isManualRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setErrorText("");
+
+      try {
+        const params = { channel: "webchat" };
+        if (selectedRange) {
+          params.range = selectedRange;
+        }
+
+        const res = await axiosInstance.get("/api/chatbot/stats", {
+          params,
+        });
+
+        setData(mapStatsResponse(res?.data, CHANNEL_DATA.webchat));
+        const successMessage =
+          res?.data?.message ||
+          res?.data?.detail ||
+          "Chatbot stats loaded successfully.";
+        toast.success(successMessage);
+      } catch (error) {
+        setErrorText("Unable to load latest stats. Showing fallback data.");
+        setData(CHANNEL_DATA.webchat);
+        const apiErrorMessage =
+          error?.response?.data?.message ||
+          error?.response?.data?.detail ||
+          "Failed to load chatbot stats.";
+        toast.error(apiErrorMessage);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [selectedRange],
+  );
+
+  useEffect(() => {
+    fetchMetrics();
+  }, [fetchMetrics]);
 
   const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 700);
+    fetchMetrics({ isManualRefresh: true });
   };
 
   if (!canAccessSupportMetrics) {
@@ -149,16 +358,16 @@ export default function SupportChatbotMetrics() {
         <div>
           <h1 className="text-[24px] font-[800] leading-none text-[#0b1b3b]">Web Chat Metrics</h1>
           <p className="mt-2 text-[14px] text-gray-500">Last updated: {data.updatedAt}</p>
+          {/* {loading ? <p className="mt-1 text-[13px] text-slate-500">Loading latest stats...</p> : null}
+          {errorText ? <p className="mt-1 text-[13px] text-amber-600">{errorText}</p> : null} */}
         </div>
         <div className="flex items-center gap-3">
-          {/* <span className="inline-flex items-center rounded-xl border border-gray-200 bg-[#dbe4ff] px-4 py-2 text-[14px] font-[600] text-[#1e40af]">
-            Web Chat
-          </span> */}
           <select
-            value={activeRange}
-            onChange={(e) => setActiveRange(e.target.value)}
+            value={selectedRange}
+            onChange={(e) => setSelectedRange(e.target.value)}
             className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[14px] text-gray-600"
           >
+            <option value="">All Data</option>
             {RANGE_OPTIONS.map((opt) => (
               <option key={opt.key} value={opt.key}>{opt.label}</option>
             ))}
