@@ -1,5 +1,5 @@
-import ModuleDashboard from "../Componets/Dashboard/ModuleDashboard";
+import SupportChatbotMetrics from "../Componets/Dashboard/SupportChatbotMetrics";
 
 export default function Page() {
-  return <ModuleDashboard moduleName="Customer Support" />;
+  return <SupportChatbotMetrics />;
 }

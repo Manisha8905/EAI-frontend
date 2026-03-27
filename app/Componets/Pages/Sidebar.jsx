@@ -151,7 +151,7 @@ const AnalyticsIcon = () => (
 );
 
 /* ─── Section config ──────────────────────────────────────────── */
-const sections = [
+const SALES_SECTIONS = [
   {
     key: "ai",
     label: "AI SDR",
@@ -199,6 +199,20 @@ const sections = [
   },
 ];
 
+const SUPPORT_SECTIONS = [
+  {
+    key: "support_chatbot",
+    label: "AI Chatbot",
+    subtitle: "Web & WhatsApp Chat",
+    icon: null,
+    activeRoutes: ["/support", "/support/reporting"],
+    links: [
+      { href: "/support", label: "Metrics", img: Metrics, exact: true },
+      { href: "/support/reporting", label: "Reporting", img: Reporting, exact: true },
+    ],
+  },
+];
+
 /* ─── Role helper ─────────────────────────────────────────────── */
 const isAdmin = (role) => {
   const r = (role || "").toLowerCase().replace(/[\s_-]/g, "");
@@ -232,17 +246,18 @@ const Sidebar = () => {
 
   /* derive visible sections based on role */
   const normalizedRole = storedRole || (auth?.role || "").toUpperCase().replace(/[\s_-]/g, "");
+  const roleSections = normalizedRole === "SUPPORT" ? SUPPORT_SECTIONS : SALES_SECTIONS;
   const allowedKeys = ROLE_SECTION_KEYS[normalizedRole] ?? null; // null = all sections
   const visibleSections = allowedKeys
-    ? sections.filter((s) => allowedKeys.includes(s.key))
-    : sections;
+    ? roleSections.filter((s) => allowedKeys.includes(s.key))
+    : roleSections;
   /* Auto-open section that owns the current route */
   useEffect(() => {
-    const matched = sections.find((s) =>
+    const matched = roleSections.find((s) =>
       s.activeRoutes.some((r) => pathname.startsWith(r)),
     );
     if (matched) setOpenSection(matched.key);
-  }, [pathname]);
+  }, [pathname, roleSections]);
 
   useEffect(() => {
     const role = localStorage.getItem("userRole");
@@ -304,7 +319,7 @@ const Sidebar = () => {
       {/* ── Header ── */}
       <div className="px-5 pt-5 pb-4 border-b border-gray-100">
         <h2 className="font-poppins text-[14px] font-[700] text-[#0a0a0a]">
-          Sales
+          {normalizedRole === "SUPPORT" ? "Customer Support" : "Sales"}
         </h2>
         <p className="font-inter text-[12px] text-gray-500 mt-0.5">
           Available applications
@@ -360,7 +375,9 @@ const Sidebar = () => {
                 <Accordion open={isOpen}>
                   <div className="ml-3 mt-0.5 mb-1 space-y-0.5 border-l-2 border-gray-100 pl-3">
                     {sec.links.map((link) => {
-                      const linkActive = pathname.startsWith(link.href);
+                      const linkActive = link.exact
+                        ? pathname === link.href
+                        : pathname.startsWith(link.href);
                       const LIcon = link.icon;
                       return (
                         <Link

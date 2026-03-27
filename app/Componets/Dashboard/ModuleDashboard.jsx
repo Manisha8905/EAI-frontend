@@ -1003,7 +1003,7 @@ export default function ModuleDashboard({
           </ChartCard>
 
           {/* IB-3 ── Meetings Scheduled by Campaign */}
-          <ChartCard title="Meetings Scheduled" subtitle="Total calls vs meetings per campaign" onClick={() => router.push("/metrics/reporting")}>
+          <ChartCard title="Meetings Scheduled" subtitle="Total calls vs meetings per campaign" onClick={() => router.push("/metrics/reporting?section=history")}>
             <div className="h-[240px] w-full">
               {inboundMeetingCampaign ? (
                 <ResponsiveContainer width="100%" height="100%">

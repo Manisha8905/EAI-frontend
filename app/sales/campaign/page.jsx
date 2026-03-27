@@ -2906,12 +2906,17 @@ export default function CampaignPage() {
         return ms && ss;
       });
       // ── Email Stats derived from email history data ──
-      const emailHistoryApiCount = emailHistoryTotalCount || 0;
-      const ehSent     = Math.max(emailHistoryData.filter((r) => r.status === "SENT").length, emailHistoryApiCount);
+      const isEmailSentStatus = (status) => {
+        const s = String(status ?? "").trim().toUpperCase();
+        return ["SENT", "DELIVERED", "OPENED", "CLICKED", "REPLIED"].includes(s);
+      };
+      const ehSent     = emailHistoryData.filter((r) => isEmailSentStatus(r.status)).length;
       const ehNotSentTotal = emailHistoryData.filter((r) => r.status === "NOT_SENT").length;
       const ehFailed   = emailHistoryData.filter((r) => r.status === "FAILED").length;
       const ehPending  = emailHistoryData.filter((r) => r.status === "PENDING").length;
       const ehClicked  = emailHistoryData.filter((r) => r.clicked).length;
+      const ehOpened   = emailHistoryData.filter((r) => ["OPENED", "CLICKED"].includes(String(r.status ?? "").toUpperCase())).length;
+      const ehBounced  = emailHistoryData.filter((r) => String(r.status ?? "").toUpperCase() === "BOUNCED").length;
       const ehMeetings = emailHistoryData.filter((r) => r.meeting).length;
       const ehSkipped  = emailHistoryData.filter((r) => r.skippable || !!r.skip_reason).length;
       const ehNotSentOther = emailHistoryData.filter(
@@ -2926,13 +2931,13 @@ export default function CampaignPage() {
       }, 0);
       const mergeCount = (historyCount, ...apiVals) => Math.max(Number(historyCount) || 0, maxNum(...apiVals));
 
-      const statSent = mergeCount(ehSent, es.emails_sent, es.total_sent, es.sent, es.sent_count, es.total_count, c.emailsSent);
-      const statFailed = mergeCount(ehFailed, es.emails_failed, es.failed, es.failed_count, es.total_count, c.emailsFailed);
+      const statSent = mergeCount(ehSent, es.emails_sent, es.total_sent, es.sent, es.sent_count, c.emailsSent);
+      const statFailed = mergeCount(ehFailed, es.emails_failed, es.failed, es.failed_count, c.emailsFailed);
       const statPending = mergeCount(ehPending, es.emails_pending, es.pending, es.pending_count, c.emailsPending);
       const statClicked = mergeCount(ehClicked, es.emails_clicked, es.clicked, es.clicked_count);
       const statMeetings = mergeCount(ehMeetings, es.meetings_booked, es.meetings, es.meeting_count, c.meetings);
-      const statSkipped = mergeCount(ehSkipped, es.emails_skipped, es.skipped, es.skipped_count, es.total_count);
-      const statNotSentTotal = mergeCount(ehNotSentTotal, es.emails_not_sent, es.not_sent, es.not_sent_count, es.total_count);
+      const statSkipped = mergeCount(ehSkipped, es.emails_skipped, es.skipped, es.skipped_count);
+      const statNotSentTotal = mergeCount(ehNotSentTotal, es.emails_not_sent, es.not_sent, es.not_sent_count);
       const statNotSentOther = Math.max(mergeCount(ehNotSentOther, es.emails_not_sent_other, es.not_sent_other), statNotSentTotal - statSkipped, 0);
       const statTotalEmails = mergeCount(
         ehTotal,
@@ -2942,7 +2947,7 @@ export default function CampaignPage() {
         es.total_count,
         statSent + statNotSentTotal + statFailed + statPending + statSkipped,
       );
-      const statOpened  = es.emails_opened  ?? es.opened ?? 0;
+      const statOpened  = mergeCount(ehOpened, es.emails_opened, es.opened, es.opened_count);
       const statOpenRate= es.open_rate != null
         ? Math.round(Number(es.open_rate))
         : (statSent > 0 ? Math.round((statOpened / statSent) * 100) : 0);
@@ -2981,26 +2986,31 @@ export default function CampaignPage() {
           analyticsCampaign?.emails_sent,
           smtpSummary?.total_sent,
           smtpSummary?.emails_sent,
+          statSent,
         ),
         delivered: smtpMetricValue(
           analyticsCampaign?.delivered,
           smtpSummary?.total_delivered,
           smtpSummary?.delivered,
+          statSent,
         ),
         opened: smtpMetricValue(
           analyticsCampaign?.opened,
           smtpSummary?.total_opened,
           smtpSummary?.opened,
+          statOpened,
         ),
         clicked: smtpMetricValue(
           analyticsCampaign?.clicked,
           smtpSummary?.total_clicked,
           smtpSummary?.clicked,
+          statClicked,
         ),
         bounced: smtpMetricValue(
           analyticsCampaign?.bounced,
           smtpSummary?.total_bounced,
           smtpSummary?.bounced,
+          ehBounced,
         ),
       };
       const useSmtpCards = isSmtpCampaign && !!analyticsCampaign;

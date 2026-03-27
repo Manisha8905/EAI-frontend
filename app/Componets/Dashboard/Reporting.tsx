@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import {
   BarChart,
@@ -23,28 +23,29 @@ import {
   Calendar,
   Target,
   Clock,
+  Eye,
+  X,
 } from "lucide-react";
 import { fetchInboundCallHistory } from "../../Redux/actions/authActions";
 
-/* ─── Status badge styles ────────────────────────────────────── */
 const STATUS_STYLES: Record<string, string> = {
   COMPLETED: "bg-green-50 text-green-700 border border-green-200",
-  ANSWERED:  "bg-green-50 text-green-700 border border-green-200",
-  MISSED:    "bg-red-50 text-red-600 border border-red-200",
-  FAILED:    "bg-red-50 text-red-600 border border-red-200",
+  ANSWERED: "bg-green-50 text-green-700 border border-green-200",
+  MISSED: "bg-red-50 text-red-600 border border-red-200",
+  FAILED: "bg-red-50 text-red-600 border border-red-200",
   IN_PROGRESS: "bg-blue-50 text-blue-600 border border-blue-200",
-  PENDING:   "bg-amber-50 text-amber-700 border border-amber-200",
-};
-const STATUS_DOT: Record<string, string> = {
-  COMPLETED: "bg-green-500",
-  ANSWERED:  "bg-green-500",
-  MISSED:    "bg-red-500",
-  FAILED:    "bg-red-500",
-  IN_PROGRESS: "bg-blue-500 animate-pulse",
-  PENDING:   "bg-amber-400",
+  PENDING: "bg-amber-50 text-amber-700 border border-amber-200",
 };
 
-/* ─── Custom tooltips ────────────────────────────────────────── */
+const STATUS_DOT: Record<string, string> = {
+  COMPLETED: "bg-green-500",
+  ANSWERED: "bg-green-500",
+  MISSED: "bg-red-500",
+  FAILED: "bg-red-500",
+  IN_PROGRESS: "bg-blue-500 animate-pulse",
+  PENDING: "bg-amber-400",
+};
+
 const BarTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -69,18 +70,24 @@ const LineTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-/* ─── Donut ──────────────────────────────────────────────────── */
 function DonutChart({ rate }: { rate: number }) {
   return (
     <div className="relative flex items-center justify-center">
       <ResponsiveContainer width={180} height={180}>
         <PieChart>
           <Pie
-            data={[{ name: "With Meeting", value: rate }, { name: "No Meeting", value: 100 - rate }]}
-            cx="50%" cy="50%"
-            innerRadius={55} outerRadius={80}
-            startAngle={90} endAngle={-270}
-            dataKey="value" strokeWidth={0}
+            data={[
+              { name: "With Meeting", value: rate },
+              { name: "No Meeting", value: 100 - rate },
+            ]}
+            cx="50%"
+            cy="50%"
+            innerRadius={55}
+            outerRadius={80}
+            startAngle={90}
+            endAngle={-270}
+            dataKey="value"
+            strokeWidth={0}
           >
             <Cell fill="#7c3aed" />
             <Cell fill="#ede9fe" />
@@ -95,7 +102,6 @@ function DonutChart({ rate }: { rate: number }) {
   );
 }
 
-/* ─── KPI card ───────────────────────────────────────────────── */
 function KpiCard({ gradient, shadow, icon: Icon, label, value }: any) {
   return (
     <article className={`rounded-2xl ${gradient} ${shadow} p-5 text-white`}>
@@ -110,30 +116,48 @@ function KpiCard({ gradient, shadow, icon: Icon, label, value }: any) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════════
-   COMPONENT
-════════════════════════════════════════════════════════════════ */
 export default function Reporting() {
-  const router   = useRouter();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const dispatch = useDispatch<any>();
 
   const { inboundCallHistory = [], inboundHistoryLoading } = useSelector(
-    (state: any) => state.admin
+    (state: any) => state.admin,
   );
+
+  const tableRef = useRef<HTMLElement | null>(null);
+  const [selectedTranscript, setSelectedTranscript] = useState<any>(null);
 
   useEffect(() => {
     dispatch(fetchInboundCallHistory());
   }, [dispatch]);
 
-  /* ── Derive KPIs ── */
-  const totalCalls     = inboundCallHistory.length;
-  const meetingsCount  = inboundCallHistory.filter((r: any) => r.meeting).length;
-  const meetingRate    = totalCalls ? Math.round((meetingsCount / totalCalls) * 100) : 0;
+  useEffect(() => {
+    if (searchParams.get("section") !== "history") return;
+    const id = setTimeout(() => {
+      tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => clearTimeout(id);
+  }, [searchParams]);
+
+  const getTranscriptText = (row: any) =>
+    row?.transcript ?? row?.summary ?? row?.call_summary ?? row?.notes ?? "";
+
+  const getDurationText = (row: any) => {
+    const raw = row?.duration;
+    if (raw === null || raw === undefined || raw === "") return "0 min";
+    const numeric = Number(raw);
+    if (Number.isNaN(numeric)) return `${raw}`;
+    return `${numeric} min`;
+  };
+
+  const totalCalls = inboundCallHistory.length;
+  const meetingsCount = inboundCallHistory.filter((r: any) => r.meeting).length;
+  const meetingRate = totalCalls ? Math.round((meetingsCount / totalCalls) * 100) : 0;
   const completedCalls = inboundCallHistory.filter(
-    (r: any) => r.status === "COMPLETED" || r.status === "ANSWERED"
+    (r: any) => r.status === "COMPLETED" || r.status === "ANSWERED",
   ).length;
 
-  /* ── Bar chart: calls by status ── */
   const statusMap: Record<string, number> = {};
   for (const r of inboundCallHistory) {
     const s = r.status || "UNKNOWN";
@@ -141,14 +165,13 @@ export default function Reporting() {
   }
   const barData = Object.entries(statusMap).map(([x, v]) => ({ x, v }));
 
-  /* ── Line chart: monthly calls vs meetings ── */
   const monthMap: Record<string, { calls: number; meetings: number }> = {};
   for (const r of inboundCallHistory) {
     const raw = r.dateTime;
-    let label = "—";
-    if (raw && raw !== "—") {
+    let label = "-";
+    if (raw && raw !== "-") {
       const d = new Date(raw);
-      if (!isNaN(d.getTime())) {
+      if (!Number.isNaN(d.getTime())) {
         label = d.toLocaleString("default", { month: "short" });
       }
     }
@@ -164,8 +187,6 @@ export default function Reporting() {
 
   return (
     <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-6">
-
-      {/* ── Toolbar ── */}
       <div className="mb-5 flex items-center gap-3">
         <button
           type="button"
@@ -181,16 +202,14 @@ export default function Reporting() {
         </div>
       </div>
 
-      {/* ── Loading skeleton ── */}
       {inboundHistoryLoading && (
         <div className="flex items-center justify-center py-24 text-gray-400 text-[14px] animate-pulse">
-          Loading call history…
+          Loading call history...
         </div>
       )}
 
       {!inboundHistoryLoading && (
         <>
-          {/* ── KPI cards ── */}
           <section className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
               gradient="bg-gradient-to-br from-[#6366f1] to-[#8b5cf6]"
@@ -222,10 +241,7 @@ export default function Reporting() {
             />
           </section>
 
-          {/* ── Charts row ── */}
           <section className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
-
-            {/* Bar: calls by status */}
             <article className="lg:col-span-1 rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
               <h3 className="text-[14px] font-semibold text-gray-900 mb-0.5">Calls by Status</h3>
               <p className="text-[12px] text-gray-400 mb-4">Distribution across call outcomes</p>
@@ -248,7 +264,6 @@ export default function Reporting() {
               )}
             </article>
 
-            {/* Line: monthly calls vs meetings */}
             <article className="lg:col-span-1 rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
               <h3 className="text-[14px] font-semibold text-gray-900 mb-0.5">Calls vs Meetings</h3>
               <p className="text-[12px] text-gray-400 mb-4">Monthly trend</p>
@@ -262,7 +277,7 @@ export default function Reporting() {
                       <XAxis dataKey="x" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={28} />
                       <Tooltip content={<LineTooltip />} />
-                      <Line name="Calls"    type="monotone" dataKey="calls"    stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: "#6366f1" }} activeDot={{ r: 5 }} />
+                      <Line name="Calls" type="monotone" dataKey="calls" stroke="#6366f1" strokeWidth={2} dot={{ r: 3, fill: "#6366f1" }} activeDot={{ r: 5 }} />
                       <Line name="Meetings" type="monotone" dataKey="meetings" stroke="#22c55e" strokeWidth={2} dot={{ r: 3, fill: "#22c55e" }} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -274,7 +289,6 @@ export default function Reporting() {
               )}
             </article>
 
-            {/* Donut: meeting conversion */}
             <article className="lg:col-span-1 rounded-2xl bg-white border border-gray-100 shadow-sm p-5 flex flex-col items-center justify-center">
               <h3 className="text-[14px] font-semibold text-gray-900 mb-0.5 self-start">Meeting Conversion</h3>
               <p className="text-[12px] text-gray-400 mb-4 self-start">Calls that resulted in a meeting</p>
@@ -286,8 +300,7 @@ export default function Reporting() {
             </article>
           </section>
 
-          {/* ── Call history table ── */}
-          <section className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+          <section ref={tableRef} className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="text-[14px] font-semibold text-gray-900">Inbound Call History</h3>
@@ -299,7 +312,7 @@ export default function Reporting() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
-                    {["Name", "Phone", "Company", "Date / Time", "Duration", "Status", "Meeting"].map((h) => (
+                    {["Name", "Phone", "Company", "Date / Time", "Duration", "Status", "Meeting", "Actions"].map((h) => (
                       <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">
                         {h}
                       </th>
@@ -309,7 +322,7 @@ export default function Reporting() {
                 <tbody>
                   {inboundCallHistory.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-5 py-12 text-center text-[13px] text-gray-400">
+                      <td colSpan={8} className="px-5 py-12 text-center text-[13px] text-gray-400">
                         No call history available.
                       </td>
                     </tr>
@@ -326,7 +339,7 @@ export default function Reporting() {
                           <td className="px-5 py-3.5">
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-[600] whitespace-nowrap ${STATUS_STYLES[statusKey] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>
                               <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${STATUS_DOT[statusKey] ?? "bg-gray-400"}`} />
-                              {row.status || "—"}
+                              {row.status || "-"}
                             </span>
                           </td>
                           <td className="px-5 py-3.5">
@@ -335,8 +348,18 @@ export default function Reporting() {
                                 <Calendar className="h-3 w-3" /> Yes
                               </span>
                             ) : (
-                              <span className="text-[11px] text-gray-400">—</span>
+                              <span className="text-[11px] text-gray-400">-</span>
                             )}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTranscript(row)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-[#1d4ed8] px-3 py-1.5 text-[11px] font-[600] text-white hover:bg-blue-700 transition"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </button>
                           </td>
                         </tr>
                       );
@@ -358,10 +381,64 @@ export default function Reporting() {
               </button>
             </div>
           </section>
+
+          {selectedTranscript && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+              onClick={() => setSelectedTranscript(null)}
+            >
+              <div
+                className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+                  <h2 className="text-[16px] font-[700] text-gray-900">Call Transcript</h2>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTranscript(null)}
+                    className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-5 px-6 py-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {[
+                      ["Lead Name", selectedTranscript.name ?? "-"],
+                      ["Company", selectedTranscript.company ?? "-"],
+                      ["Date & Time", selectedTranscript.dateTime ?? "-"],
+                      ["Duration", getDurationText(selectedTranscript)],
+                    ].map(([label, value]) => (
+                      <div key={String(label)}>
+                        <p className="mb-0.5 text-[11px] font-[600] uppercase tracking-wide text-blue-500">
+                          {label}
+                        </p>
+                        <p className="whitespace-pre-line text-[13px] font-[500] text-gray-800">{String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-[12px] font-[600] text-gray-700">Transcript</p>
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                      {getTranscriptText(selectedTranscript) ? (
+                        <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-gray-600">
+                          {getTranscriptText(selectedTranscript)}
+                        </p>
+                      ) : (
+                        <p className="text-[12px] italic text-gray-400">
+                          No transcript available for this call.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </main>
   );
 }
-
-
