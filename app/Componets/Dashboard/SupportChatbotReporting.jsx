@@ -5,15 +5,16 @@ import {
   AlertCircle,
   Bot,
   CalendarDays,
-  ChevronDown,
+  Check,
+  ClipboardList,
   Download,
   MessageCircle,
-  MoreVertical,
+  Plus,
   Search,
   ShieldAlert,
-  UserCog,
-  ClipboardList,
   User,
+  UserCog,
+  X,
 } from "lucide-react";
 
 const normalizeRole = (role) =>
@@ -111,12 +112,29 @@ const CONVERSATION_TABS = [
   "Closed Chats",
 ];
 
-const ASSIGNEE_OPTIONS = [
-  "Kimberly Hubert-Mejia",
-  "David Benson",
-  "Chris Hill",
-  "Tanisha Mills",
-  "Eliza Chan",
+const AGENTS = [
+  { initials: "SC", name: "Sarah Chen", status: "Online" },
+  { initials: "MJ", name: "Mike Johnson", status: "Online" },
+  { initials: "ED", name: "Emily Davis", status: "Offline" },
+  { initials: "LA", name: "Lisa Anderson", status: "Online" },
+  { initials: "JW", name: "James Wilson", status: "Online" },
+];
+
+const INITIAL_RULES = [
+  {
+    id: "rule-1",
+    number: 1,
+    text: "If customer asks about refund policy, always mention 30-day money-back guarantee",
+    createdBy: "Sarah Chen",
+    createdAt: "3/20/2026, 04:00 PM",
+  },
+  {
+    id: "rule-2",
+    number: 2,
+    text: "Always greet the customer by name when available.",
+    createdBy: "Mike Johnson",
+    createdAt: "3/21/2026, 10:30 AM",
+  },
 ];
 
 function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
@@ -159,15 +177,18 @@ function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
 }
 
 export default function SupportChatbotReporting() {
-  const [activeApp, setActiveApp] = useState("webchat");
+  const [activeApp] = useState("webchat");
   const [search, setSearch] = useState("");
   const [activeConversationTab, setActiveConversationTab] =
     useState("Open Chats");
   const [selectedConversationId, setSelectedConversationId] =
     useState("conv-2");
-  const [selectedConversationIds, setSelectedConversationIds] = useState([]);
-  const [selectedAssignee, setSelectedAssignee] = useState("Eliza Chan");
-  const [isMessageMenuOpen, setIsMessageMenuOpen] = useState(false);
+  const [isAgentsOpen, setIsAgentsOpen] = useState(false);
+  const [isBusinessRulesOpen, setIsBusinessRulesOpen] = useState(false);
+  const [isAddRuleOpen, setIsAddRuleOpen] = useState(false);
+  const [newRuleText, setNewRuleText] = useState("");
+  const [isAssignedToast, setIsAssignedToast] = useState(false);
+  const [businessRules, setBusinessRules] = useState(INITIAL_RULES);
 
   const role =
     typeof window === "undefined"
@@ -182,32 +203,25 @@ export default function SupportChatbotReporting() {
       c.lead.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const allVisibleSelected =
-    visibleConversations.length > 0 &&
-    visibleConversations.every((c) => selectedConversationIds.includes(c.id));
-  const hasSelections = selectedConversationIds.length > 0;
-
-  const toggleConversationSelection = (conversationId) => {
-    setSelectedConversationIds((prev) =>
-      prev.includes(conversationId)
-        ? prev.filter((id) => id !== conversationId)
-        : [...prev, conversationId],
-    );
+  const handleAssign = () => {
+    setIsAssignedToast(true);
+    setTimeout(() => setIsAssignedToast(false), 3000);
   };
 
-  const toggleSelectAllVisible = () => {
-    if (allVisibleSelected) {
-      setSelectedConversationIds((prev) =>
-        prev.filter((id) => !visibleConversations.some((c) => c.id === id)),
-      );
-      return;
-    }
-
-    setSelectedConversationIds((prev) => {
-      const ids = new Set(prev);
-      visibleConversations.forEach((c) => ids.add(c.id));
-      return Array.from(ids);
-    });
+  const handleAddRule = () => {
+    if (!newRuleText.trim()) return;
+    setBusinessRules((prev) => [
+      ...prev,
+      {
+        id: `rule-${Date.now()}`,
+        number: prev.length + 1,
+        text: newRuleText.trim(),
+        createdBy: "You",
+        createdAt: new Date().toLocaleString(),
+      },
+    ]);
+    setNewRuleText("");
+    setIsAddRuleOpen(false);
   };
 
   if (!canAccess) {
@@ -230,34 +244,8 @@ export default function SupportChatbotReporting() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-6">
-      {/* <section className="mb-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-6 py-4 shadow-sm">
-        <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white p-1">
-          <button
-            type="button"
-            onClick={() => setActiveApp("webchat")}
-            className={`rounded-lg px-5 py-2 text-[14px] font-[600] ${
-              activeApp === "webchat"
-                ? "bg-[#dbe4ff] text-[#1e40af]"
-                : "text-gray-500"
-            }`}
-          >
-            Web Chat
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveApp("whatsapp")}
-            className={`rounded-lg px-5 py-2 text-[14px] font-[600] ${
-              activeApp === "whatsapp"
-                ? "bg-[#dbe4ff] text-[#1e40af]"
-                : "text-gray-500"
-            }`}
-          >
-            WhatsApp
-          </button>
-        </div>
-      </section> */}
-
+    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-6">
+      {/* Summary Cards */}
       <section className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           title="Total Conversations"
@@ -286,8 +274,9 @@ export default function SupportChatbotReporting() {
         />
       </section>
 
+      {/* Toolbar */}
       <section className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[320px] flex-1">
+        <div className="relative w-full min-w-0 flex-1 sm:min-w-[240px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
@@ -297,67 +286,94 @@ export default function SupportChatbotReporting() {
             className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-3 text-[14px] text-gray-700 outline-none focus:border-[#a78bfa]"
           />
         </div>
-        <button className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-3 text-[14px] font-[600] text-[#253b69]">
-          <UserCog className="h-4 w-4" /> Agents
-        </button>
-        <button className="inline-flex items-center gap-2 rounded-xl border border-[#8b5cf6] bg-white px-5 py-3 text-[14px] font-[600] text-[#6d28d9]">
-          <ClipboardList className="h-4 w-4" /> Business Rules List
-        </button>
-        <button className="inline-flex items-center gap-2 rounded-xl bg-[#4f46e5] px-5 py-3 text-[14px] font-[700] text-white">
-          <Download className="h-4 w-4" /> Export CSV
-        </button>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+          {/* Agents button + dropdown */}
+          <div className="relative flex-1 sm:flex-none">
+            <button
+              type="button"
+              onClick={() => setIsAgentsOpen((p) => !p)}
+              className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border bg-white px-4 py-3 text-[14px] font-[600] text-[#253b69] sm:px-5 ${isAgentsOpen ? "border-[#7c3aed]" : "border-gray-200"}`}
+            >
+              <UserCog className="h-4 w-4" /> Agents
+            </button>
+            {isAgentsOpen && (
+              <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-[300px] rounded-2xl border border-gray-200 bg-white shadow-xl">
+                <div className="flex items-center justify-between px-5 py-4">
+                  <h3 className="text-[15px] font-[700] text-[#061a43]">
+                    Team Agents
+                  </h3>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#7c3aed] px-4 py-2 text-[13px] font-[600] text-white"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Agent
+                  </button>
+                </div>
+                <div className="max-h-[260px] overflow-y-auto px-3 pb-3">
+                  {AGENTS.map((agent) => (
+                    <div
+                      key={agent.name}
+                      className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-[#f5f0ff]"
+                    >
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-[13px] font-[700] text-white">
+                        {agent.initials}
+                      </span>
+                      <div>
+                        <p className="text-[14px] font-[600] text-[#061a43]">
+                          {agent.name}
+                        </p>
+                        <p className="flex items-center gap-1.5 text-[13px] text-gray-500">
+                          <span
+                            className={`h-2 w-2 rounded-full ${agent.status === "Online" ? "bg-green-500" : "bg-gray-400"}`}
+                          />
+                          {agent.status}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Business Rules List button */}
+          <button
+            type="button"
+            onClick={() => setIsBusinessRulesOpen(true)}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#8b5cf6] bg-white px-4 py-3 text-[14px] font-[600] text-[#6d28d9] sm:flex-none sm:px-5"
+          >
+            <ClipboardList className="h-4 w-4" /> Business Rules List
+          </button>
+
+          {/* Export CSV */}
+          <button
+            type="button"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#4f46e5] px-4 py-3 text-[14px] font-[700] text-white sm:flex-none sm:px-5"
+          >
+            <Download className="h-4 w-4" /> Export CSV
+          </button>
+        </div>
       </section>
 
+      {/* Main grid */}
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Conversations Panel */}
         <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={allVisibleSelected}
-                onChange={toggleSelectAllVisible}
-                className="h-5 w-5 cursor-pointer rounded-md border border-slate-300 accent-[#5b6ee1] focus:ring-2 focus:ring-[#c7d2fe]"
-              />
-              <h3 className="text-[16px] font-[800] text-[#061a43]">
-                Conversations
-              </h3>
-              {/* {hasSelections ? (
-                <span className="rounded-full bg-[#eef2ff] px-2.5 py-1 text-[12px] font-[700] text-[#4f46e5]">
-                  {selectedConversationIds.length} selected
-                </span>
-              ) : null} */}
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={selectedAssignee}
-                  onChange={(e) => setSelectedAssignee(e.target.value)}
-                  className="h-[42px] min-w-[180px] appearance-none rounded-xl border border-gray-200 bg-white pl-3 pr-10 text-[14px] text-slate-700 outline-none focus:border-[#a78bfa]"
-                >
-                  {ASSIGNEE_OPTIONS.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              </div>
-              <button
-                disabled={!hasSelections}
-                className="h-[42px] rounded-xl bg-[#5b6ee1] px-6 text-[14px] font-[700] text-white transition-opacity hover:bg-[#4f46e5] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Assign
-              </button>
-            </div>
+          <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
+            <h3 className="text-[18px] font-[800] text-[#061a43]">
+              Conversations
+            </h3>
           </div>
+
+          {/* Tabs */}
           <div className="border-b border-gray-100">
-            <div className="flex items-center gap-6 overflow-x-auto">
+            <div className="flex items-center overflow-x-auto">
               {CONVERSATION_TABS.map((tab) => (
                 <button
                   key={tab}
                   type="button"
                   onClick={() => setActiveConversationTab(tab)}
-                  className={`w-[110px] border-b-2 py-4 text-center text-[14px] leading-snug font-[500] whitespace-normal ${
+                  className={`min-w-[90px] flex-1 border-b-2 px-2 py-4 text-center text-[13px] font-[500] leading-snug whitespace-nowrap sm:min-w-[100px] sm:text-[14px] ${
                     activeConversationTab === tab
                       ? "border-[#7c3aed] text-[#7c3aed]"
                       : "border-transparent text-[#3c4f75]"
@@ -369,6 +385,7 @@ export default function SupportChatbotReporting() {
             </div>
           </div>
 
+          {/* Conversation list */}
           <div className="max-h-[380px] overflow-y-auto">
             {visibleConversations.length === 0 ? (
               <p className="px-6 py-8 text-[14px] text-gray-400">
@@ -376,88 +393,73 @@ export default function SupportChatbotReporting() {
               </p>
             ) : (
               visibleConversations.map((conv) => (
-                <div
+                <button
                   key={conv.id}
-                  className={`w-full border-b border-slate-200 px-4 py-5 transition-colors hover:bg-[#faf8ff] hover:border-slate-300 ${
+                  type="button"
+                  onClick={() => setSelectedConversationId(conv.id)}
+                  className={`w-full border-b border-slate-200 px-4 py-5 text-left transition-colors hover:bg-[#faf8ff] ${
                     selectedConversationId === conv.id
                       ? "border-l-4 border-l-[#7c3aed] bg-[#eaf3ff]"
                       : ""
                   }`}
                 >
-                  <div className="flex items-stretch gap-3">
-                    <div className="pt-1">
-                      <input
-                        type="checkbox"
-                        checked={selectedConversationIds.includes(conv.id)}
-                        onChange={() => toggleConversationSelection(conv.id)}
-                        className="h-5 w-5 cursor-pointer rounded-md border border-slate-300 accent-[#5b6ee1] focus:ring-2 focus:ring-[#c7d2fe]"
-                      />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[16px] font-[700] leading-tight text-[#04163d]">
+                        {conv.lead}
+                      </p>
+                      <p className="mt-1 flex items-center gap-1 text-[14px] text-[#586a8f]">
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-[#ef4444]" />
+                        <span className="truncate">{conv.email}</span>
+                      </p>
+                      <p className="mt-2 text-[13px] text-[#2f456f]">
+                        {conv.preview}
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedConversationId(conv.id)}
-                      className="flex w-full items-stretch justify-between gap-3 text-left text-slate-600 hover:text-slate-900"
-                    >
-                      <div>
-                        <p className="text-[16px] font-[700] leading-tight text-[#04163d]">
-                          {conv.lead}
-                        </p>
-                        <p className="mt-1 flex items-center gap-1 text-[14px] text-[#586a8f]">
-                          <span className="h-2 w-2 rounded-full bg-[#ef4444]" />
-                          {conv.email}
-                        </p>
-                        <p className="mt-2 text-[13px] text-[#2f456f]">
-                          {conv.preview}
-                        </p>
-                      </div>
-                      <div className="flex items-end">
-                        <p className="text-[13px] text-[#60759b] whitespace-nowrap">
-                          {conv.time}
-                        </p>
-                      </div>
-                    </button>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <p className="whitespace-nowrap text-[13px] text-[#60759b]">
+                        {conv.time}
+                      </p>
+                      {conv.stage === "Escalated Chats" && (
+                        <span className="rounded-full bg-[#ef4444] px-3 py-1 text-[11px] font-[600] text-white">
+                          Escalated
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
         </article>
 
-        <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="relative flex items-center justify-between border-b border-gray-100 px-6 py-5">
+        {/* Messages Panel */}
+        <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 sm:px-6">
             <h3 className="text-[16px] font-[800] text-[#061a43]">Messages</h3>
-            <button
-              type="button"
-              onClick={() => setIsMessageMenuOpen((prev) => !prev)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100"
-            >
-              <MoreVertical className="h-5 w-5" />
-            </button>
-            {isMessageMenuOpen ? (
-              <div className="absolute right-6 top-14 z-20 min-w-[160px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => setIsMessageMenuOpen(false)}
-                  className="w-full px-3 py-2 text-left text-[14px] text-slate-700 hover:bg-slate-50"
-                >
-                  Mark as responded
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsMessageMenuOpen(false)}
-                  className="w-full px-3 py-2 text-left text-[14px] text-slate-700 hover:bg-slate-50"
-                >
-                  Mark as closed
-                </button>
-              </div>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleAssign}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+              >
+                <User className="h-4 w-4" /> Assign
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBusinessRulesOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+              >
+                <ClipboardList className="h-4 w-4" /> Business Rules
+              </button>
+            </div>
           </div>
 
           <div>
             <div className="rounded-2xl border border-[#e9ddff] bg-[#f5f0ff] px-4 py-3">
               <div className="flex items-start gap-3 rounded-xl px-3 py-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#9b5cf5] text-white ">
-                  <Bot className="h-4 w-8" />
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#9b5cf5] text-white">
+                  <Bot className="h-4 w-4" />
                 </span>
                 <div>
                   <p className="text-[14px] font-[700] text-[#1a2d57]">BOT</p>
@@ -477,10 +479,10 @@ export default function SupportChatbotReporting() {
                     className="flex items-start gap-3 rounded-xl px-3 py-3 hover:bg-[#fafafa]"
                   >
                     <span
-                      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${isBot ? "bg-[#9b5cf5] text-white" : "bg-[#3b82f6] text-white"}`}
+                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isBot ? "bg-[#9b5cf5] text-white" : "bg-[#3b82f6] text-white"}`}
                     >
                       {isBot ? (
-                        <Bot className="h-4 w-8" />
+                        <Bot className="h-4 w-4" />
                       ) : (
                         <User className="h-4 w-4" />
                       )}
@@ -498,8 +500,156 @@ export default function SupportChatbotReporting() {
               })}
             </div>
           </div>
+
+          {/* Assigned toast */}
+          {isAssignedToast && (
+            <div className="absolute bottom-4 right-4 z-20 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-xl">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#061a43]">
+                <Check className="h-4 w-4 text-white" />
+              </span>
+              <div>
+                <p className="text-[14px] font-[700] text-[#061a43]">
+                  Assigned
+                </p>
+                <p className="text-[13px] text-gray-500">
+                  Conversation has been assigned to you
+                </p>
+              </div>
+            </div>
+          )}
         </article>
       </section>
+
+      {/* Business Rules List Modal */}
+      {isBusinessRulesOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsBusinessRulesOpen(false);
+          }}
+        >
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex items-start justify-between px-8 pb-2 pt-8">
+              <div>
+                <h2 className="text-[24px] font-[800] text-[#061a43]">
+                  Business Rules List
+                </h2>
+                <p className="mt-1 text-[14px] text-gray-500">
+                  View all business rules that have been created for the
+                  chatbot.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBusinessRulesOpen(false);
+                  setIsAddRuleOpen(true);
+                }}
+                className="ml-4 inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#7c3aed] px-5 py-3 text-[14px] font-[700] text-white hover:bg-[#6d28d9]"
+              >
+                <ClipboardList className="h-4 w-4" /> Add Business Rules
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsBusinessRulesOpen(false)}
+              className="absolute right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Rules list */}
+            <div className="max-h-[400px] overflow-y-auto px-8 py-4">
+              <div className="space-y-4">
+                {businessRules.map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="rounded-xl border border-gray-200 border-l-4 border-l-[#7c3aed] p-5"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <span className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-[700] text-[#061a43]">
+                        Rule #{rule.number}
+                      </span>
+                      <div className="text-right text-[13px]">
+                        <p className="font-[600] text-[#061a43]">
+                          Created by {rule.createdBy}
+                        </p>
+                        <p className="text-gray-500">{rule.createdAt}</p>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-[15px] text-[#1a2d57]">
+                      {rule.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end border-t border-gray-100 px-8 py-5">
+              <button
+                type="button"
+                onClick={() => setIsBusinessRulesOpen(false)}
+                className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Business Rules Modal */}
+      {isAddRuleOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddRuleOpen(false);
+          }}
+        >
+          <div className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsAddRuleOpen(false)}
+              className="absolute right-5 top-5 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="px-8 pb-8 pt-8">
+              <h2 className="text-[22px] font-[800] text-[#061a43]">
+                Add Business Rules
+              </h2>
+              <p className="mt-1 text-[14px] text-gray-500">
+                Enter the business rules for this message or conversation.
+              </p>
+              <textarea
+                value={newRuleText}
+                onChange={(e) => setNewRuleText(e.target.value)}
+                placeholder="Enter business rules here..."
+                rows={7}
+                className="mt-5 w-full resize-none rounded-xl border border-gray-300 bg-[#f6f6f6] p-4 text-[14px] text-gray-700 outline-none focus:border-[#a78bfa]"
+              />
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddRuleOpen(false)}
+                  className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddRule}
+                  className="rounded-xl bg-[#7c3aed] px-6 py-2.5 text-[14px] font-[700] text-white hover:bg-[#6d28d9]"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

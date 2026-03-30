@@ -104,14 +104,14 @@ function DonutChart({ rate }: { rate: number }) {
 
 function KpiCard({ gradient, shadow, icon: Icon, label, value }: any) {
   return (
-    <article className={`rounded-2xl ${gradient} ${shadow} p-5 text-white`}>
+    <article className={`rounded-2xl ${gradient} ${shadow} p-4 sm:p-5 text-white`}>
       <div className="flex items-center justify-between mb-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-          <Icon className="h-5 w-5 text-white" />
+        <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-white/20">
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
         </div>
       </div>
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">{label}</p>
-      <p className="text-[32px] font-bold leading-none">{value}</p>
+      <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">{label}</p>
+      <p className="text-[24px] sm:text-[32px] font-bold leading-none">{value}</p>
     </article>
   );
 }
@@ -186,7 +186,7 @@ export default function Reporting() {
   }));
 
   return (
-    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-6">
+    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-6">
       <div className="mb-5 flex items-center gap-3">
         <button
           type="button"
@@ -210,7 +210,7 @@ export default function Reporting() {
 
       {!inboundHistoryLoading && (
         <>
-          <section className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <KpiCard
               gradient="bg-gradient-to-br from-[#6366f1] to-[#8b5cf6]"
               shadow="shadow-lg shadow-indigo-400/25"
@@ -241,7 +241,7 @@ export default function Reporting() {
             />
           </section>
 
-          <section className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <section className="mb-5 grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
             <article className="lg:col-span-1 rounded-2xl bg-white border border-gray-100 shadow-sm p-5">
               <h3 className="text-[14px] font-semibold text-gray-900 mb-0.5">Calls by Status</h3>
               <p className="text-[12px] text-gray-400 mb-4">Distribution across call outcomes</p>
