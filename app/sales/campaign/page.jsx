@@ -78,6 +78,7 @@ const EMAIL_STATUS_STYLE = {
   REPLIED: "bg-green-50 text-green-700 border border-green-200",
   "NOT OPENED": "bg-gray-100 text-gray-500 border border-gray-200",
   "NO OPEN": "bg-gray-100 text-gray-500 border border-gray-200",
+  SKIPPED: "bg-amber-50 text-amber-700 border border-amber-200",
 };
 const LINKEDIN_STATUS_STYLE = {
   CONNECTED: "bg-green-50 text-green-700 border border-green-200",
@@ -143,6 +144,7 @@ export default function CampaignPage() {
     emailHistory,
     emailHistoryLoading,
     emailHistoryTotalCount,
+    emailHistoryTotalReplied,
     linkedinHistory,
     linkedinHistoryLoading,
     whatsappHistory,
@@ -295,13 +297,21 @@ export default function CampaignPage() {
     });
   };
 
-  const handleViewEmail = (row, view = "email") => {
+  const handleViewEmail = async (row, view = "email") => {
     if (!row) return;
     const replies = getMergedReplies(row);
     const replyData = row.replyData ?? replies[0] ?? null;
     const hasReply = !!replyData;
     setEmailModalView(view === "reply" && !hasReply ? "email" : view);
-    setEmailDetailLoading(false);
+
+    setEmailDetailLoading(true);
+    let groupedConversation = [];
+    try {
+      groupedConversation = await fetchGroupedConversationTimeline(row);
+    } catch (_e) {
+      groupedConversation = [];
+    }
+
     setEmailDetailModal({
       ...row,
       lead_name: row.lead_name ?? row.name ?? "—",
@@ -313,7 +323,9 @@ export default function CampaignPage() {
       sent_at: row.sent_at ?? row.dateTime ?? null,
       replied_to_message_id: replyData,
       replies,
+      groupedConversation,
     });
+    setEmailDetailLoading(false);
   };
 
   const handleFormChange = (e) => {
@@ -1043,54 +1055,200 @@ export default function CampaignPage() {
       .replace(/\s+/g, " ")
       .trim();
 
+  const toArray = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.leads)) return payload.leads;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.results)) return payload.results;
+    if (Array.isArray(payload?.items)) return payload.items;
+    return [];
+  };
+
+  const normalizeGroupedTimeline = (group) => {
+    const sourceItems =
+      toArray(group?.timeline).length ? toArray(group.timeline)
+        : toArray(group?.conversation).length ? toArray(group.conversation)
+          : toArray(group?.messages).length ? toArray(group.messages)
+            : toArray(group?.emails);
+
+    const timeline = [];
+
+    sourceItems.forEach((item, idx) => {
+      const rawType = String(item?.type ?? item?.direction ?? item?.message_type ?? "").toLowerCase();
+      const isReply =
+        rawType.includes("reply") ||
+        rawType.includes("inbound") ||
+        rawType.includes("received") ||
+        rawType.includes("user");
+
+      timeline.push({
+        id: String(item?.id ?? `${isReply ? "reply" : "email"}-${idx}`),
+        type: isReply ? "reply" : "sent",
+        timestamp:
+          item?.timestamp ??
+          item?.sent_at ??
+          item?.received_datetime ??
+          item?.created_at ??
+          null,
+        subject: item?.subject ?? item?.email_subject ?? item?.reply_subject ?? "",
+        content:
+          item?.content ??
+          item?.email_body ??
+          item?.reply_body ??
+          item?.body_preview ??
+          item?.message ??
+          "",
+        full_html:
+          item?.full_html ??
+          item?.email_body ??
+          item?.reply_body ??
+          item?.body_preview ??
+          item?.content ??
+          "",
+        meta: isReply
+          ? {
+              from: item?.reply_from ?? item?.from ?? "—",
+              name: item?.reply_from_name ?? item?.name ?? "",
+            }
+          : {
+              to: item?.to_email ?? item?.to ?? "—",
+              lead_name: item?.lead_name ?? item?.name ?? "—",
+            },
+      });
+
+      const nestedReplies = toArray(item?.replies);
+      nestedReplies.forEach((reply, rIdx) => {
+        timeline.push({
+          id: String(reply?.reply_id ?? `${item?.id ?? idx}-nested-reply-${rIdx}`),
+          type: "reply",
+          timestamp: reply?.sent_at ?? reply?.received_datetime ?? reply?.created_at ?? null,
+          subject: reply?.reply_subject ?? "",
+          content: reply?.reply_body ?? reply?.body_preview ?? "",
+          full_html: reply?.reply_body ?? reply?.body_preview ?? "",
+          meta: {
+            from: reply?.reply_from ?? "—",
+            name: reply?.reply_from_name ?? "",
+            sentiment: reply?.reply_sentiment ?? "",
+            intent: reply?.reply_intent ?? "",
+          },
+        });
+      });
+    });
+
+    return timeline.sort((a, b) => {
+      const ta = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tb = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return ta - tb;
+    });
+  };
+
+  const fetchGroupedConversationTimeline = async (row) => {
+    if (!selectedCampaign?.id || !row) return [];
+
+    const leadId = row?.lead_id ?? null;
+    const rowEmail = String(row?.to_email ?? row?.emailAddr ?? row?.email ?? "").trim().toLowerCase();
+    const rowLead = String(row?.lead_name ?? row?.name ?? "").trim().toLowerCase();
+
+    const res = await axiosInstance.get("/email-history/grouped/", {
+      params: { campaign_id: selectedCampaign.id },
+    });
+
+    const groups = toArray(res?.data);
+
+    const matchedGroup = groups.find((g) => {
+      const gLeadId = g?.lead_id ?? g?.leadId ?? null;
+      const gEmail = String(g?.to_email ?? g?.lead_email ?? g?.email ?? "").trim().toLowerCase();
+      const gLead = String(g?.lead_name ?? g?.name ?? "").trim().toLowerCase();
+
+      if (leadId != null && gLeadId != null && String(gLeadId) === String(leadId)) return true;
+      if (rowEmail && gEmail && rowEmail === gEmail) return true;
+      if (rowLead && gLead && rowLead === gLead) return true;
+      return false;
+    });
+
+    if (!matchedGroup) return [];
+    return normalizeGroupedTimeline(matchedGroup);
+  };
+
   const buildConversation = (selectedRow, allRows = []) => {
     if (!selectedRow) return [];
 
-    const normalizeEmail = (row) =>
-      String(row?.to_email ?? row?.emailAddr ?? row?.email ?? "")
-        .trim()
-        .toLowerCase();
-    const normalizeLead = (row) =>
-      String(row?.lead_name ?? row?.name ?? "")
-        .trim()
-        .toLowerCase();
+    // Step 1: Group all emails for this lead by lead_id.
+    // Fall back to matching by to_email + lead_name if lead_id is absent.
+    const selectedLeadId = selectedRow?.lead_id ?? null;
+    const normalizeStr = (v) => String(v ?? "").trim().toLowerCase();
+    const selectedEmail = normalizeStr(selectedRow?.to_email ?? selectedRow?.emailAddr ?? selectedRow?.email);
+    const selectedLead  = normalizeStr(selectedRow?.lead_name ?? selectedRow?.name);
 
-    const selectedEmail = normalizeEmail(selectedRow);
-    const selectedLead = normalizeLead(selectedRow);
-
-    const sourceRows = (Array.isArray(allRows) ? allRows : []).filter((row) => {
-      const sameEmail = selectedEmail && normalizeEmail(row) === selectedEmail;
-      const sameLead = selectedLead && normalizeLead(row) === selectedLead;
+    const group = (Array.isArray(allRows) ? allRows : []).filter((row) => {
+      if (selectedLeadId) return row?.lead_id === selectedLeadId;
+      const sameEmail = selectedEmail && normalizeStr(row?.to_email ?? row?.emailAddr ?? row?.email) === selectedEmail;
+      const sameLead  = selectedLead  && normalizeStr(row?.lead_name ?? row?.name) === selectedLead;
       return sameEmail || sameLead;
     });
 
+    // Ensure the selected row itself is always in the group
     const selectedId = String(selectedRow?.id ?? "");
-    const hasSelected = sourceRows.some((row) => String(row?.id ?? "") === selectedId);
-    const rows = hasSelected ? sourceRows : [...sourceRows, selectedRow];
+    const hasSelected = group.some((row) => String(row?.id ?? "") === selectedId);
+    const rows = hasSelected ? group : [...group, selectedRow];
+
+    // Step 2: Sort by id ascending — smallest id = oldest (first) email in the thread
+    const sorted = [...rows].sort((a, b) => (Number(a?.id) || 0) - (Number(b?.id) || 0));
+
+    // Step 3: Build a map of reply_id → the email that was sent in response to it.
+    // Each email's repliedToMessageId.reply_id tells us which user reply triggered it.
+    const replyIdToEmail = new Map();
+    sorted.forEach((row) => {
+      const triggeredBy =
+        row?.repliedToMessageId?.reply_id ??
+        row?.replied_to_message_id?.reply_id ??
+        null;
+      if (triggeredBy != null) {
+        replyIdToEmail.set(String(triggeredBy), row);
+      }
+    });
+
+    // Step 4: Chain walk.
+    // Start with the email that has no triggering reply (replied_to_message_id === null).
+    // Then follow: email → its replies[] → next email that was triggered by that reply → ...
+    const firstEmail =
+      sorted.find((row) => !row?.repliedToMessageId && !row?.replied_to_message_id) ??
+      sorted[0];
 
     const timeline = [];
+    const seenEmailIds = new Set();
     const seenReplyIds = new Set();
 
-    rows.forEach((row) => {
-      const rowId = row?.id ?? row?.email_history_id ?? Math.random();
+    let current = firstEmail;
+    while (current) {
+      const emailId = String(current?.id ?? "");
+      if (seenEmailIds.has(emailId)) break;
+      seenEmailIds.add(emailId);
+
+      // Push the outbound (system-sent) email
       timeline.push({
-        id: `email-${rowId}`,
+        id: `email-${emailId}`,
         type: "sent",
-        timestamp: row?.sent_at ?? row?.dateTime ?? row?.created_at ?? null,
-        subject: row?.email_subject ?? row?.subject ?? "",
-        content: row?.email_body ?? "",
-        full_html: row?.email_body ?? "",
+        timestamp: current?.sent_at ?? current?.dateTime ?? current?.created_at ?? null,
+        subject: current?.email_subject ?? current?.subject ?? "",
+        content: current?.email_body ?? "",
+        full_html: current?.email_body ?? "",
         meta: {
-          to: row?.to_email ?? row?.emailAddr ?? row?.email ?? "—",
-          lead_name: row?.lead_name ?? row?.name ?? "—",
+          to: current?.to_email ?? current?.emailAddr ?? current?.email ?? "—",
+          lead_name: current?.lead_name ?? current?.name ?? "—",
         },
       });
 
-      const replies = getMergedReplies(row);
-      replies.forEach((reply) => {
-        const replyKey = reply?.reply_id != null
-          ? String(reply.reply_id)
-          : `${reply?.reply_from ?? ""}|${reply?.sent_at ?? reply?.received_datetime ?? ""}`;
+      // Push the user replies that came after this email.
+      // replies[] on the email object holds the inbound replies to this specific sent email.
+      const directReplies = Array.isArray(current?.replies) ? current.replies : [];
+      let firstReplyId = null;
+
+      directReplies.forEach((reply) => {
+        const replyKey =
+          reply?.reply_id != null
+            ? String(reply.reply_id)
+            : `${reply?.reply_from ?? ""}|${reply?.sent_at ?? reply?.received_datetime ?? ""}`;
         if (seenReplyIds.has(replyKey)) return;
         seenReplyIds.add(replyKey);
 
@@ -1108,14 +1266,21 @@ export default function CampaignPage() {
             intent: reply?.reply_intent ?? "",
           },
         });
-      });
-    });
 
-    timeline.sort((a, b) => {
-      const aTime = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const bTime = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return aTime - bTime;
-    });
+        // Track the first reply_id so we can follow the chain to the next system email
+        if (firstReplyId === null && reply?.reply_id != null) {
+          firstReplyId = String(reply.reply_id);
+        }
+      });
+
+      // Follow the chain: find the next email triggered by the first reply above.
+      // If none found that way, fall through to the next unseen email in sorted order.
+      if (firstReplyId && replyIdToEmail.has(firstReplyId)) {
+        current = replyIdToEmail.get(firstReplyId);
+      } else {
+        current = sorted.find((row) => !seenEmailIds.has(String(row?.id ?? ""))) ?? null;
+      }
+    }
 
     return timeline;
   };
@@ -1290,7 +1455,7 @@ export default function CampaignPage() {
                             className="ml-0.5 rounded-full p-0.5 hover:bg-white/30 transition"
                           >
                             <X className="h-3 w-3" />
-                                "Reply",
+                                
                           </button>
                         </span>
                       );
@@ -1856,6 +2021,40 @@ export default function CampaignPage() {
         style={{ fontSize: 11, fontWeight: 700 }}
       >
         {`${Math.round(percent * 100)}%`}
+      </text>
+    );
+  };
+
+  const renderEmailStatusPieLabel = ({
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent,
+  }) => {
+    if (!Number.isFinite(percent) || percent < 0.08) return null;
+    const RADIAN = Math.PI / 180;
+    const roundedPercent = Math.round(percent * 100);
+
+    // Keep 100% centered so it doesn't clip on a single-slice donut.
+    const labelX = roundedPercent === 100
+      ? cx
+      : cx + (innerRadius + (outerRadius - innerRadius) * 0.4) * Math.cos(-midAngle * RADIAN);
+    const labelY = roundedPercent === 100
+      ? cy
+      : cy + (innerRadius + (outerRadius - innerRadius) * 0.4) * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <text
+        x={labelX}
+        y={labelY}
+        fill="white"
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{ fontSize: 7, fontWeight: 700 }}
+      >
+        {`${roundedPercent}%`}
       </text>
     );
   };
@@ -2894,15 +3093,19 @@ export default function CampaignPage() {
     /* ─── EMAIL HISTORY ─── */
     if (activeTab === "EMAIL") {
       const emailHistoryData = emailHistory ?? [];
-      const emailStatuses = [
-        "All Status",
-        ...new Set(emailHistoryData.map((r) => r.status)),
-      ];
+      const emailStatuses = ["All Status", "SENT", "FAILED", "SKIPPED", "REPLIED"];
       const emailRows = emailHistoryData.filter((r) => {
         const ms =
           r.name?.toLowerCase().includes(emailSearch.toLowerCase()) ||
           r.company?.toLowerCase().includes(emailSearch.toLowerCase());
-        const ss = emailStatus === "All Status" || r.status === emailStatus;
+        let ss;
+        if (emailStatus === "All Status") ss = true;
+        else if (emailStatus === "REPLIED") {
+          const statusUpper = String(r.status ?? "").toUpperCase();
+          ss = !!r.hasReply || statusUpper === "REPLIED" || Number(r.total_replies ?? 0) > 0;
+        }
+        else if (emailStatus === "SKIPPED") ss = r.skippable || !!r.skip_reason;
+        else ss = r.status === emailStatus && !(r.skippable || !!r.skip_reason);
         return ms && ss;
       });
       // ── Email Stats derived from email history data ──
@@ -2922,6 +3125,10 @@ export default function CampaignPage() {
       const ehNotSentOther = emailHistoryData.filter(
         (r) => r.status === "NOT_SENT" && !(r.skippable || !!r.skip_reason),
       ).length;
+      const ehReplies  = emailHistoryData.filter((r) => {
+        const statusUpper = String(r.status ?? "").toUpperCase();
+        return !!r.hasReply || statusUpper === "REPLIED" || Number(r.total_replies ?? 0) > 0;
+      }).length;
       const ehTotal    = emailHistoryData.length;
       // Merge history + /email-stats/ API values so paginated history does not hide counts.
       const es = emailStats ?? {};
@@ -3039,15 +3246,18 @@ export default function CampaignPage() {
             analyticsCampaign?.skipped,
           )
         : statSkipped;
+      const cardReplies = Math.max(ehReplies, Number(emailHistoryTotalReplied ?? 0) || 0);
       const funnelData = [
         { stage: "Sent",    value: cardSent,    fill: "#1d4ed8" },
         { stage: "Failed",  value: cardFailed,  fill: "#3b82f6" },
         { stage: "Skipped", value: cardSkipped, fill: "#93c5fd" },
+        { stage: "Replied", value: cardReplies, fill: "#16a34a" },
       ];
       const statusDonut = [
         { name: "Sent",    value: cardSent,    color: "#1d4ed8" },
         { name: "Failed",  value: cardFailed,  color: "#3b82f6" },
         { name: "Skipped", value: cardSkipped, color: "#93c5fd" },
+        { name: "Replied", value: cardReplies, color: "#16a34a" },
       ];
       return (
         <main className="min-h-screen bg-[#f4f5f7] p-4">
@@ -3069,47 +3279,73 @@ export default function CampaignPage() {
             </p>
           </div>
 
-          {/* KPI strip — only cards with a non-zero value are shown */}
-          <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-3">
+          {/* KPI strip — cards are clickable to filter the table */}
+          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
                 label: "Total Sent",
                 value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSent,
-                raw: cardSent,
                 sub: "delivered",
                 color: "text-blue-600",
                 ring: "ring-blue-200",
+                filter: "SENT",
               },
               {
                 label: "Failed",
                 value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardFailed,
-                raw: cardFailed,
                 sub: "delivery failed",
                 color: "text-blue-600",
                 ring: "ring-blue-200",
+                filter: "FAILED",
               },
               {
                 label: "Skipped",
                 value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSkipped,
-                raw: cardSkipped,
                 sub: "skipped",
                 color: "text-blue-600",
                 ring: "ring-blue-200",
+                filter: "SKIPPED",
               },
-            ].map((k) => (
-              <article
-                key={k.label}
-                className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring}`}
-              >
-                <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
-                  {k.label}
-                </p>
-                <p className={`text-[28px] font-[800] leading-none ${k.color}`}>
-                  {k.value}
-                </p>
-                <p className="text-[11px] text-gray-400">{k.sub}</p>
-              </article>
-            ))}
+              {
+                label: "Total Replies",
+                value: emailHistoryLoading ? "…" : cardReplies,
+                sub: "leads who replied",
+                color: "text-green-600",
+                ring: "ring-green-200",
+                filter: "REPLIED",
+              },
+            ].map((k) => {
+              const isActive = emailStatus === k.filter;
+              return (
+                <article
+                  key={k.label}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setEmailStatus(isActive ? "All Status" : k.filter)}
+                  onKeyDown={(e) => e.key === "Enter" && setEmailStatus(isActive ? "All Status" : k.filter)}
+                  className={`rounded-2xl bg-white border shadow-sm p-4 flex flex-col gap-0.5 ring-1 cursor-pointer transition-all select-none
+                    ${isActive
+                      ? `${k.ring} border-transparent ring-2 shadow-md`
+                      : `border-gray-100 ${k.ring} hover:shadow-md hover:ring-2`
+                    }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
+                      {k.label}
+                    </p>
+                    {isActive && (
+                      <span className="text-[9px] font-[700] uppercase tracking-wide bg-indigo-50 text-indigo-600 border border-indigo-200 px-1.5 py-0.5 rounded-full">
+                        Filtered
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-[28px] font-[800] leading-none ${k.color}`}>
+                    {k.value}
+                  </p>
+                  <p className="text-[11px] text-gray-400">{k.sub}</p>
+                </article>
+              );
+            })}
           </section>
           {isSmtpCampaign && (
             <p className="-mt-2 mb-4 text-[11px] text-gray-400">
@@ -3206,7 +3442,7 @@ export default function CampaignPage() {
                           outerRadius={65}
                           dataKey="value"
                           labelLine={false}
-                          label={renderPieLabel}
+                          label={renderEmailStatusPieLabel}
                         >
                           {statusDonut.map((s, i) => (
                             <Cell key={i} fill={s.color} strokeWidth={0} />
@@ -3351,17 +3587,17 @@ export default function CampaignPage() {
                           {formatTableDateTime(row.dateTime)}
                         </td>
                         <td className="px-3 py-3">
-                          {row.skippable ? (
+                          {row.skippable || !!row.skip_reason ? (
                             <div className="relative group inline-block">
                               <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-[600] cursor-pointer ${EMAIL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-[600] cursor-pointer ${EMAIL_STATUS_STYLE["SKIPPED"] ?? "bg-gray-100 text-gray-600"}`}
                               >
-                                {row.status}
+                                SKIPPED
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 opacity-60" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
                               </span>
                               <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block w-max max-w-[220px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg">
                                 <p className="font-[600] mb-0.5">Skip Reason</p>
-                                <p className="font-[400] text-gray-300">{row.skipReason || "No reason provided"}</p>
+                                <p className="font-[400] text-gray-300">{row.skipReason || row.skip_reason || "No reason provided"}</p>
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                               </div>
                             </div>
@@ -3478,7 +3714,10 @@ export default function CampaignPage() {
                     const hasReply = !!replyRecord;
                     const isReplyView = emailModalView === "reply" && hasReply;
                     const isThreadView = emailModalView === "thread";
-                    const conversationTimeline = buildConversation(emailDetailModal, emailHistoryData ?? []);
+                    const conversationTimeline =
+                      Array.isArray(emailDetailModal?.groupedConversation) && emailDetailModal.groupedConversation.length
+                        ? emailDetailModal.groupedConversation
+                        : buildConversation(emailDetailModal, emailHistoryData ?? []);
                     return (
                       <>
                         <div className="shrink-0 border-b border-gray-100 px-6 py-2.5 flex items-center gap-2">

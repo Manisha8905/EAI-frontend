@@ -560,6 +560,7 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
     });
     const raw = extractArray(res.data);
     const totalCount = res.data?.total_count ?? raw.length;
+    const totalReplied = Number(res.data?.total_replied ?? 0) || 0;
 
     // Build reply map by email id from this same email-history payload only.
     const toKey = (id) => (id === null || id === undefined ? null : String(id));
@@ -629,11 +630,22 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       replies,
       replyData,
       reply_preview: replyData?.body_preview ?? replyData?.reply_body ?? "",
-      hasReply: !!(replyData || r.reply_id || r.reply_body),
+      total_replies: Number(r.total_replies ?? 0) || 0,
+      hasReply:
+        !!(
+          replyData ||
+          r.reply_id ||
+          r.reply_body ||
+          String(r.status ?? r.email_status ?? "").toUpperCase() === "REPLIED" ||
+          Number(r.total_replies ?? 0) > 0
+        ),
       repliedToMessageId: r.replied_to_message_id ?? null,
     });
     });
-    dispatch({ type: EMAIL_HISTORY_SUCCESS, payload: { data: normalized, total_count: totalCount } });
+    dispatch({
+      type: EMAIL_HISTORY_SUCCESS,
+      payload: { data: normalized, total_count: totalCount, total_replied: totalReplied },
+    });
     toast.success(`Email history loaded (${normalized.length} records)`);
   } catch (err) {
     dispatch({ type: EMAIL_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load email history." });

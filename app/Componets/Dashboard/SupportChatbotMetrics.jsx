@@ -354,7 +354,7 @@ export default function SupportChatbotMetrics() {
 
   return (
     <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-6">
-      <section className="mb-5 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-6 py-4 shadow-sm">
+      <section className="mb-5 flex items-center justify-between  px-6 py-4 ">
         <div>
           <h1 className="text-[24px] font-[800] leading-none text-[#0b1b3b]">Web Chat Metrics</h1>
           <p className="mt-2 text-[14px] text-gray-500">Last updated: {data.updatedAt}</p>
