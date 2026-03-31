@@ -122,13 +122,6 @@ const TAB_TO_FILTER = {
   "Closed Chats": { status: "closed", escalated: false },
 };
 
-const AGENTS = [
-  { initials: "SC", name: "Sarah Chen", status: "Online" },
-  { initials: "MJ", name: "Mike Johnson", status: "Online" },
-  { initials: "ED", name: "Emily Davis", status: "Offline" },
-  { initials: "LA", name: "Lisa Anderson", status: "Online" },
-  { initials: "JW", name: "James Wilson", status: "Online" },
-];
 
 const INITIAL_RULES = [
   {
@@ -281,9 +274,10 @@ export default function SupportChatbotReporting() {
   const [ruleDetailData, setRuleDetailData] = useState(null);
   const [isAddAgentOpen, setIsAddAgentOpen] = useState(false);
   const [newAgentName, setNewAgentName] = useState("");
+  const [newAgentEmail, setNewAgentEmail] = useState("");
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [isAgentDetailOpen, setIsAgentDetailOpen] = useState(false);
-  const [agents, setAgents] = useState(AGENTS);
+  const [agents, setAgents] = useState([]);
   const [isAssignedToast, setIsAssignedToast] = useState(false);
   const [isRightAssignToast, setIsRightAssignToast] = useState(false);
   const [businessRules, setBusinessRules] = useState(INITIAL_RULES);
@@ -446,11 +440,43 @@ export default function SupportChatbotReporting() {
     }
   };
 
-  const assignChat = async (chatIds, assignedTo) => {
+  const fetchAgents = async () => {
+    try {
+      const response = await axiosInstance.get("/api/chatbot/support-agents");
+      const payload = response?.data ?? [];
+      const list = Array.isArray(payload) ? payload : Array.isArray(payload?.results) ? payload.results : [];
+      setAgents(list);
+    } catch (error) {
+      console.error("Error fetching agents:", error);
+    }
+  };
+
+  const handleAddAgent = async () => {
+    const cleanName = newAgentName.trim();
+    const cleanEmail = newAgentEmail.trim();
+    if (!cleanName || !cleanEmail) return;
+    try {
+      const response = await axiosInstance.post("/api/chatbot/support-agents", {
+        name: cleanName,
+        email: cleanEmail,
+      });
+      const newAgent = response?.data ?? null;
+      if (newAgent) {
+        setAgents((prev) => [...prev, newAgent]);
+      }
+      setNewAgentName("");
+      setNewAgentEmail("");
+      setIsAddAgentOpen(false);
+    } catch (error) {
+      console.error("Error adding agent:", error);
+    }
+  };
+
+  const assignChat = async (chatIds, agentId) => {
     try {
       const response = await axiosInstance.post("/api/chatbot/assign", {
         chat_ids: chatIds,
-        assigned_to: assignedTo,
+        agent_id: agentId,
       });
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
@@ -504,6 +530,7 @@ export default function SupportChatbotReporting() {
   useEffect(() => {
     if (canAccess) {
       fetchConversations();
+      fetchAgents();
     }
   }, [filters, pagination, canAccess]);
 
@@ -577,19 +604,6 @@ export default function SupportChatbotReporting() {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   };
 
-  const handleAddAgent = () => {
-    const cleanName = newAgentName.trim();
-    if (!cleanName) return;
-    const newAgent = {
-      initials: createAgentInitials(cleanName),
-      name: cleanName,
-      status: "Online",
-    };
-    setAgents((prev) => [...prev, newAgent]);
-    setNewAgentName("");
-    setIsAddAgentOpen(false);
-  };
-
   const handleSearch = (query) => {
     setSearch(query);
     setSearchQuery(query);
@@ -628,10 +642,16 @@ export default function SupportChatbotReporting() {
     }));
   };
 
-  const handleAssignToAgent = async (agentName) => {
+  const handleAssignToAgent = async (agentId) => {
     if (!selectedConversationId) return;
-    await assignChat([selectedConversationId], agentName);
+    await assignChat([selectedConversationId], agentId);
     setIsAgentsOpen(false);
+  };
+
+  const handleAssignConversationToSelectedAgent = async () => {
+    if (!selectedConversationId || !selectedAgent?.id) return;
+    await assignChat([selectedConversationId], selectedAgent.id);
+    setIsAgentDetailOpen(false);
   };
 
   const handleToggleSelectChat = (e, convId) => {
@@ -644,9 +664,9 @@ export default function SupportChatbotReporting() {
     });
   };
 
-  const handleAssignSelectedChats = async (agentName) => {
+  const handleAssignSelectedChats = async (agentId) => {
     if (!selectedChats.size) return;
-    await assignChat([...selectedChats], agentName);
+    await assignChat([...selectedChats], agentId);
     setSelectedChats(new Set());
     setIsConvPanelAssignOpen(false);
   };
@@ -848,7 +868,7 @@ export default function SupportChatbotReporting() {
                     >
                       <div className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-[#f5f0ff]">
                         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-[13px] font-[700] text-white">
-                          {agent.initials}
+                          {createAgentInitials(agent.name)}
                         </span>
                         <div>
                           <p className="text-[14px] font-[600] text-[#061a43]">
@@ -856,9 +876,9 @@ export default function SupportChatbotReporting() {
                           </p>
                           <p className="flex items-center gap-1.5 text-[13px] text-gray-500">
                             <span
-                              className={`h-2 w-2 rounded-full ${agent.status === "Online" ? "bg-green-500" : "bg-gray-400"}`}
+                              className={`h-2 w-2 rounded-full ${agent.is_active ? "bg-green-500" : "bg-gray-400"}`}
                             />
-                            {agent.status}
+                            {agent.is_active ? "Online" : "Offline"}
                           </p>
                         </div>
                       </div>
@@ -912,15 +932,15 @@ export default function SupportChatbotReporting() {
                 {isConvPanelAssignOpen && selectedChats.size > 0 && (
                   <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
                     <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Assign to agent</p>
-                    {AGENTS.map((agent) => (
+                    {agents.map((agent) => (
                       <button
-                        key={agent.name}
+                        key={agent.id}
                         type="button"
-                        onClick={() => handleAssignSelectedChats(agent.name)}
+                        onClick={() => handleAssignSelectedChats(agent.id)}
                         className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
                       >
                         <span className="font-[600]">{agent.name}</span>
-                        <span className={`text-[11px] ${agent.status === "Online" ? "text-green-600" : "text-gray-400"}`}>{agent.status}</span>
+                        <span className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}>{agent.is_active ? "Online" : "Offline"}</span>
                       </button>
                     ))}
                   </div>
@@ -1340,10 +1360,19 @@ export default function SupportChatbotReporting() {
               </p>
               <div className="mt-6 rounded-xl border border-gray-200 bg-[#f8fbff] p-4">
                 <p className="text-[13px] font-[700] text-[#253b69]">{selectedAgent.name}</p>
-                <p className="mt-2 text-[14px] text-[#1a2d57]">Status: {selectedAgent.status}</p>
-                <p className="mt-3 text-[12px] text-gray-500">Initials: {selectedAgent.initials}</p>
+                <p className="mt-2 text-[14px] text-[#1a2d57]">Email: {selectedAgent.email}</p>
+                <p className="mt-2 text-[14px] text-[#1a2d57]">Status: {selectedAgent.is_active ? "Active" : "Inactive"}</p>
+                <p className="mt-2 text-[12px] text-gray-500">ID: {selectedAgent.id ?? "N/A"}</p>
+                <p className="mt-3 text-[12px] text-gray-500">Initials: {createAgentInitials(selectedAgent.name)}</p>
               </div>
               <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleAssignConversationToSelectedAgent}
+                  className="rounded-xl border border-blue-200 bg-blue-50 px-6 py-2.5 text-[14px] font-[600] text-[#1d4ed8] hover:bg-blue-100"
+                >
+                  Assign to Conversation
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsAgentDetailOpen(false)}
@@ -1375,12 +1404,18 @@ export default function SupportChatbotReporting() {
             </button>
             <div className="px-8 pb-8 pt-8">
               <h2 className="text-[22px] font-[800] text-[#061a43]">Add New Agent</h2>
-              <p className="mt-1 text-[14px] text-gray-500">Enter agent name to add to team.</p>
+              <p className="mt-1 text-[14px] text-gray-500">Enter agent name and email to add to team.</p>
               <input
                 value={newAgentName}
                 onChange={(e) => setNewAgentName(e.target.value)}
                 placeholder="Enter agent name"
                 className="mt-5 w-full rounded-xl border border-gray-300 bg-[#f6f6f6] px-3 py-2 text-[14px] text-gray-700 outline-none focus:border-[#a78bfa]"
+              />
+              <input
+                value={newAgentEmail}
+                onChange={(e) => setNewAgentEmail(e.target.value)}
+                placeholder="Enter agent email"
+                className="mt-3 w-full rounded-xl border border-gray-300 bg-[#f6f6f6] px-3 py-2 text-[14px] text-gray-700 outline-none focus:border-[#a78bfa]"
               />
               <div className="mt-5 flex justify-end gap-3">
                 <button
