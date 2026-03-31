@@ -718,11 +718,11 @@ function CallTranscriptModal({ record, onClose }) {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-[16px] font-[700] text-[#0a0a0a]">Call Transcript</h2>
           <button
             type="button"
@@ -734,7 +734,7 @@ function CallTranscriptModal({ record, onClose }) {
         </div>
 
         {/* body */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-[11px] font-[600] text-blue-500 uppercase tracking-wide mb-0.5">Lead Name</p>

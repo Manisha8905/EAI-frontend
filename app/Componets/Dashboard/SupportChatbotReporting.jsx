@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AlertCircle,
@@ -158,20 +158,21 @@ const normalizeConversation = (row = {}) => {
     ? "Escalated Chats"
     : rawStatus.includes("closed")
       ? "Closed Chats"
-      : rawStatus.includes("respond")
-        ? "Responded Chats"
-        : "Open Chats";
+      : "Open Chats";
 
   return {
     id: String(row.id ?? row.chat_id ?? row.conversation_id ?? ""),
+    session_id: row.session_id ?? null,
     lead:
-      row.lead_name ?? row.lead ?? row.customer_name ?? row.name ?? "Unknown Lead",
+      row.lead_name ?? row.lead ?? row.customer_name ?? row.user_name ?? row.name ?? "Unknown Lead",
     email: row.email ?? row.customer_email ?? row.user_email ?? "No email",
     preview:
       row.preview ?? row.last_message ?? row.message_preview ?? row.message ?? "No message preview",
     time:
       row.time ??
+      row.last_message_at ??
       row.updated_at ??
+      row.start_time ??
       row.created_at ??
       new Date().toLocaleString(),
     stage,
@@ -180,6 +181,33 @@ const normalizeConversation = (row = {}) => {
     assignedTo: row.assigned_to ?? row.assignee ?? null,
   };
 };
+
+function SkeletonConvItem() {
+  return (
+    <div className="flex w-full animate-pulse border-b border-slate-200 border-l-4 border-l-transparent px-4 py-5">
+      <div className="mr-3 mt-0.5 h-4 w-4 shrink-0 rounded bg-gray-200" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 w-3/5 rounded bg-gray-200" />
+        <div className="h-3 w-2/5 rounded bg-gray-200" />
+        <div className="h-3 w-4/5 rounded bg-gray-200" />
+      </div>
+      <div className="ml-3 h-3 w-20 shrink-0 rounded bg-gray-200" />
+    </div>
+  );
+}
+
+function SkeletonMessage({ isBot }) {
+  return (
+    <div className="flex animate-pulse items-start gap-3 rounded-xl px-3 py-3">
+      <span className={`inline-flex h-8 w-8 shrink-0 rounded-lg ${isBot ? "bg-purple-200" : "bg-blue-200"}`} />
+      <div className="flex-1 space-y-2">
+        <div className="h-3 w-16 rounded bg-gray-200" />
+        <div className="h-3 w-full rounded bg-gray-200" />
+        <div className="h-3 w-4/5 rounded bg-gray-200" />
+      </div>
+    </div>
+  );
+}
 
 function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
   const tones = {
@@ -228,16 +256,40 @@ export default function SupportChatbotReporting() {
   const [selectedConversationId, setSelectedConversationId] =
     useState("conv-2");
   const [isAgentsOpen, setIsAgentsOpen] = useState(false);
+  const [selectedChats, setSelectedChats] = useState(new Set());
+  const [isConvPanelAssignOpen, setIsConvPanelAssignOpen] = useState(false);
+  const agentsDropdownRef = useRef(null);
+  const convAssignDropdownRef = useRef(null);
+
+  // Close Agents and ConvPanel-Assign dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (agentsDropdownRef.current && !agentsDropdownRef.current.contains(e.target)) {
+        setIsAgentsOpen(false);
+      }
+      if (convAssignDropdownRef.current && !convAssignDropdownRef.current.contains(e.target)) {
+        setIsConvPanelAssignOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const [isAddRuleOpen, setIsAddRuleOpen] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
   const [isAssignedToast, setIsAssignedToast] = useState(false);
+  const [isRightAssignToast, setIsRightAssignToast] = useState(false);
   const [businessRules, setBusinessRules] = useState(INITIAL_RULES);
+  const [isBusinessRulesListOpen, setIsBusinessRulesListOpen] = useState(false);
+  const [isRulesInlineAddOpen, setIsRulesInlineAddOpen] = useState(false);
+  const [newRuleInListText, setNewRuleInListText] = useState("");
 
   // API States
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [conversationsError, setConversationsError] = useState(null);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     status: "open",
@@ -320,7 +372,6 @@ export default function SupportChatbotReporting() {
 
   const fetchConversationDetail = async (conversationId) => {
     try {
-      setConversationsLoading(true);
       const response = await axiosInstance.get(
         `/api/chatbot/conversations/${conversationId}`
       );
@@ -328,9 +379,38 @@ export default function SupportChatbotReporting() {
       setSelectedConversation(normalizeConversation(payload));
     } catch (error) {
       console.error("Error fetching conversation detail:", error);
-      setConversationsError(error.message);
+    }
+  };
+
+  const fetchChatHistory = async (sessionId) => {
+    if (!sessionId) return;
+    try {
+      setChatHistoryLoading(true);
+      const response = await axiosInstance.get(`/api/chatbot/chat/history/${sessionId}`);
+      const payload = response?.data?.data ?? response?.data ?? [];
+      const msgs = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.messages)
+          ? payload.messages
+          : Array.isArray(payload?.history)
+            ? payload.history
+            : [];
+      setChatHistory(
+        msgs.map((msg, idx) => ({
+          id: msg.id ?? msg.message_id ?? `msg-${idx}`,
+          role:
+            String(msg.role ?? msg.sender ?? "USER").toUpperCase() === "ASSISTANT"
+              ? "BOT"
+              : String(msg.role ?? msg.sender ?? "USER").toUpperCase(),
+          text: msg.content ?? msg.text ?? msg.message ?? msg.body ?? "",
+          timestamp: msg.timestamp ?? msg.created_at ?? null,
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching chat history:", error);
+      setChatHistory([]);
     } finally {
-      setConversationsLoading(false);
+      setChatHistoryLoading(false);
     }
   };
 
@@ -427,6 +507,36 @@ export default function SupportChatbotReporting() {
     }
   };
 
+  const handleRightAssignClick = async () => {
+    if (!selectedConversationId) return;
+    try {
+      await axiosInstance.post("/api/chatbot/assign", {
+        chat_ids: [selectedConversationId],
+        assigned_to: "current_user",
+      });
+      setIsRightAssignToast(true);
+      setTimeout(() => setIsRightAssignToast(false), 3000);
+    } catch (error) {
+      console.error("Error assigning chat:", error);
+    }
+  };
+
+  const handleAddRuleInList = () => {
+    if (!newRuleInListText.trim()) return;
+    setBusinessRules((prev) => [
+      ...prev,
+      {
+        id: `rule-${Date.now()}`,
+        number: prev.length + 1,
+        text: newRuleInListText.trim(),
+        createdBy: "You",
+        createdAt: new Date().toLocaleString(),
+      },
+    ]);
+    setNewRuleInListText("");
+    setIsRulesInlineAddOpen(false);
+  };
+
   const handleSearch = (query) => {
     setSearch(query);
     setSearchQuery(query);
@@ -443,7 +553,16 @@ export default function SupportChatbotReporting() {
 
   const handleConversationSelect = (conversationId) => {
     setSelectedConversationId(conversationId);
+    setSelectedConversation(null);
+    setChatHistory([]);
+    setChatHistoryLoading(true);
     fetchConversationDetail(conversationId);
+    const conv = conversations.find((c) => String(c.id) === String(conversationId));
+    if (conv?.session_id) {
+      fetchChatHistory(conv.session_id);
+    } else {
+      setChatHistoryLoading(false);
+    }
   };
 
   const handleTabChange = (tab) => {
@@ -460,6 +579,23 @@ export default function SupportChatbotReporting() {
     if (!selectedConversationId) return;
     await assignChat([selectedConversationId], agentName);
     setIsAgentsOpen(false);
+  };
+
+  const handleToggleSelectChat = (e, convId) => {
+    e.stopPropagation();
+    setSelectedChats((prev) => {
+      const next = new Set(prev);
+      if (next.has(convId)) next.delete(convId);
+      else next.add(convId);
+      return next;
+    });
+  };
+
+  const handleAssignSelectedChats = async (agentName) => {
+    if (!selectedChats.size) return;
+    await assignChat([...selectedChats], agentName);
+    setSelectedChats(new Set());
+    setIsConvPanelAssignOpen(false);
   };
   const handleAddRule = () => {
     if (!newRuleText.trim()) return;
@@ -606,7 +742,7 @@ export default function SupportChatbotReporting() {
           /> */}
 
           {/* Agents button + dropdown */}
-          <div className="relative flex-1 sm:flex-none">
+          <div className="relative flex-1 sm:flex-none" ref={agentsDropdownRef}>
             <button
               type="button"
               onClick={() => setIsAgentsOpen((p) => !p)}
@@ -656,13 +792,13 @@ export default function SupportChatbotReporting() {
 
 
 
-          {/* Add Business Rules button */}
+          {/* Business Rules button (opens Add Business Rules modal directly) */}
           <button
             type="button"
             onClick={() => setIsAddRuleOpen(true)}
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#8b5cf6] bg-white px-4 py-3 text-[14px] font-[600] text-[#6d28d9] sm:flex-none sm:px-5"
           >
-            <Plus className="h-4 w-4" /> Add Business Rules
+            <ClipboardList className="h-4 w-4" /> Add Business Rules
           </button>
 
           {/* Export CSV */}
@@ -682,9 +818,36 @@ export default function SupportChatbotReporting() {
         {/* Conversations Panel */}
         <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
-            <h3 className="text-[18px] font-[800] text-[#061a43]">
-              Conversations
-            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[18px] font-[800] text-[#061a43]">Conversations</h3>
+              <div className="relative" ref={convAssignDropdownRef}>
+                <button
+                  type="button"
+                  disabled={selectedChats.size === 0}
+                  onClick={() => setIsConvPanelAssignOpen((v) => !v)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <UserCog className="h-4 w-4" />
+                  Assign{selectedChats.size > 0 ? ` (${selectedChats.size})` : ""}
+                </button>
+                {isConvPanelAssignOpen && selectedChats.size > 0 && (
+                  <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Assign to agent</p>
+                    {AGENTS.map((agent) => (
+                      <button
+                        key={agent.name}
+                        type="button"
+                        onClick={() => handleAssignSelectedChats(agent.name)}
+                        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
+                      >
+                        <span className="font-[600]">{agent.name}</span>
+                        <span className={`text-[11px] ${agent.status === "Online" ? "text-green-600" : "text-gray-400"}`}>{agent.status}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -710,58 +873,86 @@ export default function SupportChatbotReporting() {
           {/* Conversation list */}
           <div className="max-h-[380px] overflow-y-auto">
             {conversationsLoading ? (
-              <p className="px-6 py-8 text-[14px] text-gray-400">Loading conversations...</p>
+              <>
+                {[...Array(4)].map((_, i) => (
+                  <SkeletonConvItem key={i} />
+                ))}
+              </>
             ) : filteredConversations.length === 0 ? (
-              <div className="px-6 py-8">
-                <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-                  <p className="text-[15px] font-[600] text-[#334e78]">No conversations in this tab</p>
-                  <p className="mt-1 text-[13px] text-gray-500">Try searching another keyword or switch tabs.</p>
-                  <button
-                    type="button"
-                    onClick={() => fetchConversations()}
-                    className="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[12px] font-[600] text-[#253b69] hover:bg-gray-100"
-                  >
-                    <Search className="h-3.5 w-3.5" /> Refresh Chats
-                  </button>
+              <div className="animate-fadeInUp px-6 py-10 text-center">
+                <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
+                  <MessageCircle className="h-7 w-7 text-gray-400" />
                 </div>
+                <p className="text-[15px] font-[700] text-[#334e78]">No conversations yet</p>
+                <p className="mt-1 text-[13px] text-gray-400">There are no chats in this category right now.</p>
+                <button
+                  type="button"
+                  onClick={() => fetchConversations()}
+                  className="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[12px] font-[600] text-[#253b69] hover:bg-gray-100"
+                >
+                  <Search className="h-3.5 w-3.5" /> Refresh
+                </button>
               </div>
             ) : (
-              filteredConversations.map((conv) => (
-                <button
+              filteredConversations.map((conv, idx) => (
+                <div
                   key={conv.id}
-                  type="button"
-                    onClick={() => handleConversationSelect(conv.id)}
-                  className={`w-full border-b border-slate-200 px-4 py-5 text-left transition-colors hover:bg-[#faf8ff] ${
+                  style={{ animationDelay: `${idx * 40}ms` }}
+                  className={`animate-fadeInUp relative flex w-full border-b border-slate-200 border-l-4 transition-colors duration-200 hover:bg-[#faf8ff] ${
                     selectedConversationId === conv.id
-                      ? "border-l-4 border-l-[#7c3aed] bg-[#eaf3ff]"
-                      : ""
+                      ? "border-l-[#7c3aed] bg-[#eaf3ff]"
+                      : "border-l-transparent"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[16px] font-[700] leading-tight text-[#04163d]">
-                        {conv.lead}
-                      </p>
-                      <p className="mt-1 flex items-center gap-1 text-[14px] text-[#586a8f]">
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-[#ef4444]" />
-                        <span className="truncate">{conv.email}</span>
-                      </p>
-                      <p className="mt-2 text-[13px] text-[#2f456f]">
-                        {conv.preview}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2">
-                      <p className="whitespace-nowrap text-[13px] text-[#60759b]">
-                        {String(conv.time)}
-                      </p>
-                      {conv.escalated && (
-                        <span className="rounded-full bg-[#ef4444] px-3 py-1 text-[11px] font-[600] text-white">
-                          Escalated
-                        </span>
+                  {/* Checkbox */}
+                  <div className="flex shrink-0 items-start pt-5 pl-4">
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleSelectChat(e, conv.id)}
+                      className={`flex h-4.5 w-4.5 items-center justify-center rounded border transition-colors ${
+                        selectedChats.has(conv.id)
+                          ? "border-[#7c3aed] bg-[#7c3aed]"
+                          : "border-gray-300 bg-white hover:border-[#7c3aed]"
+                      }`}
+                      aria-label="Select conversation"
+                    >
+                      {selectedChats.has(conv.id) && (
+                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
                       )}
-                    </div>
+                    </button>
                   </div>
-                </button>
+                  {/* Row content */}
+                  <button
+                    type="button"
+                    onClick={() => handleConversationSelect(conv.id)}
+                    className="flex-1 px-4 py-5 text-left"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[16px] font-[700] leading-tight text-[#04163d]">
+                          {conv.lead}
+                        </p>
+                        <p className="mt-1 flex items-center gap-1 text-[14px] text-[#586a8f]">
+                          <span className="h-2 w-2 shrink-0 rounded-full bg-[#ef4444]" />
+                          <span className="truncate">{conv.email}</span>
+                        </p>
+                        <p className="mt-2 text-[13px] text-[#2f456f]">
+                          {conv.preview}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-2">
+                        <p className="whitespace-nowrap text-[13px] text-[#60759b]">
+                          {String(conv.time)}
+                        </p>
+                        {conv.escalated && (
+                          <span className="rounded-full bg-[#ef4444] px-3 py-1 text-[11px] font-[600] text-white">
+                            Escalated
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -772,50 +963,21 @@ export default function SupportChatbotReporting() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 sm:px-6">
             <h3 className="text-[16px] font-[800] text-[#061a43]">Messages</h3>
             <div className="flex items-center gap-2">
-              <div className="rounded-xl border border-[#dbe5ff] bg-[#f5f8ff] px-3 py-2">
-                <p className="text-[10px] font-[700] uppercase tracking-wide text-[#5f6d87]">Selected Chat</p>
-                <p className="max-w-[200px] truncate text-[13px] font-[700] text-[#102a56]">
-                  {selectedConversationCard?.lead ?? "No chat selected"}
-                </p>
-              </div>
-
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsAgentsOpen((v) => !v)}
-                  disabled={!selectedConversationId}
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <UserCog className="h-4 w-4" /> Assign To
-                </button>
-                {isAgentsOpen && selectedConversationId && (
-                  <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-                    {AGENTS.map((agent) => (
-                      <button
-                        key={agent.name}
-                        type="button"
-                        onClick={() => handleAssignToAgent(agent.name)}
-                        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
-                      >
-                        <span className="font-[600]">{agent.name}</span>
-                        <span className={`text-[11px] ${agent.status === "Online" ? "text-green-600" : "text-gray-400"}`}>
-                          {agent.status}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               <button
                 type="button"
-                onClick={handleAssignClick}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+                onClick={handleRightAssignClick}
                 disabled={!selectedConversationId}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <User className="h-4 w-4" /> Assign
               </button>
-
+                   <button
+                type="button"
+                onClick={() => setIsAddRuleOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+              >
+                <ClipboardList className="h-4 w-4" /> Add Business Rules
+              </button>
             </div>
           </div>
 
@@ -839,71 +1001,188 @@ export default function SupportChatbotReporting() {
               </div>
             )}
 
-            <div className="rounded-2xl border border-[#e9ddff] bg-[#f5f0ff] px-4 py-3">
-              <div className="flex items-start gap-3 rounded-xl px-3 py-3">
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#9b5cf5] text-white">
-                  <Bot className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-[14px] font-[700] text-[#1a2d57]">BOT</p>
-                  <p className="mt-1 text-[13px] leading-relaxed text-slate-700">
-                    {data.message}
-                  </p>
+            <div className="overflow-y-auto" style={{ maxHeight: 420 }}>
+              {chatHistoryLoading ? (
+                <div className="space-y-1 bg-white px-4 py-3">
+                  {[...Array(4)].map((_, i) => (
+                    <SkeletonMessage key={i} isBot={i % 2 === 1} />
+                  ))}
                 </div>
-              </div>
-            </div>
-
-            <div className="space-y-1 border-t border-gray-100 bg-white px-4 py-3">
-              {data.thread.map((item) => {
-                const isBot = item.role === "BOT";
-                return (
-                  <div
-                    key={item.id}
-                    className="flex items-start gap-3 rounded-xl px-3 py-3 hover:bg-[#fafafa]"
-                  >
-                    <span
-                      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isBot ? "bg-[#9b5cf5] text-white" : "bg-[#3b82f6] text-white"}`}
-                    >
-                      {isBot ? (
-                        <Bot className="h-4 w-4" />
-                      ) : (
-                        <User className="h-4 w-4" />
-                      )}
-                    </span>
-                    <div>
-                      <p className="text-[14px] font-[700] text-[#1a2d57]">
-                        {item.role}
-                      </p>
-                      <p className="mt-1 text-[13px] leading-relaxed text-slate-700">
-                        {item.text}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+              ) : chatHistory.length === 0 ? (
+                <div className="animate-fadeInUp flex flex-col items-center justify-center py-12">
+                  <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                    <MessageCircle className="h-6 w-6 text-gray-300" />
+                  </span>
+                  <p className="text-[14px] font-[600] text-gray-400">No messages to display</p>
+                  <p className="mt-1 text-[12px] text-gray-300">Select a conversation to view its messages</p>
+                </div>
+              ) : (
+                <div className="animate-fadeInUp space-y-1 bg-white px-4 py-3">
+                  {chatHistory.map((item) => {
+                    const isBot = item.role === "BOT";
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-3 rounded-xl px-3 py-3 hover:bg-[#fafafa]"
+                      >
+                        <span
+                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${isBot ? "bg-[#9b5cf5] text-white" : "bg-[#3b82f6] text-white"}`}
+                        >
+                          {isBot ? (
+                            <Bot className="h-4 w-4" />
+                          ) : (
+                            <User className="h-4 w-4" />
+                          )}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-[14px] font-[700] text-[#1a2d57]">
+                              {isBot ? "BOT" : "USER"}
+                            </p>
+                            {item.timestamp && (
+                              <p className="text-[11px] text-gray-400">
+                                {new Date(item.timestamp).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                          <p className="mt-1 text-[13px] leading-relaxed text-slate-700">
+                            {item.text}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Assigned toast */}
-          {isAssignedToast && (
+          {/* Assigned toast (right panel) */}
+          {isRightAssignToast && (
             <div className="absolute bottom-4 right-4 z-20 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-xl">
               <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#061a43]">
                 <Check className="h-4 w-4 text-white" />
               </span>
               <div>
-                <p className="text-[14px] font-[700] text-[#061a43]">
-                  Assigned
-                </p>
-                <p className="text-[13px] text-gray-500">
-                  Conversation has been assigned to you
-                </p>
+                <p className="text-[14px] font-[700] text-[#061a43]">Assigned</p>
+                <p className="text-[13px] text-gray-500">Conversation assigned successfully</p>
               </div>
             </div>
           )}
         </article>
       </section>
 
-{/* Add Business Rules Modal */}
+{/* Business Rules List Modal */}
+      {isBusinessRulesListOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setIsBusinessRulesListOpen(false); }}
+        >
+          <div className="relative flex w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "85vh" }}>
+            {/* Modal header */}
+            <div className="flex items-start justify-between border-b border-gray-100 px-8 pt-7 pb-5">
+              <div className="flex-1 pr-4">
+                <h2 className="text-[22px] font-[800] text-[#061a43]">Business Rules List</h2>
+                <p className="mt-1 text-[14px] text-gray-500">View all business rules that have been created for the chatbot.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBusinessRulesListOpen(false);
+                    setIsRulesInlineAddOpen(false);
+                    setIsAddRuleOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#7c3aed] px-4 py-2.5 text-[13px] font-[700] text-white hover:bg-[#6d28d9]"
+                >
+                  <ClipboardList className="h-4 w-4" /> Add Business Rules
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsBusinessRulesListOpen(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            {/* Inline add form (shown when Add Business Rules clicked) */}
+            {isRulesInlineAddOpen && (
+              <div className="border-b border-gray-100 bg-[#faf8ff] px-8 py-4">
+                <p className="mb-2 text-[13px] font-[600] text-[#061a43]">New Business Rule</p>
+                <textarea
+                  value={newRuleInListText}
+                  onChange={(e) => setNewRuleInListText(e.target.value)}
+                  placeholder="Enter business rule here..."
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-gray-300 bg-white p-3 text-[13px] text-gray-700 outline-none focus:border-[#a78bfa]"
+                />
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setIsRulesInlineAddOpen(false); setNewRuleInListText(""); }}
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddRuleInList}
+                    className="rounded-xl bg-[#7c3aed] px-4 py-2 text-[13px] font-[700] text-white hover:bg-[#6d28d9]"
+                  >
+                    Save Rule
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* Rules list */}
+            <div className="flex-1 overflow-y-auto px-8 py-5 space-y-4">
+              {businessRules.length === 0 ? (
+                <p className="py-8 text-center text-[14px] text-gray-400">No business rules yet. Add your first rule above.</p>
+              ) : (
+                businessRules.map((rule) => (
+                  <div key={rule.id} className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+                    <div style={{ borderLeft: "4px solid #7c3aed" }} className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">Rule #{rule.number}</span>
+                        <div className="text-right">
+                          <p className="text-[13px] font-[500] text-gray-500">Created by {rule.createdBy}</p>
+                          <p className="text-[12px] text-gray-400">{rule.createdAt}</p>
+                        </div>
+                      </div>
+                      <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">{rule.text}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            {/* Bottom action section */}
+            <div className="border-t border-gray-100 px-8 py-4">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBusinessRulesListOpen(false);
+                    setIsAddRuleOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-dashed border-[#8b5cf6] bg-[#faf8ff] px-4 py-2.5 text-[13px] font-[600] text-[#6d28d9] hover:bg-[#f3eeff]"
+                >
+                  <Plus className="h-4 w-4" /> Add Business Rules
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsBusinessRulesListOpen(false)}
+                  className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Business Rules Modal */}
       {isAddRuleOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"

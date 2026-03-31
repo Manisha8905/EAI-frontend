@@ -1605,7 +1605,7 @@ export default function CampaignPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {form.channel_order.map((c) => c.toUpperCase()).includes("CALL") && (
                 <>
-                  <Field label="VAPI Model">
+                  <Field label="Campaign Model">
                     <div className="relative">
                       <select
                         name="vapi_model"
@@ -1620,7 +1620,7 @@ export default function CampaignPage() {
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     </div>
                   </Field>
-                  <Field label="VAPI Voice ID">
+                  <Field label="Voice ID">
                     <div className="relative">
                       <select
                         name="vapi_voice_id"

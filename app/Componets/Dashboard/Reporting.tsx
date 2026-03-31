@@ -348,7 +348,9 @@ export default function Reporting() {
                                 <Calendar className="h-3 w-3" /> Yes
                               </span>
                             ) : (
-                              <span className="text-[11px] text-gray-400">-</span>
+                              <span className="inline-flex items-center text-[11px] font-[600] text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+                                No
+                              </span>
                             )}
                           </td>
                           <td className="px-5 py-3.5">
@@ -388,10 +390,10 @@ export default function Reporting() {
               onClick={() => setSelectedTranscript(null)}
             >
               <div
-                className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl"
+                className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl max-h-[90vh] flex flex-col overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+                <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 flex-shrink-0">
                   <h2 className="text-[16px] font-[700] text-gray-900">Call Transcript</h2>
                   <button
                     type="button"
@@ -402,7 +404,7 @@ export default function Reporting() {
                   </button>
                 </div>
 
-                <div className="space-y-5 px-6 py-5">
+                <div className="space-y-5 px-6 py-5 overflow-y-auto flex-1">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[
                       ["Lead Name", selectedTranscript.name ?? "-"],

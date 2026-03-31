@@ -507,6 +507,17 @@ const extractArray = (data) => {
   return first ?? [];
 };
 
+const normalizeBooleanish = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "yes", "y", "1"].includes(normalized)) return true;
+    if (["false", "no", "n", "0", "", "null", "none"].includes(normalized)) return false;
+  }
+  return Boolean(value);
+};
+
 // 📞 Call History  —  GET /users/call-history/?campaign_id=<id>
 export const fetchCallHistory = (campaignId) => async (dispatch) => {
   dispatch({ type: CALL_HISTORY_REQUEST });
@@ -537,7 +548,7 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
         dateTime,
         duration:   r.call_duration       ?? r.duration          ?? "0",
         status:     (r.call_status        ?? r.status            ?? "").toUpperCase(),
-        meeting:    r.meeting_scheduled   ?? r.meeting           ?? r.is_meeting_scheduled ?? false,
+        meeting:    normalizeBooleanish(r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
         transcript: r.call_transcript     ?? r.transcript        ?? r.call_summary  ?? "",
         summary:    r.call_summary        ?? "",
         recording:  r.recording_url       ?? null,
@@ -618,7 +629,7 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       dateTime:  r.sent_at      ?? r.created_at     ?? r.date          ?? "—",
       status:    (r.status      ?? r.email_status   ?? "").toUpperCase(),
       clicked:   r.clicked      ?? r.is_clicked     ?? false,
-      meeting:   r.meeting_requested ?? r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled ?? false,
+      meeting:   normalizeBooleanish(r.meeting_requested ?? r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
       skippable: r.skippable    ?? false,
       skipReason: r.skip_reason ?? null,
       campaign_name: r.campaign_name ?? "",
@@ -670,7 +681,7 @@ export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
       replied:            r.replied              ?? r.is_replied        ?? false,
       status:             (r.status              ?? r.linkedin_status   ?? "").toUpperCase(),
       dateTime:           r.created_at           ?? r.date              ?? r.sent_at       ?? "—",
-      meeting:            r.meeting_scheduled    ?? r.meeting           ?? false,
+      meeting:            normalizeBooleanish(r.meeting_scheduled ?? r.meeting),
     }));
     dispatch({ type: LINKEDIN_HISTORY_SUCCESS, payload: normalized });
     toast.success(`LinkedIn history loaded (${normalized.length} records)`);
@@ -695,7 +706,7 @@ export const fetchWhatsappHistory = (campaignId) => async (dispatch) => {
       dateTime:       r.sent_at        ?? r.created_at    ?? r.date          ?? "—",
       messagePreview: r.message_preview ?? r.message      ?? r.content       ?? "—",
       status:         (r.status        ?? r.message_status ?? "").toUpperCase(),
-      meeting:        r.meeting_scheduled ?? r.meeting    ?? r.is_meeting_scheduled ?? false,
+      meeting:        normalizeBooleanish(r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
     }));
     dispatch({ type: WHATSAPP_HISTORY_SUCCESS, payload: normalized });
     toast.success(`WhatsApp history loaded (${normalized.length} records)`);
@@ -711,18 +722,45 @@ export const fetchInboundCallHistory = () => async (dispatch) => {
   try {
     const res = await axiosInstance.get("/api/inbound/calls/history");
     const raw = extractArray(res.data);
-    const normalized = raw.map((r) => ({
-      name:     r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",
-      phone:    r.phone_number    ?? r.phone         ?? r.contact_phone ?? "—",
-      company:  r.campaign_name    ?? r.company       ?? r.organization  ?? "—",
-      dateTime: r.call_time       ?? r.created_at    ?? r.date          ?? "—",
-      duration: r.duration        ?? r.call_duration ?? "0",
-      status:   (r.call_status    ?? r.status        ?? "").toUpperCase(),
-      meeting:  r.meeting_scheduled ?? r.meeting     ?? r.is_meeting_scheduled ?? false,
-      transcript: r.call_transcript ?? r.transcript ?? "",
-      summary: r.call_summary ?? r.summary ?? "",
-      recording: r.recording_url ?? null,
-    }));
+    const normalized = raw.map((r) => {
+      let dateTime = "—";
+      if (r.created_at) {
+        const d = new Date(r.created_at);
+        if (!Number.isNaN(d.getTime())) {
+          const datePart = d.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+          const timePart = d.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          dateTime = `${datePart}\n${timePart}`;
+        }
+      } else if (r.call_date && r.call_time) {
+        const d = new Date(r.call_date);
+        const datePart = !Number.isNaN(d.getTime())
+          ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : r.call_date;
+        dateTime = `${datePart}\n${r.call_time}`;
+      } else {
+        dateTime = r.call_time ?? r.date ?? "—";
+      }
+
+      return {
+        name:     r.lead_name       ?? r.name         ?? r.contact_name  ?? "—",
+        phone:    r.phone_number    ?? r.phone         ?? r.contact_phone ?? "—",
+        company:  r.campaign_name    ?? r.company       ?? r.organization  ?? "—",
+        dateTime,
+        duration: r.duration        ?? r.call_duration ?? "0",
+        status:   (r.call_status    ?? r.status        ?? "").toUpperCase(),
+        meeting:  normalizeBooleanish(r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
+        transcript: r.call_transcript ?? r.transcript ?? "",
+        summary: r.call_summary ?? r.summary ?? "",
+        recording: r.recording_url ?? null,
+      };
+    });
     dispatch({ type: INBOUND_HISTORY_SUCCESS, payload: normalized });
   } catch (err) {
     dispatch({ type: INBOUND_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load inbound call history." });

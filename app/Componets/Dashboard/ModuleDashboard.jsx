@@ -1166,7 +1166,7 @@ export default function ModuleDashboard({
           </ChartCard>
 
           {/* EM-4 ── Avg Number of Responses Per Email (per-campaign bar) */}
-          <ChartCard title="Avg Responses Per Email" subtitle="Average response rate per campaign">
+          <ChartCard title="Campaign Responses Per Email" subtitle="Email response rate per campaign">
             <div className="h-[240px] w-full">
               {emailResponsesData ? (
                 <ResponsiveContainer width="100%" height="100%">

@@ -264,6 +264,7 @@ function AnimStyles() {
 }
 
 /* ── CRM Integration ── */
+// const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
 const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
 
 function CRMPage({ onBack, onConnectionChange }) {
