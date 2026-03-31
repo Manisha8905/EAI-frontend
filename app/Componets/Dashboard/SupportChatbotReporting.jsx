@@ -276,6 +276,14 @@ export default function SupportChatbotReporting() {
   }, []);
   const [isAddRuleOpen, setIsAddRuleOpen] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
+  const [selectedRuleId, setSelectedRuleId] = useState(null);
+  const [isRuleDetailOpen, setIsRuleDetailOpen] = useState(false);
+  const [ruleDetailData, setRuleDetailData] = useState(null);
+  const [isAddAgentOpen, setIsAddAgentOpen] = useState(false);
+  const [newAgentName, setNewAgentName] = useState("");
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [isAgentDetailOpen, setIsAgentDetailOpen] = useState(false);
+  const [agents, setAgents] = useState(AGENTS);
   const [isAssignedToast, setIsAssignedToast] = useState(false);
   const [isRightAssignToast, setIsRightAssignToast] = useState(false);
   const [businessRules, setBusinessRules] = useState(INITIAL_RULES);
@@ -537,6 +545,51 @@ export default function SupportChatbotReporting() {
     setIsRulesInlineAddOpen(false);
   };
 
+  const openAddRuleModal = (rule = null) => {
+    setIsBusinessRulesListOpen(false);
+    setIsRulesInlineAddOpen(false);
+    if (rule) {
+      setSelectedRuleId(rule.id);
+      setNewRuleText(rule.text || "");
+    } else {
+      setSelectedRuleId(null);
+      setNewRuleText("");
+    }
+    setIsAddRuleOpen(true);
+  };
+
+  const openBusinessRulesList = () => {
+    setSelectedRuleId(null);
+    setIsBusinessRulesListOpen(true);
+  };
+
+  const handleRuleClick = (rule) => {
+    setSelectedRuleId(rule.id);
+    setRuleDetailData(rule);
+    setIsRuleDetailOpen(true);
+    setIsBusinessRulesListOpen(false);
+  };
+
+  const createAgentInitials = (name) => {
+    const parts = String(name || "").trim().split(/\s+/);
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
+  const handleAddAgent = () => {
+    const cleanName = newAgentName.trim();
+    if (!cleanName) return;
+    const newAgent = {
+      initials: createAgentInitials(cleanName),
+      name: cleanName,
+      status: "Online",
+    };
+    setAgents((prev) => [...prev, newAgent]);
+    setNewAgentName("");
+    setIsAddAgentOpen(false);
+  };
+
   const handleSearch = (query) => {
     setSearch(query);
     setSearchQuery(query);
@@ -599,17 +652,34 @@ export default function SupportChatbotReporting() {
   };
   const handleAddRule = () => {
     if (!newRuleText.trim()) return;
-    setBusinessRules((prev) => [
-      ...prev,
-      {
-        id: `rule-${Date.now()}`,
-        number: prev.length + 1,
-        text: newRuleText.trim(),
-        createdBy: "You",
-        createdAt: new Date().toLocaleString(),
-      },
-    ]);
+
+    setBusinessRules((prev) => {
+      if (selectedRuleId) {
+        return prev.map((rule) =>
+          rule.id === selectedRuleId
+            ? {
+                ...rule,
+                text: newRuleText.trim(),
+                createdAt: new Date().toLocaleString(),
+              }
+            : rule
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          id: `rule-${Date.now()}`,
+          number: prev.length + 1,
+          text: newRuleText.trim(),
+          createdBy: "You",
+          createdAt: new Date().toLocaleString(),
+        },
+      ];
+    });
+
     setNewRuleText("");
+    setSelectedRuleId(null);
     setIsAddRuleOpen(false);
   };
 
@@ -758,32 +828,41 @@ export default function SupportChatbotReporting() {
                   </h3>
                   <button
                     type="button"
+                    onClick={() => setIsAddAgentOpen(true)}
                     className="inline-flex items-center gap-1.5 rounded-xl bg-[#7c3aed] px-4 py-2 text-[13px] font-[600] text-white"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add Agent
                   </button>
                 </div>
                 <div className="max-h-[260px] overflow-y-auto px-3 pb-3">
-                  {AGENTS.map((agent) => (
-                    <div
+                  {agents.map((agent) => (
+                    <button
                       key={agent.name}
-                      className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-[#f5f0ff]"
+                      type="button"
+                      onClick={() => {
+                        setSelectedAgent(agent);
+                        setIsAgentDetailOpen(true);
+                        setIsAgentsOpen(false);
+                      }}
+                      className="w-full text-left"
                     >
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-[13px] font-[700] text-white">
-                        {agent.initials}
-                      </span>
-                      <div>
-                        <p className="text-[14px] font-[600] text-[#061a43]">
-                          {agent.name}
-                        </p>
-                        <p className="flex items-center gap-1.5 text-[13px] text-gray-500">
-                          <span
-                            className={`h-2 w-2 rounded-full ${agent.status === "Online" ? "bg-green-500" : "bg-gray-400"}`}
-                          />
-                          {agent.status}
-                        </p>
+                      <div className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-[#f5f0ff]">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-[13px] font-[700] text-white">
+                          {agent.initials}
+                        </span>
+                        <div>
+                          <p className="text-[14px] font-[600] text-[#061a43]">
+                            {agent.name}
+                          </p>
+                          <p className="flex items-center gap-1.5 text-[13px] text-gray-500">
+                            <span
+                              className={`h-2 w-2 rounded-full ${agent.status === "Online" ? "bg-green-500" : "bg-gray-400"}`}
+                            />
+                            {agent.status}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -792,13 +871,13 @@ export default function SupportChatbotReporting() {
 
 
 
-          {/* Business Rules button (opens Add Business Rules modal directly) */}
+          {/* Business Rules List button (open list popup) */}
           <button
             type="button"
-            onClick={() => setIsAddRuleOpen(true)}
+            onClick={openBusinessRulesList}
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#8b5cf6] bg-white px-4 py-3 text-[14px] font-[600] text-[#6d28d9] sm:flex-none sm:px-5"
           >
-            <ClipboardList className="h-4 w-4" /> Add Business Rules
+            <ClipboardList className="h-4 w-4" />  Business Rules List
           </button>
 
           {/* Export CSV */}
@@ -971,9 +1050,9 @@ export default function SupportChatbotReporting() {
               >
                 <User className="h-4 w-4" /> Assign
               </button>
-                   <button
+              <button
                 type="button"
-                onClick={() => setIsAddRuleOpen(true)}
+                onClick={openAddRuleModal}
                 className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
               >
                 <ClipboardList className="h-4 w-4" /> Add Business Rules
@@ -1088,11 +1167,7 @@ export default function SupportChatbotReporting() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsBusinessRulesListOpen(false);
-                    setIsRulesInlineAddOpen(false);
-                    setIsAddRuleOpen(true);
-                  }}
+                  onClick={openAddRuleModal}
                   className="inline-flex items-center gap-2 rounded-xl bg-[#7c3aed] px-4 py-2.5 text-[13px] font-[700] text-white hover:bg-[#6d28d9]"
                 >
                   <ClipboardList className="h-4 w-4" /> Add Business Rules
@@ -1140,41 +1215,187 @@ export default function SupportChatbotReporting() {
               {businessRules.length === 0 ? (
                 <p className="py-8 text-center text-[14px] text-gray-400">No business rules yet. Add your first rule above.</p>
               ) : (
-                businessRules.map((rule) => (
-                  <div key={rule.id} className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-                    <div style={{ borderLeft: "4px solid #7c3aed" }} className="px-5 py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">Rule #{rule.number}</span>
-                        <div className="text-right">
-                          <p className="text-[13px] font-[500] text-gray-500">Created by {rule.createdBy}</p>
-                          <p className="text-[12px] text-gray-400">{rule.createdAt}</p>
+                businessRules.map((rule) => {
+                  const isSelected = selectedRuleId === rule.id;
+                  return (
+                    <button
+                      key={rule.id}
+                      type="button"
+                      onClick={() => handleRuleClick(rule)}
+                      className={`w-full rounded-xl border px-0 text-left transition ${isSelected ? "border-green-500 bg-green-50" : "border-gray-100 bg-white hover:bg-gray-50"}`}
+                    >
+                      <div style={{ borderLeft: "4px solid #7c3aed" }} className="px-5 py-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">Rule #{rule.number}</span>
+                          <div className="text-right">
+                            <p className="text-[13px] font-[500] text-gray-500">Created by {rule.createdBy}</p>
+                            <p className="text-[12px] text-gray-400">{rule.createdAt}</p>
+                          </div>
                         </div>
+                        <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">{rule.text}</p>
                       </div>
-                      <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">{rule.text}</p>
-                    </div>
-                  </div>
-                ))
+                    </button>
+                  );
+                })
               )}
             </div>
             {/* Bottom action section */}
             <div className="border-t border-gray-100 px-8 py-4">
-              <div className="flex items-center justify-between">
-                <button
+              <div className="flex items-center justify-end">
+                {/* <button
                   type="button"
-                  onClick={() => {
-                    setIsBusinessRulesListOpen(false);
-                    setIsAddRuleOpen(true);
-                  }}
+                  onClick={openAddRuleModal}
                   className="inline-flex items-center gap-2 rounded-xl border border-dashed border-[#8b5cf6] bg-[#faf8ff] px-4 py-2.5 text-[13px] font-[600] text-[#6d28d9] hover:bg-[#f3eeff]"
                 >
                   <Plus className="h-4 w-4" /> Add Business Rules
-                </button>
+                </button> */}
                 <button
                   type="button"
                   onClick={() => setIsBusinessRulesListOpen(false)}
                   className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rule Details Modal */}
+      {isRuleDetailOpen && ruleDetailData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsRuleDetailOpen(false);
+          }}
+        >
+          <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsRuleDetailOpen(false)}
+              className="absolute right-3 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="px-8 pb-8 pt-8">
+              <h2 className="text-[22px] font-[800] text-[#061a43]">
+                Rule Details
+              </h2>
+              <p className="mt-2 text-[14px] text-gray-500">
+                View details for the selected business rule.
+              </p>
+              <div className="mt-6 rounded-xl border border-gray-200 bg-[#f8fbff] p-4">
+                <p className="text-[13px] font-[700] text-[#253b69]">Rule #{ruleDetailData.number}</p>
+                <p className="mt-2 text-[14px] text-[#1a2d57]">{ruleDetailData.text}</p>
+                <p className="mt-3 text-[12px] text-gray-500">Created by {ruleDetailData.createdBy}</p>
+                <p className="text-[12px] text-gray-400">{ruleDetailData.createdAt}</p>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRuleDetailOpen(false)}
+                  className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRuleDetailOpen(false);
+                    openAddRuleModal(ruleDetailData);
+                  }}
+                  className="rounded-xl bg-[#7c3aed] px-6 py-2.5 text-[14px] font-[700] text-white hover:bg-[#6d28d9]"
+                >
+                  Edit Rule
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Agent Details Modal */}
+      {isAgentDetailOpen && selectedAgent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAgentDetailOpen(false);
+          }}
+        >
+          <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsAgentDetailOpen(false)}
+              className="absolute right-3 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="px-8 pb-8 pt-8">
+              <h2 className="text-[22px] font-[800] text-[#061a43]">
+                Agent Details
+              </h2>
+              <p className="mt-2 text-[14px] text-gray-500">
+                View details for the selected agent.
+              </p>
+              <div className="mt-6 rounded-xl border border-gray-200 bg-[#f8fbff] p-4">
+                <p className="text-[13px] font-[700] text-[#253b69]">{selectedAgent.name}</p>
+                <p className="mt-2 text-[14px] text-[#1a2d57]">Status: {selectedAgent.status}</p>
+                <p className="mt-3 text-[12px] text-gray-500">Initials: {selectedAgent.initials}</p>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAgentDetailOpen(false)}
+                  className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Agent Modal */}
+      {isAddAgentOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddAgentOpen(false);
+          }}
+        >
+          <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setIsAddAgentOpen(false)}
+              className="absolute right-3 top-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="px-8 pb-8 pt-8">
+              <h2 className="text-[22px] font-[800] text-[#061a43]">Add New Agent</h2>
+              <p className="mt-1 text-[14px] text-gray-500">Enter agent name to add to team.</p>
+              <input
+                value={newAgentName}
+                onChange={(e) => setNewAgentName(e.target.value)}
+                placeholder="Enter agent name"
+                className="mt-5 w-full rounded-xl border border-gray-300 bg-[#f6f6f6] px-3 py-2 text-[14px] text-gray-700 outline-none focus:border-[#a78bfa]"
+              />
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddAgentOpen(false)}
+                  className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddAgent}
+                  className="rounded-xl bg-[#7c3aed] px-6 py-2.5 text-[14px] font-[700] text-white hover:bg-[#6d28d9]"
+                >
+                  Add
                 </button>
               </div>
             </div>
