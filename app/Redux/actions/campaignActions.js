@@ -6,6 +6,13 @@ import {
 } from "../types/campaignTypes";
 
 export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
+  const rawToken = typeof window !== "undefined" ? localStorage.getItem("session_token") : "";
+  const token = (rawToken || "").trim();
+  const isTokenValid = Boolean(token && token !== "undefined" && token !== "null");
+  if (!isTokenValid) {
+    dispatch({ type: CAMPAIGN_LIST_FAILURE, payload: "Unauthorized - login required" });
+    return;
+  }
   dispatch({ type: CAMPAIGN_LIST_REQUEST });
   try {
     const res = await axiosInstance.get("/list-campaigns", {

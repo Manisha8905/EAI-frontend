@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "./Componets/Pages/Navbar";
 import Sidebar from "./Componets/Pages/Sidebar";
 
@@ -15,13 +15,25 @@ const isAdminRole = (role: string) => {
 export default function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("session_token") || "";
-    if (!token) {
-      router.replace("/login");
+    if (typeof window === "undefined") return;
+
+    const rawToken = localStorage.getItem("session_token");
+    const token = (rawToken || "").trim();
+    const isTokenValid = Boolean(token && token !== "undefined" && token !== "null");
+
+    if (!isTokenValid) {
+      setIsAuthChecked(true);
+      if (pathname !== "/login") {
+        router.replace("/login");
+      }
       return;
     }
+
+    setIsAuthChecked(true);
+
     const role = (localStorage.getItem("userRole") || "").toUpperCase().replace(/[\s_-]/g, "");
     // Redirect root "/" to role-appropriate home
     if (pathname === "/") {
@@ -41,6 +53,17 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       router.replace("/sales");
     }
   }, [pathname, router]);
+
+  if (!isAuthChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950/80 text-white">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 border-4 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          <p>Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   const hideLayout = pathname === "/login";
 

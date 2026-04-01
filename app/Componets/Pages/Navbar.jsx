@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { logoutUser } from "../../Redux/actions/authActions";
+import axiosInstance from "../../Redux/axiosInstance";
 
 const modules = [
   { name: "Sales", path: "/" },
@@ -42,6 +44,8 @@ const getInitials = (name) =>
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const dispatch = useDispatch();
   const { auth } = useSelector((state) => state.auth);
 
   const [storedRole, setStoredRole] = useState(() => {
@@ -58,20 +62,52 @@ export default function Navbar() {
     typeof window !== "undefined" ? localStorage.getItem("userRoleDisplay") || "" : ""
   );
 
+  /* ── User dropdown ── */
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [meData, setMeData] = useState(null);
+  const dropdownRef = useRef(null);
+
   useEffect(() => {
     const role = localStorage.getItem("userRole");
     if (role) setStoredRole(role.toUpperCase());
   }, []);
 
+  // Fetch /api/me when dropdown opens
+  useEffect(() => {
+    if (!dropdownOpen || meData) return;
+    axiosInstance.get("/api/me")
+      .then((res) => setMeData(res.data))
+      .catch(() => {});
+  }, [dropdownOpen]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleLogout = async () => {
+    setDropdownOpen(false);
+    await dispatch(logoutUser());
+    router.push("/login");
+  };
+
   const role = storedRole || normalizeRole(auth?.role);
   const allowedPaths = ROLE_MODULE_PATHS[role] ?? null;
 
-  // A module is accessible if allowedPaths is null (all) or includes its path
   const isAllowed = (path) =>
     allowedPaths === null || allowedPaths.includes(path);
 
-  const displayName = (auth?.name ?? auth?.username ?? storedName) || "User";
-  const displayRoleLabel = (auth?.role_display ?? storedRoleDisplay) || "";
+  const meUser = meData?.user ?? meData;
+  const displayName = (meUser?.name ?? meUser?.username ?? auth?.name ?? auth?.username ?? storedName) || "User";
+  const displayEmail = meUser?.email ?? meUser?.username ?? auth?.email ?? "";
+  const displayRoleLabel = (meUser?.role_display ?? meUser?.role ?? auth?.role_display ?? storedRoleDisplay) || "";
+  const displayRole = normalizeRole((meUser?.role ?? auth?.role ?? storedRole) || "");
   const initials = getInitials(displayName);
 
 
@@ -158,28 +194,64 @@ export default function Navbar() {
           {/* Divider */}
           <div className="w-px h-5 bg-gray-200" />
 
-          {/* User avatar */}
-          <div className="flex items-center gap-2 cursor-pointer group">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shadow">
-              {initials}
-            </div>
-            <div className="hidden lg:block">
-              <p className="text-[13px] font-[600] text-gray-800 leading-tight">{displayName}</p>
-              <p className="text-[11px] text-gray-500 leading-tight">{displayRoleLabel}</p>
-            </div>
-            <svg
-              className="text-gray-400 hidden lg:block"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {/* User avatar + dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setDropdownOpen((o) => !o)}
+              className={`flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all ${dropdownOpen ? "bg-gray-100" : "hover:bg-gray-50"}`}
             >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-[700] shadow-sm shrink-0 ring-2 ring-white">
+                {initials}
+              </div>
+              <div className="hidden lg:flex flex-col text-left min-w-0">
+                <p className="text-[13px] font-[700] text-gray-800 leading-tight truncate max-w-[120px]">{displayRoleLabel || displayRole || "User"}</p>
+                <p className="text-[10px] font-[500] text-gray-400 leading-tight uppercase tracking-wider">{displayRole}</p>
+              </div>
+            </button>
+
+            {/* Dropdown panel */}
+            {dropdownOpen && (
+              <div className="absolute right-0 top-[calc(100%+8px)] w-54 bg-white text-slate-900 rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50">
+                <div className="px-4 py-3 bg-[#f3f7ff] border-b border-blue-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-[700]">
+                      {initials}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-[700] text-gray-900 truncate">{displayName}</p>
+                      <p className="text-[11px] text-blue-600 mt-0.5 uppercase tracking-wide truncate">{displayRoleLabel || displayRole}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col py-1">
+                  <Link
+                    href="/setting"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm font-[600] text-gray-700 hover:bg-gray-100 transition"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 9 4.09V4a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01c.18.52.45 1 .82 1.45z" />
+                    </svg>
+                    Settings
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex items-center gap-2.5 px-4 py-3 text-sm font-[600] text-red-600 hover:bg-gray-100 transition"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-400">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    Sign Out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

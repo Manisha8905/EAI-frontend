@@ -458,7 +458,7 @@ const Sidebar = () => {
         </Link>
 
         {/* Logout — always visible */}
-        <button
+        {/* <button
           type="button"
           onClick={handleLogout}
           className="sb-logout w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] text-gray-600 hover:bg-red-50 hover:text-red-600"
@@ -467,7 +467,7 @@ const Sidebar = () => {
             <Image src={Logout} alt="Logout" width={14} height={14} />
           </span>
           Logout
-        </button>
+        </button> */}
       </div>
     </div>
   );

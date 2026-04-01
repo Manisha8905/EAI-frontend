@@ -552,6 +552,9 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
         transcript: r.call_transcript     ?? r.transcript        ?? r.call_summary  ?? "",
         summary:    r.call_summary        ?? "",
         recording:  r.recording_url       ?? null,
+        skippable:  normalizeBooleanish(r.skippable ?? r.is_skippable),
+        skip_reason: r.skip_reason        ?? r.skipReason        ?? null,
+        skipReason: r.skipReason          ?? r.skip_reason       ?? null,
       };
     });
     dispatch({ type: CALL_HISTORY_SUCCESS, payload: normalized });

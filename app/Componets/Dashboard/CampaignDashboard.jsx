@@ -1652,7 +1652,20 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
 
   const toggleChannel = (key) => {
     const cur = form.channelOrder || [];
-    set("channelOrder", cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]);
+
+    if (cur.includes(key)) {
+      // unselect
+      set("channelOrder", cur.filter((k) => k !== key));
+
+      if (key === "EMAIL") {
+        set("smtpProvider", "");
+        set("aiPersonalization", false);
+      }
+      return;
+    }
+
+    // select
+    set("channelOrder", [...cur, key]);
   };
 
   const moveChannel = (i, dir) => {
@@ -2023,8 +2036,8 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
             </Field>
           </div>
 
-          {/* Row: Parallel Calls + List ID + SMTP Provider Name */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Row: Parallel Calls + List ID + SMTP Provider Name (optional, email channel only) */}
+          <div className={`grid ${form.channelOrder.includes("EMAIL") ? "grid-cols-3" : "grid-cols-2"} gap-4`}>
             <Field label="Campaign Parallel Calls">
               <input type="number" min="1" value={form.parallelCalls}
                 onChange={(e) => set("parallelCalls", e.target.value)} className={inputCls()} />
@@ -2039,10 +2052,13 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               </div>
             </Field>
-            <Field label="SMTP Provider Name">
-              <input type="text" value={form.smtpProvider}
-                onChange={(e) => set("smtpProvider", e.target.value)} className={inputCls()} />
-            </Field>
+            {form.channelOrder.includes("EMAIL") && (
+              <Field label="SMTP Provider Name (Optional)">
+                <input type="text" value={form.smtpProvider}
+                  placeholder="Optional: e.g. default, sendgrid"
+                  onChange={(e) => set("smtpProvider", e.target.value)} className={inputCls()} />
+              </Field>
+            )}
           </div>
 
           {/* Row: Template ID + From Name + From Email */}
@@ -2073,26 +2089,27 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
               onChange={(e) => set("replyToEmail", e.target.value)} className={inputCls()} />
           </Field>
 
-          {/* Enable AI Personalization toggle */}
-          <div className="rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3.5 flex items-center justify-between">
-            <div>
-              <p className="text-[13px] font-[700] text-gray-800">Enable AI Personalization</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Use AI to personalize email content</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => set("aiPersonalization", !form.aiPersonalization)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                form.aiPersonalization ? "bg-indigo-600" : "bg-gray-300"
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                  form.aiPersonalization ? "translate-x-6" : "translate-x-1"
+          {form.channelOrder.includes("EMAIL") && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-[13px] font-[700] text-gray-800">Enable AI Personalization</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Use AI to personalize email content</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => set("aiPersonalization", !form.aiPersonalization)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.aiPersonalization ? "bg-indigo-600" : "bg-gray-300"
                 }`}
-              />
-            </button>
-          </div>
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    form.aiPersonalization ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          )}
 
           {/* AI Tone */}
           <Field label="AI Tone">

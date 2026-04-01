@@ -918,7 +918,7 @@ export default function SupportChatbotReporting() {
         <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-[18px] font-[800] text-[#061a43]">Conversations</h3>
+              <h3 className="text-[16px] font-[800] text-[#061a43]">Conversations</h3>
               <div className="relative" ref={convAssignDropdownRef}>
                 <button
                   type="button"

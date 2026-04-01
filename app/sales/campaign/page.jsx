@@ -46,6 +46,7 @@ import {
   Star,
   MinusCircle,
   SkipForward,
+  Users,
 } from "lucide-react";
 import {
   BarChart,
@@ -233,6 +234,9 @@ export default function CampaignPage() {
   /* ── Lead list leads for Lead Activity tab ── */
   const [leadListLeads, setLeadListLeads] = useState([]);
   const [leadListLoading, setLeadListLoading] = useState(false);
+  const [leadEditModal, setLeadEditModal] = useState({ open: false, campaignId: null, lead: null, saving: false });
+  const [leadDeleteConfirm, setLeadDeleteConfirm] = useState(null);
+
 
   /* ── Per-lead channel toggling (Set of "leadId_CHANNEL") ── */
   const [togglingLeadChannel, setTogglingLeadChannel] = useState(new Set());
@@ -881,6 +885,177 @@ export default function CampaignPage() {
     }
   };
 
+  /* ── Lead edit/delete helpers ── */
+  const resolveLeadId = (lead) => {
+    const leadData = lead?.lead_data ?? {};
+    return (
+      lead?.lead_id ??
+      lead?.id ??
+      lead?.list_lead_id ??
+      lead?._id ??
+      leadData?.lead_id ??
+      leadData?.id ??
+      lead?.leadId ??
+      null
+    );
+  };
+
+  const safeString = (value) => {
+    if (value === undefined || value === null) return "";
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+
+  const openLeadEditor = async (campaignId, lead) => {
+    const leadData = lead?.lead_data ?? {};
+    const targetLeadId = resolveLeadId(lead);
+    if (!targetLeadId) {
+      toast.error("Unable to identify this lead for editing.");
+      return;
+    }
+
+    // Open modal immediately with existing data
+    setLeadEditModal({
+      open: true,
+      campaignId,
+      leadId: targetLeadId,
+      lead: {
+        lead_id: targetLeadId,
+        name: safeString(lead.name ?? lead.lead_name ?? leadData.name ?? leadData.lead_name ?? ""),
+        email_address: safeString(lead.email_address ?? lead.email ?? leadData.email_address ?? leadData.email ?? ""),
+        contact_number: safeString(lead.contact_number ?? lead.phone ?? leadData.contact_number ?? leadData.phone ?? ""),
+        company: safeString(lead.company ?? leadData.company ?? lead.company_name ?? leadData.company_name ?? ""),
+        title: safeString(lead.title ?? leadData.title ?? ""),
+        notes: safeString(lead.notes ?? leadData.notes ?? ""),
+        record_prompt: safeString(lead.record_prompt ?? leadData.record_prompt ?? ""),
+        ...(leadData || {}),
+        ...(lead || {}),
+      },
+      saving: false,
+    });
+
+    // Fetch enriched lead data from review API and merge into modal
+    try {
+      const res = await axiosInstance.get(`/campaigns/${campaignId}/leads/review`);
+      const data = res.data;
+      const rows = Array.isArray(data) ? data : (data?.leads ?? data?.items ?? data?.data ?? []);
+      const reviewed = rows.find((r) => {
+        const rid = r.lead_id ?? r.id ?? r.lead_data?.lead_id ?? r.lead_data?.id;
+        return String(rid) === String(targetLeadId);
+      });
+      if (reviewed) {
+        const rd = reviewed.lead_data ?? reviewed;
+        setLeadEditModal((s) => ({
+          ...s,
+          lead: {
+            ...s.lead,
+            name: safeString(rd.name ?? rd.lead_name ?? reviewed.lead_name ?? s.lead.name),
+            email_address: safeString(rd.email_address ?? rd.email ?? s.lead.email_address),
+            contact_number: safeString(rd.contact_number ?? rd.phone ?? s.lead.contact_number),
+            company: safeString(rd.company ?? rd.company_name ?? s.lead.company),
+            title: safeString(rd.title ?? s.lead.title),
+            notes: safeString(rd.notes ?? s.lead.notes),
+            record_prompt: safeString(rd.record_prompt ?? s.lead.record_prompt),
+          },
+        }));
+      }
+    } catch {
+      // silently ignore — modal already has data from the table row
+    }
+  };
+
+  const closeLeadEditor = () => {
+    setLeadEditModal({
+      open: false,
+      campaignId: null,
+      leadId: null,
+      lead: null,
+      saving: false,
+    });
+  };
+
+  const saveLeadEditor = async () => {
+    if (!leadEditModal.open || !leadEditModal.campaignId || !leadEditModal.lead) return;
+
+    const campaignId = leadEditModal.campaignId;
+    const leadId = leadEditModal.leadId ?? leadEditModal.lead.lead_id ?? leadEditModal.lead.id;
+    if (!leadId) {
+      toast.error("Missing lead ID.");
+      return;
+    }
+
+    setLeadEditModal((s) => ({ ...s, saving: true }));
+
+    const payload = {
+      name: leadEditModal.lead.name ?? leadEditModal.lead.lead_name,
+      email_address: leadEditModal.lead.email_address ?? leadEditModal.lead.email,
+      contact_number: leadEditModal.lead.contact_number ?? leadEditModal.lead.phone,
+      company: leadEditModal.lead.company,
+      title: leadEditModal.lead.title,
+      notes: leadEditModal.lead.notes,
+      record_prompt: leadEditModal.lead.record_prompt,
+    };
+
+    try {
+      await axiosInstance.put(`/campaigns/${campaignId}/leads/${leadId}`, payload);
+
+      setLeadListLeads((prev) =>
+        prev.map((r) => {
+          const rowLeadData = r.lead_data ?? {};
+          const curId = r.lead_id ?? r.id ?? rowLeadData.lead_id ?? rowLeadData.id;
+          if (String(curId) !== String(leadId)) return r;
+
+          const updates = {
+            name: payload.name,
+            lead_name: payload.name,
+            email: payload.email_address,
+            email_address: payload.email_address,
+            phone: payload.contact_number,
+            contact_number: payload.contact_number,
+            company: payload.company,
+            title: payload.title,
+            notes: payload.notes,
+            record_prompt: payload.record_prompt,
+          };
+
+          return {
+            ...r,
+            ...updates,
+            lead_data: {
+              ...rowLeadData,
+              ...updates,
+            },
+          };
+        }),
+      );
+
+      toast.success("Lead details updated successfully.");
+      closeLeadEditor();
+      refreshCampaignJourney(campaignId);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to save lead details.");
+    } finally {
+      setLeadEditModal((s) => ({ ...s, saving: false }));
+    }
+  };
+
+  const deleteLead = async (campaignId, leadId, leadName) => {
+    if (!campaignId || !leadId) return;
+    try {
+      await axiosInstance.delete(`/campaigns/${campaignId}/leads/${leadId}`);
+      setLeadListLeads((prev) => prev.filter((r) => {
+        const rowLeadData = r.lead_data ?? {};
+        const curId = r.lead_id ?? r.id ?? rowLeadData.lead_id ?? rowLeadData.id;
+        return String(curId) !== String(leadId);
+      }));
+      toast.success(`Lead "${leadName}" deleted.`);
+      setLeadDeleteConfirm(null);
+      refreshCampaignJourney(campaignId);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to delete lead.");
+    }
+  };
+
   /* ── Client-side name search (against current page) ── */
   const filtered = (campaigns ?? []).filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()),
@@ -1045,6 +1220,15 @@ export default function CampaignPage() {
       return "Skipped";
     }
     return rawSubject || "—";
+  };
+
+  const normalizeSkipReason = (reason) => {
+    const value = String(reason ?? "").trim();
+    if (!value) return "No reason provided";
+
+    return value
+      .replace(/\bin\s*come\s+call\s+skipped\b/gi, "Call skipped")
+      .replace(/\bcome\s+call\s+skipped\b/gi, "Call skipped");
   };
 
   const toPlainText = (value) =>
@@ -1605,7 +1789,7 @@ export default function CampaignPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {form.channel_order.map((c) => c.toUpperCase()).includes("CALL") && (
                 <>
-                  <Field label="Campaign Model">
+                  <Field label="LLM Model">
                     <div className="relative">
                       <select
                         name="vapi_model"
@@ -1710,14 +1894,34 @@ export default function CampaignPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {emailSendingService !== "CRM" && (
-                  <Field label="SMTP Provider Name">
-                    <input
-                      name="smtp_provider_name"
-                      value={form.smtp_provider_name}
-                      onChange={handleFormChange}
-                      placeholder="default"
-                      className={inputCls}
-                    />
+                  <Field label="SMTP Provider Name (Optional)">
+                    <div className="relative">
+                      <select
+                        name="smtp_provider_name"
+                        value={form.smtp_provider_name}
+                        onChange={handleFormChange}
+                        className={selectCls}
+                      >
+                        <option value="">— Select Provider —</option>
+                        {[
+                          { value: "mailgun",       label: "Mailgun" },
+                          { value: "sendgrid",      label: "SendGrid" },
+                          { value: "ses",           label: "Amazon SES" },
+                          { value: "gmail",         label: "Gmail" },
+                          { value: "outlook",       label: "Outlook / Office365" },
+                          { value: "custom",        label: "Custom SMTP" },
+                          { value: "outlook_graph", label: "Outlook Graph" },
+                          { value: "mailercloud",   label: "Mailercloud" },
+                          { value: "mailersend",    label: "MailerSend" },
+                          { value: "sparkpost",     label: "SparkPost" },
+                          { value: "brevo",         label: "Brevo (Sendinblue)" },
+                          { value: "postmark",      label: "Postmark" },
+                        ].map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    </div>
                   </Field>
                 )}
                 <Field label="Email Template">
@@ -1873,7 +2077,8 @@ export default function CampaignPage() {
             </section>
           )}
 
-          {/* Section: AI Personalization */}
+          {/* Section: AI Personalization — only when Email is in channel_order */}
+          {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && (
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center justify-between py-1">
               <div>
@@ -1937,6 +2142,7 @@ export default function CampaignPage() {
               </div>
             )}
           </section>
+          )}
 
           {/* Action buttons */}
           {editingCampaignId ? (
@@ -2449,7 +2655,7 @@ export default function CampaignPage() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-[#1e293b]">
-                  {["Serial No.", "Lead Name", ...channelCols.map((col) => col.label)].map(
+                  {["Serial No.", "Lead Name", ...channelCols.map((col) => col.label), "Actions"].map(
                     (h) => (
                       <th
                         key={h}
@@ -2465,7 +2671,7 @@ export default function CampaignPage() {
                 {allData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={2 + channelCols.length}
+                      colSpan={3 + channelCols.length}
                       className="px-5 py-12 text-center text-[13px] text-gray-400"
                     >
                       No journey data found for this campaign.
@@ -2473,10 +2679,15 @@ export default function CampaignPage() {
                   </tr>
                 ) : (
                   allData.map((row, idx) => {
-                    const leadId = row.lead_id ?? row.id;
-                    const leadName = row.lead_name ?? row.name
-                      ?? (row.first_name ? `${row.first_name} ${row.last_name ?? ""}`.trim() : null)
-                      ?? `Lead ${idx + 1}`;
+                    const leadData = row.lead_data ?? {};
+                    const leadId = resolveLeadId(row);
+                    const leadName =
+                      row.lead_name ??
+                      row.name ??
+                      leadData.name ??
+                      leadData.lead_name ??
+                      (row.first_name ? `${row.first_name} ${row.last_name ?? ""}`.trim() : null) ??
+                      `Lead ${idx + 1}`;
                     return (
                       <tr
                         key={leadId ?? idx}
@@ -2488,10 +2699,27 @@ export default function CampaignPage() {
                           {idx + 1}
                         </td>
                         <td
-                          className="px-5 py-3.5 text-[13px] font-[600] text-[#6366f1] cursor-pointer hover:underline"
+                          className="px-5 py-3.5"
                           onClick={() => fetchLeadJourney(c.id, leadId, leadName)}
                         >
-                          {leadName}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] font-[600] text-[#6366f1] cursor-pointer hover:underline">
+                              {leadName}
+                            </span>
+                            {(row.skip_reason || row.skipReason) && (
+                              <div className="relative group inline-block">
+                                <span className="inline-flex items-center gap-1 px-2 h-5 rounded-md text-[10px] font-[600] border border-gray-200 bg-gray-100 text-gray-400 cursor-default select-none">
+                                  <SkipForward className="h-2.5 w-2.5" />
+                                  Skipped
+                                </span>
+                                <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[240px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
+                                  <p className="font-[600] mb-0.5">Skip Reason</p>
+                                  <p className="font-[400] text-gray-300">{normalizeSkipReason(row.skip_reason || row.skipReason)}</p>
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </td>
                         {channelCols.map((col) => {
                           const chName = col.label.toUpperCase() === "WHATSAPP" ? "WHATSAPP" : col.label.toUpperCase();
@@ -2596,16 +2824,36 @@ export default function CampaignPage() {
 
                           // ── Skipped → gray badge + Run button to re-enable
                           if (chStatus === "skipped") {
+                            // Resolve skip_reason: check channel-level nested data first, then row-level
+                            const chKey = col.field; // e.g. "call", "email"
+                            const channelObj = Array.isArray(row.channels)
+                              ? row.channels.find((ch) => (ch.channel ?? "").toLowerCase() === chKey)
+                              : null;
+                            const skipReason =
+                              channelObj?.skip_reason ??
+                              channelObj?.skipReason ??
+                              row[`${chKey}_skip_reason`] ??
+                              row.skip_reason ??
+                              row.skipReason ??
+                              null;
                             return (
                               <td key={col.field} className="px-4 py-3.5">
                                 <div className="flex items-center gap-1.5">
-                                  <span
-                                    title={`${col.label}: Skipped`}
-                                    className="inline-flex items-center gap-1 px-2.5 h-6 rounded-lg text-[10px] font-[600] border border-gray-200 bg-gray-100 text-gray-400 select-none"
-                                  >
-                                    <SkipForward className="h-2.5 w-2.5" />
-                                    Skipped
-                                  </span>
+                                  <div className="relative group inline-block">
+                                    <span
+                                      className="inline-flex items-center gap-1 px-2.5 h-6 rounded-lg text-[10px] font-[600] border border-gray-200 bg-gray-100 text-gray-400 select-none cursor-default"
+                                    >
+                                      <SkipForward className="h-2.5 w-2.5" />
+                                      Skipped
+                                    </span>
+                                    {skipReason && (
+                                      <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[220px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
+                                        <p className="font-[600] mb-0.5">Skip Reason</p>
+                                        <p className="font-[400] text-gray-300">{normalizeSkipReason(skipReason)}</p>
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                      </div>
+                                    )}
+                                  </div>
                                   <button
                                     disabled={busy}
                                     onClick={() => runChannel(c.id, leadId, chName)}
@@ -2638,6 +2886,44 @@ export default function CampaignPage() {
                             </td>
                           );
                         })}
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-1 justify-end">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!leadId) {
+                                  toast.error("Lead ID not found for edit.");
+                                  return;
+                                }
+                                openLeadEditor(c.id, row);
+                              }}
+                              title="Edit lead"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!leadId) {
+                                  toast.error("Lead ID not found for delete.");
+                                  return;
+                                }
+                                setLeadDeleteConfirm({
+                                  campaignId: c.id,
+                                  leadId,
+                                  leadName,
+                                });
+                              }}
+                              title="Delete lead"
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })
@@ -2647,6 +2933,143 @@ export default function CampaignPage() {
             )}
           </div>
           </div>{/* end main content */}
+
+          {/* ── Lead Delete Confirmation Modal ── */}
+          {leadDeleteConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 max-w-sm w-full">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                    <Trash2 className="h-5 w-5 text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-[700] text-gray-900">Delete Lead</h3>
+                    <p className="text-[12px] text-gray-400">This action cannot be undone.</p>
+                  </div>
+                </div>
+                <p className="text-[13px] text-gray-600 mb-5">
+                  Are you sure you want to delete
+                  <span className="font-[700] text-gray-900"> &ldquo;{leadDeleteConfirm.leadName}&rdquo;</span>?
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setLeadDeleteConfirm(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteLead(leadDeleteConfirm.campaignId, leadDeleteConfirm.leadId, leadDeleteConfirm.leadName)}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-[13px] font-[700] hover:bg-red-600 transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Lead Edit Modal ── */}
+          {leadEditModal.open && leadEditModal.lead && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl max-h-[90vh] flex flex-col">
+                {/* Header — sticky */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+                  <h3 className="text-[15px] font-[700] text-gray-900">Edit Lead</h3>
+                  <button onClick={closeLeadEditor} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition">✕</button>
+                </div>
+                {/* Scrollable body */}
+                <div className="overflow-y-auto flex-1 px-6 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Name</label>
+                      <input
+                        type="text"
+                        value={leadEditModal.lead.name ?? leadEditModal.lead.lead_name ?? ""}
+                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, name: e.target.value, lead_name: e.target.value } }))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Email</label>
+                      <input
+                        type="email"
+                        value={leadEditModal.lead.email_address ?? leadEditModal.lead.email ?? ""}
+                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, email_address: e.target.value, email: e.target.value } }))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Contact Number</label>
+                      <input
+                        type="text"
+                        value={leadEditModal.lead.contact_number ?? leadEditModal.lead.phone ?? ""}
+                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, contact_number: e.target.value, phone: e.target.value } }))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Company</label>
+                      <input
+                        type="text"
+                        value={leadEditModal.lead.company ?? ""}
+                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, company: e.target.value } }))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Title</label>
+                      <input
+                        type="text"
+                        value={leadEditModal.lead.title ?? ""}
+                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, title: e.target.value } }))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    {/* Full-width fields */}
+                    <div className="sm:col-span-2">
+                      <label className="text-[12px] font-[600] text-gray-600">Notes</label>
+                      <textarea
+                        rows={3}
+                        value={leadEditModal.lead.notes ?? ""}
+                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, notes: e.target.value } }))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-[12px] font-[600] text-gray-600">Record Prompt</label>
+                      <textarea
+                        rows={3}
+                        value={leadEditModal.lead.record_prompt ?? ""}
+                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, record_prompt: e.target.value } }))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {/* Footer — sticky */}
+                <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
+                  <button
+                    type="button"
+                    onClick={closeLeadEditor}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={leadEditModal.saving}
+                    onClick={saveLeadEditor}
+                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-[13px] font-[700] hover:bg-indigo-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {leadEditModal.saving ? "Saving…" : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       );
     }
@@ -2673,7 +3096,13 @@ export default function CampaignPage() {
         (r) => r.status === "VOICE MAIL",
       ).length;
       const noAnswer = callHistory_data.filter(
-        (r) => ["NO ANSWER", "FAILED", "TIMEOUT", "BUSY", "ERROR", "CANCELLED"].includes(r.status),
+        (r) => ["NO ANSWER", "NO-ANSWER", "NO_ANSWER"].includes((r.status ?? "").toUpperCase().replace(/-/g, " ").replace(/_/g, " ")),
+      ).length;
+      const failed = callHistory_data.filter(
+        (r) => ["FAILED", "TIMEOUT", "ERROR", "CANCELLED"].includes((r.status ?? "").toUpperCase()),
+      ).length;
+      const busy = callHistory_data.filter(
+        (r) => (r.status ?? "").toUpperCase() === "BUSY",
       ).length;
       const meetingBooked = callHistory_data.filter((r) => r.meeting).length;
       const avgDuration =
@@ -2689,6 +3118,8 @@ export default function CampaignPage() {
         { name: "Completed", value: completed, fill: "#1d4ed8" },
         { name: "Voice Mail", value: voiceMail, fill: "#3b82f6" },
         { name: "No Answer", value: noAnswer, fill: "#93c5fd" },
+        { name: "Failed", value: failed, fill: "#ef4444" },
+        { name: "Busy", value: busy, fill: "#f59e0b" },
       ];
       const meetingDonut = [
         { name: "Meeting Booked", value: meetingBooked, color: "#1d4ed8" },
@@ -2724,7 +3155,7 @@ export default function CampaignPage() {
             </div>
           ) : (
             <>
-              <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
                 {[
                   {
                     label: "Total Calls",
@@ -2753,6 +3184,20 @@ export default function CampaignPage() {
                     sub: "unreachable",
                     color: "text-blue-600",
                     ring: "ring-blue-200",
+                  },
+                  {
+                    label: "Failed",
+                    value: failed,
+                    sub: "error / timeout",
+                    color: "text-red-500",
+                    ring: "ring-red-200",
+                  },
+                  {
+                    label: "Busy",
+                    value: busy,
+                    sub: "line busy",
+                    color: "text-amber-500",
+                    ring: "ring-amber-200",
                   },
                   {
                     label: "Meetings",
@@ -2982,11 +3427,26 @@ export default function CampaignPage() {
                               {row.duration}
                             </td>
                             <td className="px-3 py-3">
-                              <span
-                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-[700] ${CALL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
-                              >
-                                {row.status}
-                              </span>
+                              {row.status === "SKIPPED" && (row.skip_reason || row.skipReason) ? (
+                                <div className="relative group inline-block">
+                                  <span
+                                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-[700] cursor-pointer ${CALL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
+                                  >
+                                    {row.status}
+                                  </span>
+                                  <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[240px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
+                                    <p className="font-[600] mb-0.5">Skip Reason</p>
+                                    <p className="font-[400] text-gray-300 leading-relaxed">{normalizeSkipReason(row.skip_reason || row.skipReason)}</p>
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <span
+                                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-[700] ${CALL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
+                                >
+                                  {row.status}
+                                </span>
+                              )}
                             </td>
                             <td className="px-3 py-3 text-[12px] text-gray-700 text-center">
                               {row.meeting ? "Yes" : "No"}
@@ -3218,6 +3678,15 @@ export default function CampaignPage() {
           smtpSummary?.total_bounced,
           smtpSummary?.bounced,
           ehBounced,
+        ),
+        spam: smtpMetricValue(
+          analyticsCampaign?.spam,
+          analyticsCampaign?.spam_count,
+          analyticsCampaign?.marked_as_spam,
+          analyticsCampaign?.spam_complaints,
+          smtpSummary?.spam,
+          smtpSummary?.spam_count,
+          smtpSummary?.marked_as_spam,
         ),
       };
       const useSmtpCards = isSmtpCampaign && !!analyticsCampaign;
@@ -3481,6 +3950,78 @@ export default function CampaignPage() {
                   </div>
                 </div>
             </section>
+
+          {/* Email Deliverability Chart */}
+          <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-[14px] font-[700] text-gray-900">Email Deliverability</h3>
+                <p className="text-[12px] text-gray-400 mt-0.5">Inbox vs spam </p>
+              </div>
+              {emailCardAnalyticsLoading && (
+                <RefreshCw className="h-4 w-4 text-gray-300 animate-spin" />
+              )}
+            </div>
+            {(() => {
+              const delivered = smtpTotals.delivered || smtpTotals.total_sent || cardSent;
+              const spam      = smtpTotals.spam;
+              const total     = delivered + spam;
+              const delivPct  = total > 0 ? Math.round((delivered / total) * 100) : 0;
+              const spamPct   = total > 0 ? Math.round((spam      / total) * 100) : 0;
+              const deliverabilityData = [
+                { name: "Delivered (Inbox)", value: delivered, fill: "#1d4ed8", pct: delivPct },
+                { name: "Spam",              value: spam,      fill: "#ef4444", pct: spamPct  },
+              ];
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart
+                      data={deliverabilityData}
+                      barSize={44}
+                      margin={{ top: 0, right: 10, left: -18, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: 10, border: "none", fontSize: 12 }} />
+                      <Bar dataKey="value" name="Count" radius={[8, 8, 0, 0]}>
+                        {deliverabilityData.map((e, i) => (
+                          <Cell key={i} fill={e.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-3">
+                    {deliverabilityData.map((d) => (
+                      <div key={d.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: d.fill }} />
+                            <span className="text-[12px] font-[600] text-gray-700">{d.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] font-[700] text-gray-900">
+                              {emailCardAnalyticsLoading ? "…" : d.value}
+                            </span>
+                            <span className="text-[11px] font-[600] text-gray-400 w-10 text-right">
+                              {emailCardAnalyticsLoading ? "" : `${d.pct}%`}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${d.pct}%`, background: d.fill }} />
+                        </div>
+                      </div>
+                    ))}
+                    {!emailCardAnalyticsLoading && total === 0 && (
+                      <p className="text-[12px] text-gray-400 text-center py-2">No deliverability data yet.</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </section>
+
           {/* Table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-wrap">
@@ -3597,7 +4138,7 @@ export default function CampaignPage() {
                               </span>
                               <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block w-max max-w-[220px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg">
                                 <p className="font-[600] mb-0.5">Skip Reason</p>
-                                <p className="font-[400] text-gray-300">{row.skipReason || row.skip_reason || "No reason provided"}</p>
+                                <p className="font-[400] text-gray-300">{normalizeSkipReason(row.skipReason || row.skip_reason)}</p>
                                 <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                               </div>
                             </div>
@@ -4959,7 +5500,10 @@ export default function CampaignPage() {
                   <button
                     type="button"
                     disabled={loadingEdit}
-                    onClick={() => handleEdit(c.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(c.id);
+                    }}
                     title="Edit campaign"
                     className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -4971,9 +5515,10 @@ export default function CampaignPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
-                      setShowDeleteConfirm({ id: c.id, name: c.name })
-                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDeleteConfirm({ id: c.id, name: c.name });
+                    }}
                     title="Delete campaign"
                     className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
                   >

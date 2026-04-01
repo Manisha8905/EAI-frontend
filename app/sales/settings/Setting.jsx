@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
 import { toast } from "react-toastify";
 import {
+  Pencil,
   Settings,
   ArrowLeft,
   Plus,
@@ -65,7 +66,7 @@ function Field({
           type={type === "password" ? (showPass ? "text" : "password") : type}
           placeholder={placeholder}
           value={value}
-          onChange={onChange}
+          onChange={(e) => onChange?.(e.target.value)}
           className={`w-full rounded-xl border border-gray-200 bg-gray-50/60 py-2.5 text-[13px] text-gray-800 placeholder-gray-400
             outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-400/20
             ${Icon ? "pl-10 pr-3" : "px-3.5"}
@@ -107,6 +108,24 @@ function SelectField({ label, required, value, onChange, options }) {
         </select>
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
       </div>
+    </div>
+  );
+}
+
+function TextareaField({ label, required, placeholder, value, onChange, hint }) {
+  return (
+    <div>
+      <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <textarea
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-400 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-400/20 resize-vertical min-h-[80px]"
+      />
+      {hint && <p className="mt-1 text-[11px] text-gray-400">{hint}</p>}
     </div>
   );
 }
@@ -2450,6 +2469,31 @@ function LeadsPage({ onBack }) {
   const [crmImporting, setCrmImporting] = useState(false);
   const [deletingLeadId, setDeletingLeadId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [leadEditModal, setLeadEditModal] = useState({
+    open: false,
+    leadId: null,
+    data: {
+      name: "",
+      contact_number: "",
+      email_address: "",
+      company: "",
+      title: "",
+      lead_source: "",
+      lead_status: "",
+      lead_rating: "",
+      address_street: "",
+      address_city: "",
+      address_state: "",
+      address_zip_code: "",
+      address_country: "",
+      website: "",
+      industry: "",
+      linkedin_url: "",
+      notes: "",
+      description: "",
+    },
+    saving: false,
+  });
 
   /* ── Delete entire list ── */
   const [deletingListId, setDeletingListId] = useState(null);
@@ -2631,6 +2675,140 @@ function LeadsPage({ onBack }) {
     }
   };
 
+  const openLeadEditor = (lead) => {
+    const ld = lead.lead_data ?? lead;
+    const safeString = (value) => {
+      if (value === undefined || value === null) return "";
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    };
+
+    setLeadEditModal({
+      open: true,
+      leadId: lead.id ?? lead._id ?? lead.list_lead_id,
+      data: {
+        name: safeString(ld.name ?? ld.lead_name ?? ld.full_name ?? ""),
+        contact_number: safeString(ld.contact_number ?? ld.phone ?? ""),
+        email_address: safeString(ld.email_address ?? ld.email ?? ""),
+        company: safeString(ld.company ?? ""),
+        title: safeString(ld.title ?? ""),
+        lead_source: safeString(ld.lead_source ?? ""),
+        lead_status: safeString(ld.lead_status ?? ""),
+        lead_rating: safeString(ld.lead_rating ?? ""),
+        address_street: safeString(ld.address_street ?? ""),
+        address_city: safeString(ld.address_city ?? ""),
+        address_state: safeString(ld.address_state ?? ""),
+        address_zip_code: safeString(ld.address_zip_code ?? ""),
+        address_country: safeString(ld.address_country ?? ""),
+        website: safeString(ld.website ?? ""),
+        industry: safeString(ld.industry ?? ""),
+        linkedin_url: safeString(ld.linkedin_url ?? ""),
+        notes: safeString(ld.notes ?? ""),
+        description: safeString(ld.description ?? ""),
+      },
+      saving: false,
+    });
+  };
+
+  const closeLeadEditor = () => {
+    setLeadEditModal({
+      open: false,
+      leadId: null,
+      data: {
+        name: "",
+        contact_number: "",
+        email_address: "",
+        company: "",
+        title: "",
+        lead_source: "",
+        lead_status: "",
+        lead_rating: "",
+        address_street: "",
+        address_city: "",
+        address_state: "",
+        address_zip_code: "",
+        address_country: "",
+        website: "",
+        industry: "",
+        linkedin_url: "",
+        notes: "",
+        description: "",
+      },
+      saving: false,
+    });
+  };
+
+  const saveLeadEditor = async () => {
+    if (!leadEditModal.open || !leadEditModal.leadId || !viewList) return;
+
+    const leadId = leadEditModal.leadId;
+
+    setLeadEditModal((s) => ({ ...s, saving: true }));
+
+    const payload = {
+      name: leadEditModal.data.name,
+      contact_number: leadEditModal.data.contact_number,
+      email_address: leadEditModal.data.email_address,
+      company: leadEditModal.data.company,
+      title: leadEditModal.data.title,
+      lead_source: leadEditModal.data.lead_source,
+      lead_status: leadEditModal.data.lead_status,
+      lead_rating: leadEditModal.data.lead_rating,
+      address_street: leadEditModal.data.address_street,
+      address_city: leadEditModal.data.address_city,
+      address_state: leadEditModal.data.address_state,
+      address_zip_code: leadEditModal.data.address_zip_code,
+      address_country: leadEditModal.data.address_country,
+      website: leadEditModal.data.website,
+      industry: leadEditModal.data.industry,
+      linkedin_url: leadEditModal.data.linkedin_url,
+      notes: leadEditModal.data.notes,
+      description: leadEditModal.data.description,
+    };
+
+    try {
+      await axiosInstance.patch(`/lead-lists/${viewList.id}/leads/${leadId}`, payload);
+
+      setListLeads((prev) =>
+        prev.map((l) => {
+          const id = l.id ?? l._id ?? l.list_lead_id;
+          if (String(id) !== String(leadId)) return l;
+          return {
+            ...l,
+            lead_data: {
+              ...l.lead_data,
+              name: payload.name,
+              contact_number: payload.contact_number,
+              email_address: payload.email_address,
+              company: payload.company,
+              title: payload.title,
+              lead_source: payload.lead_source,
+              lead_status: payload.lead_status,
+              lead_rating: payload.lead_rating,
+              address_street: payload.address_street,
+              address_city: payload.address_city,
+              address_state: payload.address_state,
+              address_zip_code: payload.address_zip_code,
+              address_country: payload.address_country,
+              website: payload.website,
+              industry: payload.industry,
+              linkedin_url: payload.linkedin_url,
+              notes: payload.notes,
+              description: payload.description,
+            },
+          };
+        }),
+      );
+
+      toast.success("Lead details updated successfully.");
+      closeLeadEditor();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to save lead details.");
+    } finally {
+      setLeadEditModal((s) => ({ ...s, saving: false }));
+    }
+  };
+
   /* ── PATCH /lead-lists/{listId}/leads/{leadId}/channel-flags ── */
   const [togglingChannel, setTogglingChannel] = useState(new Set());
 
@@ -2750,7 +2928,7 @@ function LeadsPage({ onBack }) {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      {["#", "Name", "Email", "Phone", "Company", "Status", "Channels", ""].map((h) => (
+                      {["#", "Name", "Email", "Phone", "Company", "Status", "Channels", "Actions"].map((h) => (
                         <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -2869,16 +3047,25 @@ function LeadsPage({ onBack }) {
                               </div>
                             </td>
                             <td className="px-5 py-3.5">
-                              <button
-                                onClick={() => !deletingLeadId && setDeleteTarget({ id: leadId, name: fullName })}
-                                disabled={deletingLeadId === leadId}
-                                className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
-                                title="Remove lead from list"
-                              >
-                                {deletingLeadId === leadId
-                                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                  : <Trash2 className="h-4 w-4" />}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => openLeadEditor(lead)}
+                                  className="text-blue-500 hover:text-blue-700 transition"
+                                  title="Edit lead details"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => !deletingLeadId && setDeleteTarget({ id: leadId, name: fullName })}
+                                  disabled={deletingLeadId === leadId}
+                                  className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
+                                  title="Remove lead from list"
+                                >
+                                  {deletingLeadId === leadId
+                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                    : <Trash2 className="h-4 w-4" />}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2933,6 +3120,214 @@ function LeadsPage({ onBack }) {
           onConfirm={() => { handleDeleteLead(deleteTarget.id); setDeleteTarget(null); }}
           loading={deletingLeadId === deleteTarget?.id}
         />
+      )}
+      {leadEditModal.open && (
+        <Modal title="Edit Lead Details" onClose={closeLeadEditor} width="max-w-2xl">
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field
+                label="Name"
+                type="text"
+                placeholder="Enter lead name"
+                value={leadEditModal.data.name}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, name: value }
+                }))}
+              />
+              <Field
+                label="Email Address"
+                type="email"
+                placeholder="Enter email address"
+                value={leadEditModal.data.email_address}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, email_address: value }
+                }))}
+              />
+              <Field
+                label="Contact Number"
+                type="text"
+                placeholder="Enter phone number"
+                value={leadEditModal.data.contact_number}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, contact_number: value }
+                }))}
+              />
+              <Field
+                label="Company"
+                type="text"
+                placeholder="Enter company name"
+                value={leadEditModal.data.company}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, company: value }
+                }))}
+              />
+              <Field
+                label="Title"
+                type="text"
+                placeholder="Enter job title"
+                value={leadEditModal.data.title}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, title: value }
+                }))}
+              />
+              <Field
+                label="Lead Source"
+                type="text"
+                placeholder="Enter lead source"
+                value={leadEditModal.data.lead_source}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, lead_source: value }
+                }))}
+              />
+              <Field
+                label="Lead Status"
+                type="text"
+                placeholder="Enter lead status"
+                value={leadEditModal.data.lead_status}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, lead_status: value }
+                }))}
+              />
+              <Field
+                label="Lead Rating"
+                type="text"
+                placeholder="Enter lead rating"
+                value={leadEditModal.data.lead_rating}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, lead_rating: value }
+                }))}
+              />
+              <Field
+                label="Address Street"
+                type="text"
+                placeholder="Enter street address"
+                value={leadEditModal.data.address_street}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, address_street: value }
+                }))}
+              />
+              <Field
+                label="Address City"
+                type="text"
+                placeholder="Enter city"
+                value={leadEditModal.data.address_city}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, address_city: value }
+                }))}
+              />
+              <Field
+                label="Address State"
+                type="text"
+                placeholder="Enter state"
+                value={leadEditModal.data.address_state}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, address_state: value }
+                }))}
+              />
+              <Field
+                label="Address Zip Code"
+                type="text"
+                placeholder="Enter zip code"
+                value={leadEditModal.data.address_zip_code}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, address_zip_code: value }
+                }))}
+              />
+              <Field
+                label="Address Country"
+                type="text"
+                placeholder="Enter country"
+                value={leadEditModal.data.address_country}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, address_country: value }
+                }))}
+              />
+              <Field
+                label="Website"
+                type="url"
+                placeholder="Enter website URL"
+                value={leadEditModal.data.website}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, website: value }
+                }))}
+              />
+              <Field
+                label="Industry"
+                type="text"
+                placeholder="Enter industry"
+                value={leadEditModal.data.industry}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, industry: value }
+                }))}
+              />
+              <Field
+                label="LinkedIn URL"
+                type="url"
+                placeholder="Enter LinkedIn URL"
+                value={leadEditModal.data.linkedin_url}
+                onChange={(value) => setLeadEditModal((s) => ({
+                  ...s,
+                  data: { ...s.data, linkedin_url: value }
+                }))}
+              />
+            </div>
+            <TextareaField
+              label="Notes"
+              placeholder="Enter notes"
+              value={leadEditModal.data.notes}
+              onChange={(value) => setLeadEditModal((s) => ({
+                ...s,
+                data: { ...s.data, notes: value }
+              }))}
+            />
+            <TextareaField
+              label="Description"
+              placeholder="Enter description"
+              value={leadEditModal.data.description}
+              onChange={(value) => setLeadEditModal((s) => ({
+                ...s,
+                data: { ...s.data, description: value }
+              }))}
+            />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={closeLeadEditor}
+              className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveLeadEditor}
+              disabled={leadEditModal.saving}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-[600] text-white hover:bg-blue-700 disabled:opacity-50 transition"
+            >
+              {leadEditModal.saving ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </div>
+        </Modal>
       )}
       </div>
     );
@@ -3078,7 +3473,7 @@ function LeadsPage({ onBack }) {
                 label="List Name" required
                 placeholder="e.g. Q2 Enterprise Targets"
                 value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(val) => setForm((f) => ({ ...f, name: val }))}
               />
               <div>
                 <label className="block text-[12px] font-[600] text-gray-700 mb-2">
@@ -3183,7 +3578,7 @@ function LeadsPage({ onBack }) {
                   >
                     {wizardExcelUploading
                       ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Uploading…</>
-                      : <><Plus className="h-3.5 w-3.5" />Create</>}
+                      : <><Plus className="h-3.5 w-3.5" />Import</>}
                   </button>
                 </div>
               </div>
@@ -3643,6 +4038,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
     },
     groq: {
       groq_api_key: "",
+      email_deliverability_provider: "",
     },
     appConfig: {
       target_mailbox_for_replies: "",
@@ -3660,6 +4056,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
+  const [deliverabilityMeta, setDeliverabilityMeta] = useState({
+    supportedProviders: [],
+    smartleadConfigured: false,
+    smartleadApiKeyMasked: "",
+  });
 
   const setField = (section, key) => (e) => {
     const value = e?.target?.type === "checkbox" ? e.target.checked : e.target.value;
@@ -3694,7 +4095,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
     (async () => {
       setLoading(true);
-      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes] = await Promise.allSettled([
+      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes, deliverabilityProviderRes] = await Promise.allSettled([
         axiosInstance.get("/api/globalsetting/twilio"),
         axiosInstance.get("/api/globalsetting/elevenlabs"),
         axiosInstance.get("/api/globalsetting/linkedin-scraping"),
@@ -3702,6 +4103,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         axiosInstance.get("/api/globalsetting/tm-own-solution"),
         axiosInstance.get("/api/globalsetting/groq"),
         axiosInstance.get("/api/globalsetting/app-config"),
+        axiosInstance.get("/api/deliverability/provider"),
       ]);
 
       setForms((prev) => {
@@ -3767,6 +4169,17 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           next.groq = {
             groq_api_key:
               d.groq_api_key ?? d.GROQ_API_KEY ?? d?.credentials?.groq_api_key ?? prev.groq.groq_api_key,
+            email_deliverability_provider:
+              d.email_deliverability_provider ?? prev.groq.email_deliverability_provider,
+          };
+        }
+
+        if (deliverabilityProviderRes.status === "fulfilled") {
+          const d = deliverabilityProviderRes.value?.data ?? {};
+          next.groq = {
+            ...next.groq,
+            email_deliverability_provider:
+              d.active_provider ?? next.groq.email_deliverability_provider,
           };
         }
 
@@ -3789,6 +4202,15 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
         return next;
       });
+
+      if (deliverabilityProviderRes.status === "fulfilled") {
+        const d = deliverabilityProviderRes.value?.data ?? {};
+        setDeliverabilityMeta({
+          supportedProviders: Array.isArray(d.supported_providers) ? d.supported_providers : [],
+          smartleadConfigured: !!d.smartlead_configured,
+          smartleadApiKeyMasked: d.smartlead_api_key_masked ?? "",
+        });
+      }
 
       setLoading(false);
     })();
@@ -3818,7 +4240,32 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         await axiosInstance.put("/api/globalsetting/tm-own-solution", { credentials: forms.tmOwnSolution });
       }
       if (section === "groq") {
-        await axiosInstance.put("/api/globalsetting/groq", { groq_api_key: forms.groq.groq_api_key });
+        await axiosInstance.put("/api/globalsetting/groq", {
+          groq_api_key: forms.groq.groq_api_key,
+        });
+      }
+      if (section === "deliverabilityProvider") {
+        if (!forms.groq.email_deliverability_provider) {
+          toast.error("Please select an email deliverability provider.");
+          return;
+        }
+        const res = await axiosInstance.put("/api/deliverability/provider", {
+          provider: forms.groq.email_deliverability_provider,
+        });
+        const d = res?.data ?? {};
+        setForms((prev) => ({
+          ...prev,
+          groq: {
+            ...prev.groq,
+            email_deliverability_provider:
+              d.active_provider ?? prev.groq.email_deliverability_provider,
+          },
+        }));
+        setDeliverabilityMeta({
+          supportedProviders: Array.isArray(d.supported_providers) ? d.supported_providers : deliverabilityMeta.supportedProviders,
+          smartleadConfigured: !!d.smartlead_configured,
+          smartleadApiKeyMasked: d.smartlead_api_key_masked ?? "",
+        });
       }
       if (section === "appConfig") {
         await axiosInstance.put("/api/globalsetting/app-config", {
@@ -4004,6 +4451,38 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <SaveBtn section="groq" />
             </div>
             <Field label="Groq API Key" type="password" value={forms.groq.groq_api_key} onChange={setField("groq", "groq_api_key")} />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-blue-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">Email Deliverability Provider</h3>
+              </div>
+              <SaveBtn section="deliverabilityProvider" />
+            </div>
+            <SelectField
+              label="Email Deliverability"
+              value={forms.groq.email_deliverability_provider}
+              onChange={setField("groq", "email_deliverability_provider")}
+              options={[
+                { value: "", label: "— Select —" },
+                ...deliverabilityMeta.supportedProviders.map((provider) => ({
+                  value: provider,
+                  label: provider,
+                })),
+              ]}
+            />
+            <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-3">
+              <p className="text-[11px] text-gray-500">
+                Smartlead configured: <span className={`font-[600] ${deliverabilityMeta.smartleadConfigured ? "text-green-600" : "text-red-600"}`}>{deliverabilityMeta.smartleadConfigured ? "Yes" : "No"}</span>
+              </p>
+              {deliverabilityMeta.smartleadApiKeyMasked ? (
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Smartlead key: <span className="font-[600] text-gray-700">{deliverabilityMeta.smartleadApiKeyMasked}</span>
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
