@@ -4136,7 +4136,7 @@ export default function CampaignPage() {
           </div>
 
           {/* KPI strip — cards are clickable to filter the table */}
-          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
               {
                 label: "Total Leads",
@@ -4326,7 +4326,7 @@ export default function CampaignPage() {
           </section>
 
           {/* Email Deliverability Chart */}
-          <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="text-[14px] font-[700] text-gray-900">Email Deliverability</h3>
@@ -4407,7 +4407,7 @@ export default function CampaignPage() {
                 </div>
               );
             })()}
-          </section>
+          </section> */}
 
           {/* Table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
