@@ -121,16 +121,19 @@ export default function Reporting() {
   const searchParams = useSearchParams();
   const dispatch = useDispatch<any>();
 
-  const { inboundCallHistory = [], inboundHistoryLoading } = useSelector(
+  const { inboundCallHistory = [], inboundHistoryLoading, inboundCallHistoryMeta } = useSelector(
     (state: any) => state.admin,
   );
+  const meta = inboundCallHistoryMeta ?? { total_count: 0, page: 1, page_size: 10, total_pages: 1, has_next: false, has_previous: false, summary: null };
 
   const tableRef = useRef<HTMLElement | null>(null);
   const [selectedTranscript, setSelectedTranscript] = useState<any>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
-    dispatch(fetchInboundCallHistory());
-  }, [dispatch]);
+    dispatch(fetchInboundCallHistory(page, PAGE_SIZE));
+  }, [dispatch, page]);
 
   useEffect(() => {
     if (searchParams.get("section") !== "history") return;
@@ -141,7 +144,7 @@ export default function Reporting() {
   }, [searchParams]);
 
   const getTranscriptText = (row: any) =>
-    row?.transcript ?? row?.summary ?? row?.call_summary ?? row?.notes ?? "";
+    row?.transcript ?? row?.transcript ?? row?.call_transcript ?? row?.notes ?? "";
 
   const getDurationText = (row: any) => {
     const raw = row?.duration;
@@ -151,9 +154,13 @@ export default function Reporting() {
     return `${numeric} min`;
   };
 
-  const totalCalls = inboundCallHistory.length;
-  const meetingsCount = inboundCallHistory.filter((r: any) => r.meeting).length;
-  const meetingRate = totalCalls ? Math.round((meetingsCount / totalCalls) * 100) : 0;
+  // Use summary from API when available, fall back to derived counts from current page
+  const summary = meta.summary;
+  const totalCalls = summary?.total_calls ?? meta.total_count ?? inboundCallHistory.length;
+  const meetingsCount = summary?.meetings_scheduled_count ?? inboundCallHistory.filter((r: any) => r.meeting).length;
+  const meetingRate = summary?.meeting_conversion_rate != null
+    ? Math.round(Number(summary.meeting_conversion_rate))
+    : (totalCalls ? Math.round((meetingsCount / totalCalls) * 100) : 0);
   const completedCalls = inboundCallHistory.filter(
     (r: any) => r.status === "COMPLETED" || r.status === "ANSWERED",
   ).length;
@@ -304,7 +311,7 @@ export default function Reporting() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="text-[14px] font-semibold text-gray-900">Inbound Call History</h3>
-                <p className="text-[12px] text-gray-400 mt-0.5">{totalCalls} records retrieved from API</p>
+                <p className="text-[12px] text-gray-400 mt-0.5">{meta.total_count} records total</p>
               </div>
             </div>
 
@@ -313,8 +320,10 @@ export default function Reporting() {
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     {["Name", "Phone", "Company", "Date / Time", "Duration", "Status", "Meeting", "Actions"].map((h) => (
-                      <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">
-                        {h}
+<th
+  key={h}
+  className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap text-center"
+>                        {h}
                       </th>
                     ))}
                   </tr>
@@ -371,16 +380,42 @@ export default function Reporting() {
               </table>
             </div>
 
-            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
-              <p className="text-[12px] text-gray-400">Showing {totalCalls} records</p>
-              <button
-                type="button"
-                onClick={() => router.push("/metrics?tab=inbound")}
-                className="flex items-center gap-1.5 text-[12px] font-[500] text-violet-600 hover:text-violet-800 transition"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Back to Inbound Dashboard
-              </button>
+            <div className="px-5 py-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[12px] text-gray-400">
+                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, meta.total_count)} of {meta.total_count} records
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!meta.has_previous || inboundHistoryLoading}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition text-[13px] font-[600]"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: meta.total_pages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    type="button"
+                    onClick={() => setPage(pg)}
+                    className={`inline-flex items-center justify-center h-8 w-8 rounded-lg border text-[12px] font-[600] transition ${
+                      pg === page
+                        ? "bg-violet-600 text-white border-violet-600 shadow-sm"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {pg}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  disabled={!meta.has_next || inboundHistoryLoading}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition text-[13px] font-[600]"
+                >
+                  ›
+                </button>
+              </div>
             </div>
           </section>
 

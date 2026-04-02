@@ -353,6 +353,38 @@ export const fetchEmailCampaigns = (filter = "this_year") => async (dispatch) =>
 export const listCampaigns = (params = {}) => async (dispatch) => {
   dispatch({ type: CAMPAIGN_LIST_REQUEST });
   try {
+    const toNumber = (value, fallback = 0) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    const parseChannelOrder = (campaign) => {
+      const raw = campaign?.channel_order;
+
+      if (Array.isArray(raw)) {
+        return raw
+          .map((value) => String(value ?? "").trim().toUpperCase())
+          .filter(Boolean);
+      }
+
+      if (raw && typeof raw === "object") {
+        return Object.keys(raw)
+          .sort((a, b) => Number(a) - Number(b))
+          .map((key) => String(raw[key] ?? "").trim().toUpperCase())
+          .filter(Boolean);
+      }
+
+      if (typeof raw === "string" && raw.trim()) {
+        return raw
+          .split(",")
+          .map((value) => value.trim().toUpperCase())
+          .filter(Boolean);
+      }
+
+      const communicationType = String(campaign?.communication_type ?? "").trim().toUpperCase();
+      return communicationType ? [communicationType] : [];
+    };
+
     // Build query string from only the params that have a value
     const query = {};
     if (params.page)               query.page               = params.page;
@@ -382,36 +414,35 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
     const campaigns = raw.map((c) => ({
       id:                c.campaign_id                  ?? Math.random(),
       name:              c.campaign_name                ?? "—",
-      // campaignType:      c.campaign_type                ?? "",
-      // communicationType: c.communication_type           ?? "",
+      campaignType:      c.campaign_type                ?? "",
+      communicationType: c.communication_type           ?? "",
       status:            c.status                       ?? "COMPLETED",
       agentName:         c.agent_name                   ?? "—",
       ownerEmail:        c.logged_in_user_email          ?? "",
       startDate:         c.start_date                   ?? "",
       createdAt:         c.created_at                   ?? "",
       lastRun:           c.last_run_datetime             ?? "",
-      totalLeads:        c.total_leads                  ?? 0,
-      queued:            c.queued                       ?? 0,
-      called:            c.called                       ?? 0,
-      completed:         c.completed                    ?? 0,
-      failed:            c.failed                       ?? 0,
-      noAnswer:          c.no_answer                    ?? 0,
-      completionPct:     c.completion_percentage        ?? 0,
-      emailsSent:        c.emails_sent_count             ?? 0,
-      emailsFailed:      c.emails_failed_count           ?? 0,
-      emailsPending:     c.emails_pending_count          ?? 0,
-      meetings:          c.meetings_scheduled_count      ?? 0,
-      convRate:          c.campaign_conversion_rate      ?? 0,
-      agentPerf:         c.agent_performance_percentage  ?? 0,
+      totalLeads:        toNumber(c.total_leads),
+      queued:            toNumber(c.queued),
+      called:            toNumber(c.called),
+      completed:         toNumber(c.completed),
+      failed:            toNumber(c.failed),
+      noAnswer:          toNumber(c.no_answer),
+      completionPct:     toNumber(c.completion_percentage),
+      emailsSent:        toNumber(c.emails_sent_count),
+      emailsFailed:      toNumber(c.emails_failed_count),
+      emailsPending:     toNumber(c.emails_pending_count),
+      meetings:          toNumber(c.meetings_scheduled_count),
+      total_tasks_count: toNumber(c.total_tasks_count ?? c.total_tasks),
+      convRate:          toNumber(c.campaign_conversion_rate),
+      agentPerf:         toNumber(c.agent_performance_percentage),
       fromName:          c.from_name                    ?? "",
       fromEmail:         c.from_email                   ?? "",
       isSmtp:            c.is_smtp                      ?? false,
       isProcessing:      c.is_processing                ?? false,
-      parallelCalls:     c.campaign_parallel_calls      ?? 1,
+      parallelCalls:     toNumber(c.campaign_parallel_calls, 1),
       listId:            c.list_id                      ?? null,
-      channelOrder:      Object.keys(c.channel_order ?? {})
-                           .sort((a, b) => Number(a) - Number(b))
-                           .map((k) => (c.channel_order[k] ?? "").toUpperCase()),
+      channelOrder:      parseChannelOrder(c),
       // channel_steps: [{ step_order, channel_type, status, ... }]
       channelSteps:      (c.channel_steps ?? []).map((s) => ({
                            order:       s.step_order,
@@ -518,12 +549,55 @@ const normalizeBooleanish = (value) => {
   return Boolean(value);
 };
 
+const normalizeFollowUpTasks = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((item) => normalizeFollowUpTasks(item))
+      .filter(Boolean);
+  }
+
+  if (value == null) return [];
+
+  if (typeof value === "object") {
+    const nestedTasks =
+      value.follow_up_tasks ??
+      value.tasks ??
+      value.items ??
+      Object.values(value);
+    return normalizeFollowUpTasks(nestedTasks);
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return [];
+
+    if (
+      (trimmedValue.startsWith("[") && trimmedValue.endsWith("]")) ||
+      (trimmedValue.startsWith("{") && trimmedValue.endsWith("}"))
+    ) {
+      try {
+        return normalizeFollowUpTasks(JSON.parse(trimmedValue));
+      } catch {
+        // Fall back to delimiter splitting for malformed payloads.
+      }
+    }
+
+    return value
+      .split(/\r?\n|,(?=\s*[A-Z0-9])|;\s*/)
+      .map((task) => task.replace(/[\[\]{}"]+/g, "").trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
 // 📞 Call History  —  GET /users/call-history/?campaign_id=<id>
 export const fetchCallHistory = (campaignId) => async (dispatch) => {
   dispatch({ type: CALL_HISTORY_REQUEST });
   try {
     const res = await axiosInstance.get(`/campaigns/${campaignId}/call-history/`);
     const raw = extractArray(res.data);
+    const totalTasks = Number(res.data?.total_tasks ?? 0) || 0;
     const normalized = raw.map((r) => {
       /* ── date+time ── prefer full ISO datetime, fall back to date+time combo */
       let dateTime = "—";
@@ -574,7 +648,7 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
         skipReason: r.skipReason         ?? r.skip_reason      ?? null,
       };
     });
-    dispatch({ type: CALL_HISTORY_SUCCESS, payload: normalized });
+    dispatch({ type: CALL_HISTORY_SUCCESS, payload: { data: normalized, total_tasks: totalTasks } });
     toast.success(`Call history loaded (${normalized.length} records)`);
   } catch (err) {
     dispatch({ type: CALL_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load call history." });
@@ -594,6 +668,7 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
     const totalReplied = Number(
       res.data?.total_replied ?? res.data?.replied ?? res.data?.total_replies ?? 0,
     ) || 0;
+    const totalTasks = Number(res.data?.total_tasks ?? 0) || 0;
 
     // Build reply map by email id from this same email-history payload only.
     const toKey = (id) => (id === null || id === undefined ? null : String(id));
@@ -641,6 +716,8 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       const rowIdKey = toKey(r.id ?? r.email_history_id);
       const replies = getMergedReplies(r);
       const replyData = replyByEmailId.get(rowIdKey) ?? replies[0] ?? null;
+      const followUpTasks = normalizeFollowUpTasks(r.follow_up_tasks);
+      const totalTasksForRow = Number(r.total_tasks ?? followUpTasks.length) || 0;
       return ({
       id:        r.id           ?? r.email_history_id ?? null,
       name:      r.lead_name    ?? r.name          ?? r.contact_name  ?? "—",
@@ -652,13 +729,8 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       status:    (r.status      ?? r.email_status   ?? "").toUpperCase(),
       clicked:   r.clicked      ?? r.is_clicked     ?? false,
       meeting:   normalizeBooleanish(r.meeting_requested ?? r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
-      follow_up_tasks: Array.isArray(r.follow_up_tasks)
-        ? r.follow_up_tasks
-        : r.follow_up_tasks == null
-          ? []
-          : typeof r.follow_up_tasks === "string"
-            ? [r.follow_up_tasks]
-            : [],
+      follow_up_tasks: followUpTasks,
+      total_tasks: totalTasksForRow,
       skippable: r.skippable    ?? false,
       skipReason: r.skip_reason ?? null,
       campaign_name: r.campaign_name ?? "",
@@ -684,7 +756,12 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
     });
     dispatch({
       type: EMAIL_HISTORY_SUCCESS,
-      payload: { data: normalized, total_count: totalCount, total_replied: totalReplied },
+      payload: {
+        data: normalized,
+        total_count: totalCount,
+        total_replied: totalReplied,
+        total_tasks: totalTasks,
+      },
     });
     toast.success(`Email history loaded (${normalized.length} records)`);
   } catch (err) {
@@ -746,11 +823,15 @@ export const fetchWhatsappHistory = (campaignId) => async (dispatch) => {
 };
 
 // 📞 Inbound Call History  —  GET /api/inbound/calls/history
-export const fetchInboundCallHistory = () => async (dispatch) => {
+export const fetchInboundCallHistory = (page = 1, pageSize = 10) => async (dispatch) => {
   dispatch({ type: INBOUND_HISTORY_REQUEST });
   try {
-    const res = await axiosInstance.get("/api/inbound/calls/history");
-    const raw = extractArray(res.data);
+    const res = await axiosInstance.get("/api/inbound/calls/history", {
+      params: { page, page_size: pageSize },
+    });
+    const d = res.data;
+    // The API returns { calls: [...], total_count, page, page_size, total_pages, has_next, has_previous, summary }
+    const raw = Array.isArray(d?.calls) ? d.calls : extractArray(d);
     const normalized = raw.map((r) => {
       let dateTime = "—";
       if (r.created_at) {
@@ -790,7 +871,19 @@ export const fetchInboundCallHistory = () => async (dispatch) => {
         recording: r.recording_url ?? null,
       };
     });
-    dispatch({ type: INBOUND_HISTORY_SUCCESS, payload: normalized });
+    dispatch({
+      type: INBOUND_HISTORY_SUCCESS,
+      payload: {
+        calls: normalized,
+        total_count: d?.total_count ?? normalized.length,
+        page: d?.page ?? page,
+        page_size: d?.page_size ?? pageSize,
+        total_pages: d?.total_pages ?? 1,
+        has_next: d?.has_next ?? false,
+        has_previous: d?.has_previous ?? false,
+        summary: d?.summary ?? null,
+      },
+    });
   } catch (err) {
     dispatch({ type: INBOUND_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load inbound call history." });
     toast.error(err?.response?.data?.message || "Failed to load inbound call history.");

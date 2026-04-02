@@ -90,12 +90,14 @@ const initialState = {
   callHistory: [],
   callHistoryLoading: false,
   callHistoryError: null,
+  callHistoryTotalTasks: 0,
   // 📧 Email History
   emailHistory: [],
   emailHistoryLoading: false,
   emailHistoryError: null,
   emailHistoryTotalCount: 0,
   emailHistoryTotalReplied: 0,
+  emailHistoryTotalTasks: 0,
   // 💼 LinkedIn History
   linkedinHistory: [],
   linkedinHistoryLoading: false,
@@ -112,6 +114,7 @@ const initialState = {
   inboundCallHistory: [],
   inboundHistoryLoading: false,
   inboundHistoryError: null,
+  inboundCallHistoryMeta: { total_count: 0, page: 1, page_size: 10, total_pages: 1, has_next: false, has_previous: false, summary: null },
 };
 
 const adminReducers = (state = initialState, action) => {
@@ -274,11 +277,27 @@ const adminReducers = (state = initialState, action) => {
 
     // 📞 Call History
     case CALL_HISTORY_REQUEST:
-      return { ...state, callHistoryLoading: true, callHistoryError: null, callHistory: [] };
+      return {
+        ...state,
+        callHistoryLoading: true,
+        callHistoryError: null,
+        callHistory: [],
+        callHistoryTotalTasks: 0,
+      };
     case CALL_HISTORY_SUCCESS:
-      return { ...state, callHistoryLoading: false, callHistory: action.payload };
+      return {
+        ...state,
+        callHistoryLoading: false,
+        callHistory: action.payload?.data || action.payload,
+        callHistoryTotalTasks: Number(action.payload?.total_tasks ?? 0) || 0,
+      };
     case CALL_HISTORY_FAILURE:
-      return { ...state, callHistoryLoading: false, callHistoryError: action.payload };
+      return {
+        ...state,
+        callHistoryLoading: false,
+        callHistoryError: action.payload,
+        callHistoryTotalTasks: 0,
+      };
 
     // 📧 Email History
     case EMAIL_HISTORY_REQUEST:
@@ -289,6 +308,7 @@ const adminReducers = (state = initialState, action) => {
         emailHistory: [],
         emailHistoryTotalCount: 0,
         emailHistoryTotalReplied: 0,
+        emailHistoryTotalTasks: 0,
       };
     case EMAIL_HISTORY_SUCCESS:
       return {
@@ -297,6 +317,7 @@ const adminReducers = (state = initialState, action) => {
         emailHistory: action.payload.data || action.payload,
         emailHistoryTotalCount: action.payload.total_count || 0,
         emailHistoryTotalReplied: action.payload.total_replied || 0,
+        emailHistoryTotalTasks: Number(action.payload.total_tasks ?? 0) || 0,
       };
     case EMAIL_HISTORY_FAILURE:
       return {
@@ -304,6 +325,7 @@ const adminReducers = (state = initialState, action) => {
         emailHistoryLoading: false,
         emailHistoryError: action.payload,
         emailHistoryTotalReplied: 0,
+        emailHistoryTotalTasks: 0,
       };
 
     // 💼 LinkedIn History
@@ -347,7 +369,20 @@ const adminReducers = (state = initialState, action) => {
     case INBOUND_HISTORY_REQUEST:
       return { ...state, inboundHistoryLoading: true, inboundHistoryError: null };
     case INBOUND_HISTORY_SUCCESS:
-      return { ...state, inboundHistoryLoading: false, inboundCallHistory: action.payload };
+      return {
+        ...state,
+        inboundHistoryLoading: false,
+        inboundCallHistory: action.payload.calls ?? action.payload,
+        inboundCallHistoryMeta: {
+          total_count: action.payload.total_count ?? 0,
+          page: action.payload.page ?? 1,
+          page_size: action.payload.page_size ?? 10,
+          total_pages: action.payload.total_pages ?? 1,
+          has_next: action.payload.has_next ?? false,
+          has_previous: action.payload.has_previous ?? false,
+          summary: action.payload.summary ?? null,
+        },
+      };
     case INBOUND_HISTORY_FAILURE:
       return { ...state, inboundHistoryLoading: false, inboundHistoryError: action.payload };
 

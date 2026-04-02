@@ -2469,29 +2469,35 @@ function LeadsPage({ onBack }) {
   const [crmImporting, setCrmImporting] = useState(false);
   const [deletingLeadId, setDeletingLeadId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const emptyLeadForm = {
+    name: "",
+    contact_number: "",
+    email_address: "",
+    company: "",
+    title: "",
+    lead_source: "",
+    lead_status: "",
+    lead_rating: "",
+    address_street: "",
+    address_city: "",
+    address_state: "",
+    address_zip_code: "",
+    address_country: "",
+    website: "",
+    industry: "",
+    linkedin_url: "",
+    notes: "",
+    description: "",
+  };
+  const [leadCreateModal, setLeadCreateModal] = useState({
+    open: false,
+    saving: false,
+    data: { ...emptyLeadForm },
+  });
   const [leadEditModal, setLeadEditModal] = useState({
     open: false,
     leadId: null,
-    data: {
-      name: "",
-      contact_number: "",
-      email_address: "",
-      company: "",
-      title: "",
-      lead_source: "",
-      lead_status: "",
-      lead_rating: "",
-      address_street: "",
-      address_city: "",
-      address_state: "",
-      address_zip_code: "",
-      address_country: "",
-      website: "",
-      industry: "",
-      linkedin_url: "",
-      notes: "",
-      description: "",
-    },
+    data: { ...emptyLeadForm },
     saving: false,
   });
 
@@ -2714,28 +2720,58 @@ function LeadsPage({ onBack }) {
     setLeadEditModal({
       open: false,
       leadId: null,
-      data: {
-        name: "",
-        contact_number: "",
-        email_address: "",
-        company: "",
-        title: "",
-        lead_source: "",
-        lead_status: "",
-        lead_rating: "",
-        address_street: "",
-        address_city: "",
-        address_state: "",
-        address_zip_code: "",
-        address_country: "",
-        website: "",
-        industry: "",
-        linkedin_url: "",
-        notes: "",
-        description: "",
-      },
+      data: { ...emptyLeadForm },
       saving: false,
     });
+  };
+
+  const openLeadCreateModal = () => {
+    setLeadCreateModal({ open: true, saving: false, data: { ...emptyLeadForm } });
+  };
+
+  const closeLeadCreateModal = () => {
+    setLeadCreateModal({ open: false, saving: false, data: { ...emptyLeadForm } });
+  };
+
+  const saveLeadCreate = async () => {
+    if (!viewList?.id) return;
+
+    const payload = {
+      name: (leadCreateModal.data.name ?? "").trim(),
+      contact_number: (leadCreateModal.data.contact_number ?? "").trim(),
+      email_address: (leadCreateModal.data.email_address ?? "").trim(),
+      company: (leadCreateModal.data.company ?? "").trim(),
+      title: (leadCreateModal.data.title ?? "").trim(),
+      lead_source: (leadCreateModal.data.lead_source ?? "").trim(),
+      lead_status: (leadCreateModal.data.lead_status ?? "").trim(),
+      lead_rating: (leadCreateModal.data.lead_rating ?? "").trim(),
+      address_street: (leadCreateModal.data.address_street ?? "").trim(),
+      address_city: (leadCreateModal.data.address_city ?? "").trim(),
+      address_state: (leadCreateModal.data.address_state ?? "").trim(),
+      address_zip_code: (leadCreateModal.data.address_zip_code ?? "").trim(),
+      address_country: (leadCreateModal.data.address_country ?? "").trim(),
+      website: (leadCreateModal.data.website ?? "").trim(),
+      industry: (leadCreateModal.data.industry ?? "").trim(),
+      linkedin_url: (leadCreateModal.data.linkedin_url ?? "").trim(),
+      notes: (leadCreateModal.data.notes ?? "").trim(),
+      description: (leadCreateModal.data.description ?? "").trim(),
+    };
+
+    if (!payload.name || !payload.email_address || !payload.contact_number) {
+      toast.error("Name, Email Address and Contact Number are required.");
+      return;
+    }
+
+    setLeadCreateModal((s) => ({ ...s, saving: true }));
+    try {
+      await axiosInstance.post(`/lead-lists/${viewList.id}/leads`, payload);
+      toast.success("Lead added successfully.");
+      closeLeadCreateModal();
+      await openDetail(viewList);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to add lead.");
+      setLeadCreateModal((s) => ({ ...s, saving: false }));
+    }
   };
 
   const saveLeadEditor = async () => {
@@ -2901,6 +2937,13 @@ function LeadsPage({ onBack }) {
                   ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                   : <Database className="h-3.5 w-3.5" />}
                 {crmImporting ? "Importing…" : "Import from CRM"}
+              </button>
+              <button
+                onClick={openLeadCreateModal}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-[12px] font-[600] text-emerald-700 hover:bg-emerald-100 transition shadow-sm"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Lead
               </button>
             </div>
           }
@@ -3324,6 +3367,85 @@ function LeadsPage({ onBack }) {
                 </>
               ) : (
                 "Save Changes"
+              )}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {leadCreateModal.open && (
+        <Modal title="Add Lead" onClose={closeLeadCreateModal} width="max-w-2xl">
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field
+                label="Name"
+                required
+                type="text"
+                placeholder="Enter lead name"
+                value={leadCreateModal.data.name}
+                onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, name: value } }))}
+              />
+              <Field
+                label="Email Address"
+                required
+                type="email"
+                placeholder="Enter email address"
+                value={leadCreateModal.data.email_address}
+                onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, email_address: value } }))}
+              />
+              <Field
+                label="Contact Number"
+                required
+                type="text"
+                placeholder="Enter phone number"
+                value={leadCreateModal.data.contact_number}
+                onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, contact_number: value } }))}
+              />
+              <Field label="Company" type="text" placeholder="Enter company name" value={leadCreateModal.data.company} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, company: value } }))} />
+              <Field label="Title" type="text" placeholder="Enter job title" value={leadCreateModal.data.title} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, title: value } }))} />
+              <Field label="Lead Source" type="text" placeholder="Enter lead source" value={leadCreateModal.data.lead_source} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_source: value } }))} />
+              <Field label="Lead Status" type="text" placeholder="Enter lead status" value={leadCreateModal.data.lead_status} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_status: value } }))} />
+              <Field label="Lead Rating" type="text" placeholder="Enter lead rating" value={leadCreateModal.data.lead_rating} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_rating: value } }))} />
+              <Field label="Address Street" type="text" placeholder="Enter street address" value={leadCreateModal.data.address_street} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_street: value } }))} />
+              <Field label="Address City" type="text" placeholder="Enter city" value={leadCreateModal.data.address_city} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_city: value } }))} />
+              <Field label="Address State" type="text" placeholder="Enter state" value={leadCreateModal.data.address_state} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_state: value } }))} />
+              <Field label="Address Zip Code" type="text" placeholder="Enter zip code" value={leadCreateModal.data.address_zip_code} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_zip_code: value } }))} />
+              <Field label="Address Country" type="text" placeholder="Enter country" value={leadCreateModal.data.address_country} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_country: value } }))} />
+              <Field label="Website" type="url" placeholder="Enter website URL" value={leadCreateModal.data.website} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, website: value } }))} />
+              <Field label="Industry" type="text" placeholder="Enter industry" value={leadCreateModal.data.industry} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, industry: value } }))} />
+              <Field label="LinkedIn URL" type="url" placeholder="Enter LinkedIn URL" value={leadCreateModal.data.linkedin_url} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, linkedin_url: value } }))} />
+            </div>
+            <TextareaField
+              label="Notes"
+              placeholder="Enter notes"
+              value={leadCreateModal.data.notes}
+              onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, notes: value } }))}
+            />
+            <TextareaField
+              label="Description"
+              placeholder="Enter description"
+              value={leadCreateModal.data.description}
+              onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, description: value } }))}
+            />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={closeLeadCreateModal}
+              className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveLeadCreate}
+              disabled={leadCreateModal.saving}
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-[13px] font-[600] text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+            >
+              {leadCreateModal.saving ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Add Lead"
               )}
             </button>
           </div>

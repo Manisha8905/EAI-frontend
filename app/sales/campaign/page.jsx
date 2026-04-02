@@ -144,10 +144,12 @@ export default function CampaignPage() {
     campaignError: error,
     callHistory,
     callHistoryLoading,
+    callHistoryTotalTasks,
     emailHistory,
     emailHistoryLoading,
     emailHistoryTotalCount,
     emailHistoryTotalReplied,
+    emailHistoryTotalTasks,
     linkedinHistory,
     linkedinHistoryLoading,
     whatsappHistory,
@@ -221,6 +223,8 @@ export default function CampaignPage() {
   const [leadLists, setLeadLists] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [smtpProvidersList, setSmtpProvidersList] = useState([]);
+  const [smtpProvidersOpen, setSmtpProvidersOpen] = useState(false);
 
   /* ── Activity sub-view search/filter state (must be unconditional) ── */
   const [callSearch, setCallSearch] = useState("");
@@ -228,6 +232,7 @@ export default function CampaignPage() {
   const [transcript, setTranscript] = useState(null);
   const [emailSearch, setEmailSearch] = useState("");
   const [emailStatus, setEmailStatus] = useState("All Status");
+  const [emailTooltip, setEmailTooltip] = useState(null);
   const [liSearch, setLiSearch] = useState("");
   const [liStatus, setLiStatus] = useState("All Status");
   const [waSearch, setWaSearch] = useState("");
@@ -275,6 +280,57 @@ export default function CampaignPage() {
   const [emailStatsLoading, setEmailStatsLoading] = useState(false);
   const [emailCardAnalytics, setEmailCardAnalytics] = useState(null);
   const [emailCardAnalyticsLoading, setEmailCardAnalyticsLoading] = useState(false);
+  const [emailDeliverabilityDashboard, setEmailDeliverabilityDashboard] = useState(null);
+  const [emailDeliverabilityLoading, setEmailDeliverabilityLoading] = useState(false);
+
+  const getDeliverabilityCounts = (payload) => {
+    const pickNum = (...vals) => {
+      for (const v of vals) {
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    };
+
+    const walk = (obj, keys) => {
+      if (!obj || typeof obj !== "object") return null;
+      for (const key of keys) {
+        const direct = pickNum(obj?.[key]);
+        if (direct !== null) return direct;
+      }
+      for (const val of Object.values(obj)) {
+        if (val && typeof val === "object") {
+          const nested = walk(val, keys);
+          if (nested !== null) return nested;
+        }
+      }
+      return null;
+    };
+
+    const inbox = walk(payload, [
+      "inbox", "inbox_count", "delivered", "inbox_emails",
+      "healthy", "healthy_count", "healthy_mailboxes",
+    ]);
+    const spam = walk(payload, [
+      "spam", "spam_count", "spam_emails", "junk",
+      "unhealthy", "unhealthy_count", "unhealthy_mailboxes",
+      "at_risk", "at_risk_count", "at_risk_mailboxes",
+      "failed", "failed_count",
+    ]);
+    const total = walk(payload, [
+      "total", "total_count", "emails_total",
+      "mailboxes_total", "total_mailboxes", "mailboxes_count",
+    ]);
+
+    const safeInbox = inbox ?? 0;
+    const safeSpam = spam ?? 0;
+    const safeTotal = total ?? (safeInbox + safeSpam);
+    return {
+      inbox: safeInbox,
+      spam: safeSpam,
+      total: safeTotal,
+    };
+  };
 
   /* ── Email Detail Modal ── */
   const [emailDetailModal, setEmailDetailModal] = useState(null);
@@ -652,6 +708,17 @@ export default function CampaignPage() {
       .catch((err) => {
         console.error("[email-templates] fetch error:", err);
       });
+    axiosInstance
+      .get("/api/smtp/providers")
+      .then((res) => {
+        const d = res.data;
+        const raw = Array.isArray(d) ? d : Array.isArray(d?.providers) ? d.providers : [];
+        setSmtpProvidersList(raw.map((p) => ({
+          name: p.name ?? p.provider_name ?? p.provider ?? String(p),
+          is_current: !!(p.is_current ?? p.is_active ?? p.selected ?? p.is_default ?? false),
+        })));
+      })
+      .catch(() => {});
   }, [showCreate]);
 
   useEffect(() => {
@@ -683,6 +750,16 @@ export default function CampaignPage() {
         .then((res) => setEmailStats(res.data))
         .catch(() => {})
         .finally(() => setEmailStatsLoading(false));
+
+      setEmailDeliverabilityDashboard(null);
+      setEmailDeliverabilityLoading(true);
+      axiosInstance
+        .get("/api/deliverability/smartlead/mailboxes/health-dashboard", {
+          params: { campaign_id: selectedCampaign.id },
+        })
+        .then((res) => setEmailDeliverabilityDashboard(res.data))
+        .catch(() => {})
+        .finally(() => setEmailDeliverabilityLoading(false));
 
       if (selectedCampaign?.isSmtp || selectedCampaign?.is_smtp) {
         setEmailCardAnalytics(null);
@@ -1234,6 +1311,48 @@ export default function CampaignPage() {
     return value
       .replace(/\bin\s*come\s+call\s+skipped\b/gi, "Call skipped")
       .replace(/\bcome\s+call\s+skipped\b/gi, "Call skipped");
+  };
+
+  const normalizeFollowUpTasks = (value) => {
+    if (Array.isArray(value)) {
+      return value
+        .flatMap((item) => normalizeFollowUpTasks(item))
+        .filter(Boolean);
+    }
+
+    if (value == null) return [];
+
+    if (typeof value === "object") {
+      const nestedTasks =
+        value.follow_up_tasks ??
+        value.tasks ??
+        value.items ??
+        Object.values(value);
+      return normalizeFollowUpTasks(nestedTasks);
+    }
+
+    if (typeof value === "string") {
+      const trimmedValue = value.trim();
+      if (!trimmedValue) return [];
+
+      if (
+        (trimmedValue.startsWith("[") && trimmedValue.endsWith("]")) ||
+        (trimmedValue.startsWith("{") && trimmedValue.endsWith("}"))
+      ) {
+        try {
+          return normalizeFollowUpTasks(JSON.parse(trimmedValue));
+        } catch {
+          // Fall back to delimiter splitting for malformed payloads.
+        }
+      }
+
+      return value
+        .split(/\r?\n|,(?=\s*[A-Z0-9])|;\s*/)
+        .map((task) => task.replace(/[\[\]{}"]+/g, "").trim())
+        .filter(Boolean);
+    }
+
+    return [];
   };
 
   const toPlainText = (value) =>
@@ -1901,31 +2020,59 @@ export default function CampaignPage() {
                 {emailSendingService !== "CRM" && (
                   <Field label="SMTP Provider Name (Optional)">
                     <div className="relative">
-                      <select
-                        name="smtp_provider_name"
-                        value={form.smtp_provider_name}
-                        onChange={handleFormChange}
-                        className={selectCls}
+                      <button
+                        type="button"
+                        onClick={() => setSmtpProvidersOpen((o) => !o)}
+                        className={`${selectCls} flex items-center justify-between w-full text-left`}
                       >
-                        <option value="">— Select Provider —</option>
-                        {[
-                          { value: "mailgun",       label: "Mailgun" },
-                          { value: "sendgrid",      label: "SendGrid" },
-                          { value: "ses",           label: "Amazon SES" },
-                          { value: "gmail",         label: "Gmail" },
-                          { value: "outlook",       label: "Outlook / Office365" },
-                          { value: "custom",        label: "Custom SMTP" },
-                          { value: "outlook_graph", label: "Outlook Graph" },
-                          { value: "mailercloud",   label: "Mailercloud" },
-                          { value: "mailersend",    label: "MailerSend" },
-                          { value: "sparkpost",     label: "SparkPost" },
-                          { value: "brevo",         label: "Brevo (Sendinblue)" },
-                          { value: "postmark",      label: "Postmark" },
-                        ].map((p) => (
-                          <option key={p.value} value={p.value}>{p.label}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <span className="flex items-center gap-2 min-w-0">
+                          {form.smtp_provider_name ? (
+                            <>
+                              {(() => {
+                                const p = smtpProvidersList.find((x) => x.name === form.smtp_provider_name);
+                                return p?.is_current ? (
+                                  <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
+                                ) : null;
+                              })()}
+                              <span className="truncate">{form.smtp_provider_name}</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-400">— Select Provider —</span>
+                          )}
+                        </span>
+                        <ChevronDown className="shrink-0 h-4 w-4 text-gray-400 ml-2" />
+                      </button>
+                      {smtpProvidersOpen && (
+                        <div className="absolute z-50 top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-56 overflow-y-auto">
+                          <div
+                            className="px-3 py-2 text-[12px] text-gray-400 hover:bg-gray-50 cursor-pointer"
+                            onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: "" })); }}
+                          >
+                            — Select Provider —
+                          </div>
+                          {smtpProvidersList.length === 0 ? (
+                            <div className="px-3 py-2 text-[12px] text-gray-400 italic">No providers found</div>
+                          ) : (
+                            smtpProvidersList.map((p) => (
+                              <div
+                                key={p.name}
+                                className={`flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-gray-50 ${form.smtp_provider_name === p.name ? "bg-indigo-50 text-indigo-700 font-[600]" : "text-gray-700"}`}
+                                onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: p.name })); }}
+                              >
+                                {p.is_current ? (
+                                  <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
+                                ) : (
+                                  <span className="shrink-0 w-2 h-2 rounded-full bg-gray-200" />
+                                )}
+                                <span className="truncate">{p.name}</span>
+                                {p.is_current && (
+                                  <span className="ml-auto text-[10px] font-[600] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200 shrink-0">Available</span>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   </Field>
                 )}
@@ -3145,7 +3292,9 @@ export default function CampaignPage() {
         ? callHistory
         : Array.isArray(callHistory?.calls)
           ? callHistory.calls
-          : [];
+          : Array.isArray(callHistory?.data)
+            ? callHistory.data
+            : [];
 
       const callHistory_data = callHistoryRows.map((row) => {
         const duration = Number(row.call_duration ?? row.duration ?? 0);
@@ -3200,16 +3349,19 @@ export default function CampaignPage() {
         return ms && ss;
       });
       const totalCalls = callHistory_data.length;
-      const totalTask = callHistory_data.reduce(
+      const totalTaskFromRows = callHistory_data.reduce(
         (sum, r) =>
           sum + Number(
             r.tasksCount ??
             r.tasks_count ??
-            (Array.isArray(r.tasks_list) ? r.tasks_list.length : 0) ??
+            r.task_count ??
+            r.total_tasks ??
+            (Array.isArray(r.tasksList) ? r.tasksList.length : 0) ??
             0,
           ),
         0,
       );
+      const totalTask = Number(callHistoryTotalTasks ?? 0) || totalTaskFromRows;
       const completed = callHistory_data.filter(
         (r) => r.status === "COMPLETED",
       ).length;
@@ -3718,20 +3870,80 @@ export default function CampaignPage() {
 
     /* ─── EMAIL HISTORY ─── */
     if (activeTab === "EMAIL") {
-      const emailHistoryData = emailHistory ?? [];
+      // Handle API response structure: {emails: [...], total_tasks: 2, total_count: 1, total_replied: 1}
+      // OR if already an array of emails
+      let emailsArray = [];
+      let rootTotalTasks = 0;
+      let rootTotalCount = 0;
+      let rootTotalReplied = 0;
+      
+      if (Array.isArray(emailHistory)) {
+        emailsArray = emailHistory;
+        // Redux stores email history rows as array; totals are kept in sibling fields.
+        rootTotalTasks = Number(emailHistoryTotalTasks ?? 0) || 0;
+        rootTotalCount = Number(emailHistoryTotalCount ?? emailsArray.length) || emailsArray.length;
+        rootTotalReplied = Number(emailHistoryTotalReplied ?? 0) || emailsArray.filter(e => e.total_replies > 0 || e.status === "REPLIED").length;
+      } else if (emailHistory && typeof emailHistory === 'object') {
+        // It's an API response object with emails, total_tasks, etc
+        emailsArray = emailHistory.emails ?? [];
+        rootTotalTasks = Number(emailHistory.total_tasks ?? 0) || 0;
+        rootTotalCount = Number(emailHistory.total_count ?? 0) || 0;
+        rootTotalReplied = Number(emailHistory.total_replied ?? 0) || 0;
+      }
+      
+      const emailHistoryData = emailsArray.map((r) => {
+        const normalizedTasks = normalizeFollowUpTasks(r.follow_up_tasks);
+        return ({
+        ...r,
+        id: r.id,
+        name: r.name ?? r.lead_name ?? "",
+        email: r.email ?? r.to_email ?? r.emailAddr ?? "",
+        emailAddr: r.email ?? r.to_email ?? r.emailAddr ?? "",
+        company: r.company ?? r.company_name ?? "",
+        subject: r.subject ?? r.email_subject ?? "",
+        dateTime: r.dateTime ?? r.sent_at,
+        status: r.status ?? "UNKNOWN",
+        meeting: r.meeting ?? r.meeting_requested ?? !!r.meeting_link ?? false,
+        follow_up_tasks: normalizedTasks,
+        skippable: !!r.skippable,
+        skip_reason: r.skip_reason ?? r.skipReason ?? "",
+        hasReply: r.hasReply ?? (!!r.replied_to_message_id || Number(r.total_replies ?? 0) > 0),
+        total_replies: r.total_replies ?? 0,
+        total_tasks: Math.max(Number(r.total_tasks) || 0, normalizedTasks.length),
+        replies: r.replies,
+        replyData: r.replyData,
+        repliedToMessageId: r.replied_to_message_id,
+        clicked: r.clicked ?? false,
+      });
+      });
+      const derivedTotalTasks = emailHistoryData.reduce((sum, row) => {
+        const taskCount = Number(row.total_tasks ?? row.follow_up_tasks?.length ?? 0) || 0;
+        return sum + taskCount;
+      }, 0);
       const emailStatuses = ["All Status", "SENT", "FAILED", "SKIPPED", "REPLIED"];
       const emailRows = emailHistoryData.filter((r) => {
-        const ms =
-          r.name?.toLowerCase().includes(emailSearch.toLowerCase()) ||
-          r.company?.toLowerCase().includes(emailSearch.toLowerCase());
-        let ss;
-        if (emailStatus === "All Status") ss = true;
-        else if (emailStatus === "REPLIED") {
+        // Search filter: match if name or company contains search term (or search is empty)
+        const nameMatch = (r.name ?? "").toLowerCase().includes(emailSearch.toLowerCase());
+        const companyMatch = (r.company ?? "").toLowerCase().includes(emailSearch.toLowerCase());
+        const ms = emailSearch === "" || nameMatch || companyMatch;
+        
+        // Status filter logic
+        let ss = false;
+        if (emailStatus === "All Status") {
+          ss = true;
+        } else if (emailStatus === "REPLIED") {
           const statusUpper = String(r.status ?? "").toUpperCase();
           ss = !!r.hasReply || statusUpper === "REPLIED" || Number(r.total_replies ?? 0) > 0;
+        } else if (emailStatus === "SKIPPED") {
+          ss = !!r.skippable || !!r.skip_reason;
+        } else if (emailStatus === "SENT") {
+          ss = r.status === "SENT" && !r.skippable && !r.skip_reason;
+        } else if (emailStatus === "FAILED") {
+          ss = r.status === "FAILED" && !r.skippable && !r.skip_reason;
+        } else {
+          ss = r.status === emailStatus && !r.skippable && !r.skip_reason;
         }
-        else if (emailStatus === "SKIPPED") ss = r.skippable || !!r.skip_reason;
-        else ss = r.status === emailStatus && !(r.skippable || !!r.skip_reason);
+        
         return ms && ss;
       });
       // ── Email Stats derived from email history data ──
@@ -3881,10 +4093,14 @@ export default function CampaignPage() {
             analyticsCampaign?.skipped,
           )
         : statSkipped;
-      const apiTotalLeads = Number(emailHistoryTotalCount ?? 0) || 0;
-      const apiTotalReplied = Number(emailHistoryTotalReplied ?? 0) || 0;
+      const apiTotalLeads = rootTotalCount || Number(emailHistoryTotalCount ?? 0) || 0;
+      const apiTotalReplied = rootTotalReplied || Number(emailHistoryTotalReplied ?? 0) || 0;
       const cardTotalLeads = apiTotalLeads;
       const cardReplies = apiTotalReplied;
+      // Use root-level total_tasks from API (which is 2 in your case)
+      const cardTotalTasks = rootTotalTasks > 0
+        ? rootTotalTasks
+        : (Number(emailStats?.total_tasks ?? emailStats?.tasks_count ?? 0) || derivedTotalTasks);
       const funnelData = [
         { stage: "Total Leads",   value: cardTotalLeads, fill: "#6366f1" },
         { stage: "Delivered",     value: cardSent,       fill: "#1d4ed8" },
@@ -3930,6 +4146,14 @@ export default function CampaignPage() {
                 bg: "bg-blue-50",
                 border: "border-blue-100",
                 filter: "All Status",
+              },
+                 {
+                label: "Total Tasks",
+                value: emailHistoryLoading ? "…" : cardTotalTasks,
+                icon: CheckCircle2,
+                color: "text-blue-600",
+                bg: "bg-blue-50",
+                border: "border-blue-100",
               },
               {
                 label: "Delivered",
@@ -4102,70 +4326,83 @@ export default function CampaignPage() {
           </section>
 
           {/* Email Deliverability Chart */}
-          <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
+          <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="text-[14px] font-[700] text-gray-900">Email Deliverability</h3>
-                <p className="text-[12px] text-gray-400 mt-0.5">Inbox vs spam </p>
+                <p className="text-[12px] text-gray-400 mt-0.5">Inbox vs spam</p>
               </div>
-              {emailCardAnalyticsLoading && (
-                <RefreshCw className="h-4 w-4 text-gray-300 animate-spin" />
-              )}
+              {(() => {
+                const { total: totalVal } = getDeliverabilityCounts(emailDeliverabilityDashboard ?? {});
+                return (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-[700] text-violet-600 bg-violet-50 border border-violet-100">
+                    {emailDeliverabilityLoading ? "…" : `${totalVal} total`}
+                  </span>
+                );
+              })()}
             </div>
             {(() => {
-              const delivered = smtpTotals.delivered || smtpTotals.total_sent || cardSent;
-              const spam      = smtpTotals.spam;
-              const total     = delivered + spam;
-              const delivPct  = total > 0 ? Math.round((delivered / total) * 100) : 0;
-              const spamPct   = total > 0 ? Math.round((spam      / total) * 100) : 0;
-              const deliverabilityData = [
-                { name: "Delivered (Inbox)", value: delivered, fill: "#1d4ed8", pct: delivPct },
-                { name: "Spam",              value: spam,      fill: "#ef4444", pct: spamPct  },
-              ];
+              const { inbox, spam, total } = getDeliverabilityCounts(emailDeliverabilityDashboard ?? {});
+              const inboxPct = total > 0 ? Math.round((inbox / total) * 100) : 0;
+              const spamPct = total > 0 ? Math.round((spam / total) * 100) : 0;
+
+              if (emailDeliverabilityLoading) {
+                return (
+                  <div className="flex items-center justify-center py-16 text-gray-400 text-[13px]">
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading deliverability...
+                  </div>
+                );
+              }
+
               return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart
-                      data={deliverabilityData}
-                      barSize={44}
-                      margin={{ top: 0, right: 10, left: -18, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ borderRadius: 10, border: "none", fontSize: 12 }} />
-                      <Bar dataKey="value" name="Count" radius={[8, 8, 0, 0]}>
-                        {deliverabilityData.map((e, i) => (
-                          <Cell key={i} fill={e.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <div className="space-y-3">
-                    {deliverabilityData.map((d) => (
-                      <div key={d.name}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: d.fill }} />
-                            <span className="text-[12px] font-[600] text-gray-700">{d.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[13px] font-[700] text-gray-900">
-                              {emailCardAnalyticsLoading ? "…" : d.value}
-                            </span>
-                            <span className="text-[11px] font-[600] text-gray-400 w-10 text-right">
-                              {emailCardAnalyticsLoading ? "" : `${d.pct}%`}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${d.pct}%`, background: d.fill }} />
-                        </div>
+                <div className="p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-[320px_minmax(0,1fr)] gap-6 items-center">
+                    <div className="mx-auto">
+                      <ResponsiveContainer width={260} height={230}>
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: "Inbox", value: inbox, color: "#22c55e" },
+                              { name: "Spam", value: spam, color: "#ef4444" },
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={62}
+                            outerRadius={92}
+                            paddingAngle={0}
+                            dataKey="value"
+                            stroke="none"
+                            label={({ name, percent }) => `${name === "Inbox" ? "" : ""}${Math.round((percent ?? 0) * 100)}%`}
+                            labelLine={false}
+                          >
+                            <Cell fill="#22c55e" />
+                            <Cell fill="#ef4444" />
+                          </Pie>
+                          <Tooltip formatter={(value, name) => [`${value}`, name]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="-mt-24 text-center pointer-events-none">
+                        <p className="text-[24px] font-[800] text-gray-900 leading-none">{inbox}</p>
+                        <p className="text-[12px] font-[700] text-gray-500 mt-1">Inbox ({inboxPct}%)</p>
                       </div>
-                    ))}
-                    {!emailCardAnalyticsLoading && total === 0 && (
-                      <p className="text-[12px] text-gray-400 text-center py-2">No deliverability data yet.</p>
-                    )}
+                    </div>
+                    <div className="space-y-4">
+                      {[{ name: "Inbox", value: inbox, pct: inboxPct, color: "#22c55e" }, { name: "Spam", value: spam, pct: spamPct, color: "#ef4444" }].map((row) => (
+                        <div key={row.name}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="w-3.5 h-3.5 rounded-full" style={{ background: row.color }} />
+                              <span className="text-[16px] font-[700] text-gray-800">{row.name}</span>
+                            </div>
+                            <span className="text-[30px] font-[800] text-gray-900 leading-none">{row.value} <span className="text-[18px] font-[700] text-gray-400">({row.pct}%)</span></span>
+                          </div>
+                          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color }} />
+                          </div>
+                        </div>
+                      ))}
+                      {total === 0 && <p className="text-[12px] text-gray-400 italic">No deliverability data available.</p>}
+                    </div>
                   </div>
                 </div>
               );
@@ -4173,7 +4410,7 @@ export default function CampaignPage() {
           </section>
 
           {/* Table */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-wrap">
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
@@ -4280,19 +4517,17 @@ export default function CampaignPage() {
                         </td>
                         <td className="px-3 py-3">
                           {row.skippable || !!row.skip_reason ? (
-                            <div className="relative group inline-block">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-[600] cursor-pointer ${EMAIL_STATUS_STYLE["SKIPPED"] ?? "bg-gray-100 text-gray-600"}`}
-                              >
-                                SKIPPED
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 opacity-60" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-                              </span>
-                              <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block w-max max-w-[220px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg">
-                                <p className="font-[600] mb-0.5">Skip Reason</p>
-                                <p className="font-[400] text-gray-300">{normalizeSkipReason(row.skipReason || row.skip_reason)}</p>
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                              </div>
-                            </div>
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-[600] cursor-pointer ${EMAIL_STATUS_STYLE["SKIPPED"] ?? "bg-gray-100 text-gray-600"}`}
+                              onMouseEnter={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setEmailTooltip({ kind: "skip", reason: normalizeSkipReason(row.skipReason || row.skip_reason), rect });
+                              }}
+                              onMouseLeave={() => setEmailTooltip(null)}
+                            >
+                              SKIPPED
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 opacity-60" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                            </span>
                           ) : (
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${EMAIL_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
@@ -4313,32 +4548,25 @@ export default function CampaignPage() {
                         </td>
                         <td className="px-3 py-3">
                           {(() => {
-                            const taskNames = Array.isArray(row.follow_up_tasks) ? row.follow_up_tasks : [];
-                            const taskCount = taskNames.length;
+                            const rawTasks = Array.isArray(row.follow_up_tasks) ? row.follow_up_tasks : [];
+                            const taskNames = normalizeFollowUpTasks(rawTasks);
+                            const taskCount = Math.max(Number(row.total_tasks) || 0, taskNames.length, rawTasks.length);
                             const hasTasks = taskCount > 0;
                             return (
-                              <div className="relative group inline-block">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border cursor-default ${
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border cursor-default ${
                                   hasTasks
                                     ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
                                     : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
-                                }`}>
-                                  task{taskCount !== 1 ? "s" : ""}
-                                </span>
-                                <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[320px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
-                                  <p className="font-[600] mb-1">Follow-up Tasks</p>
-                                  {taskNames.length > 0 ? (
-                                    <ul className="space-y-0.5 text-gray-200">
-                                      {taskNames.map((task, ti) => (
-                                        <li key={ti}>{`${ti + 1}. ${task}`}</li>
-                                      ))}
-                                    </ul>
-                                  ) : (
-                                    <p className="text-gray-300">No tasks available</p>
-                                  )}
-                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                                </div>
-                              </div>
+                                }`}
+                                onMouseEnter={(taskNames.length > 0 || hasTasks) ? (e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setEmailTooltip({ kind: "tasks", taskNames, taskCount, rect });
+                                } : undefined}
+                                onMouseLeave={(taskNames.length > 0 || hasTasks) ? () => setEmailTooltip(null) : undefined}
+                              >
+                                {hasTasks ? `${taskCount} task${taskCount !== 1 ? "s" : ""}` : "0 tasks"}
+                              </span>
                             );
                           })()}
                         </td>
@@ -4507,6 +4735,25 @@ export default function CampaignPage() {
                           </div>
                         </div>
 
+                        {/* ── Follow-up Tasks Section ── */}
+                        {(() => {
+                          const modalTasks = normalizeFollowUpTasks(emailDetailModal.follow_up_tasks);
+                          if (!modalTasks.length) return null;
+                          return (
+                            <div className="shrink-0 border-b border-amber-100 bg-amber-50 px-6 py-2.5">
+                              <p className="text-[11px] font-[700] text-amber-700 uppercase tracking-wide mb-1.5">Follow-up Tasks ({modalTasks.length})</p>
+                              <ul className="space-y-1">
+                                {modalTasks.map((task, ti) => (
+                                  <li key={ti} className="flex items-start gap-1.5 text-[11px] text-amber-800">
+                                    <span className="mt-0.5 flex-shrink-0 h-4 w-4 rounded-full bg-amber-200 text-amber-700 text-[9px] font-[700] flex items-center justify-center">{ti + 1}</span>
+                                    <span>{task}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })()}
+
                         {/* ── Email/Reply Body (bottom, fills remaining) ── */}
                         {isThreadView ? (
                           <div className="flex-1 overflow-auto p-4 bg-gray-50 space-y-3">
@@ -4597,6 +4844,37 @@ export default function CampaignPage() {
             </div>
           </div>
         )}
+        {emailTooltip && (() => {
+          const { kind, rect } = emailTooltip;
+          const left = Math.min(Math.max(rect.left + rect.width / 2, 10), (typeof window !== "undefined" ? window.innerWidth : 1200) - 10);
+          const top = rect.top - 8;
+          return (
+            <div
+              style={{ position: "fixed", top, left, transform: "translate(-50%, -100%)", zIndex: 9999, pointerEvents: "none" }}
+              className="rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg"
+            >
+              {kind === "skip" ? (
+                <>
+                  <p className="font-[600] mb-0.5">Skip Reason</p>
+                  <p className="font-[400] text-gray-300 whitespace-normal break-words w-[260px] max-w-[calc(100vw-2rem)]">{emailTooltip.reason}</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-[600] mb-1">Follow-up Tasks</p>
+                  {emailTooltip.taskNames.length > 0 ? (
+                    <ul className="space-y-0.5 text-gray-200 w-[340px] max-w-[calc(100vw-2rem)]">
+                      {emailTooltip.taskNames.map((task, ti) => (
+                        <li key={ti} className="whitespace-normal break-words">{`${ti + 1}. ${task}`}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-300 w-[340px] max-w-[calc(100vw-2rem)]"><strong>Total:</strong> {emailTooltip.taskCount} task{emailTooltip.taskCount !== 1 ? "s" : ""}</p>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
         </main>
       );
     }
@@ -5366,9 +5644,9 @@ export default function CampaignPage() {
     ];
     // Only show channel tabs that are in this campaign's channel_order
     const campaignChannels = c.channelOrder ?? [];
-    const activities = allActivities.filter(
-      (a) => a.alwaysShow || campaignChannels.includes(a.key),
-    );
+    const activities = campaignChannels.length > 0
+      ? allActivities.filter((a) => a.alwaysShow || campaignChannels.includes(a.key))
+      : allActivities;
     return (
       <main className="min-h-screen bg-[#f4f5f7] p-4">
         {/* Back */}
@@ -5414,23 +5692,20 @@ export default function CampaignPage() {
             },
             {
               label: "Completed",
-              value:
-                (c.completed ??
-                  c.completedLeads ??
-                  c.totalCompleted ??
-                  c.converted ??
-                  0) === 0 && c.status === "COMPLETED"
-                  ? c.totalLeads
-                  : (c.completed ??
-                    c.completedLeads ??
-                    c.totalCompleted ??
-                    c.converted ??
-                    0),
+            value: c.completed ? c.completed : c.completed ?? 0,
               icon: CheckCircle2,
               color: "text-blue-600",
               bg: "bg-blue-50",
               border: "border-blue-100",
             },
+            //    {
+            //   label: "Total Tasks",
+            //   value: c.total_tasks_count ? c.total_tasks_count : 0,
+            //   icon: CheckCircle2,
+            //   color: "text-blue-600",
+            //   bg: "bg-blue-50",
+            //   border: "border-blue-100",
+            // },
             {
               label: "Meetings",
               value: c.meetings,
@@ -5737,22 +6012,27 @@ export default function CampaignPage() {
               </div>
 
               {/* Stats Row */}
-              <div className="grid grid-cols-4 gap-2 mb-4">
+              <div className="grid grid-cols-5 gap-2 mb-4">
                 {[
                   {
                     label: "TOTAL LEADS",
                     value: c.totalLeads.toLocaleString(),
                     color: "text-gray-800",
                   },
-                  // {
-                  //   label: "COMPLETED",
-                  //   value: c.completed.toLocaleString(),
-                  //   color: "text-green-600",
-                  // },
+                  {
+                    label: "COMPLETED",
+                    value: c.completed.toLocaleString(),
+                    color: "text-emerald-600",
+                  },
                   {
                     label: "MEETINGS",
                     value: c.meetings.toLocaleString(),
                     color: "text-blue-600",
+                  },
+                  {
+                    label: "TOTAL TASKS",
+                    value: (c.total_tasks_count ?? 0).toLocaleString(),
+                    color: "text-green-600",
                   },
                   {
                     label: "CONV. RATE",
@@ -5915,7 +6195,10 @@ export default function CampaignPage() {
                     </button>
                   ) : null}
                   <button
-                    onClick={() => setSelectedCampaign(c)}
+                    onClick={() => {
+                      setSelectedCampaign(c);
+                      setActiveTab(c.channelOrder?.length === 1 ? c.channelOrder[0] : null);
+                    }}
                     className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"
                   >
                     <Eye className="h-3.5 w-3.5" />

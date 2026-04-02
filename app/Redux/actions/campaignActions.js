@@ -44,6 +44,7 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
       emailsFailed:      c.emails_failed_count           ?? 0,
       emailsPending:     c.emails_pending_count          ?? 0,
       meetings:          c.meetings_scheduled_count      ?? 0,
+      total_tasks_count: c.total_tasks_count            ?? c.total_tasks ?? 0,
       convRate:          c.campaign_conversion_rate      ?? 0,
       agentPerf:         c.agent_performance_percentage  ?? 0,
       fromName:          c.from_name                    ?? "",
