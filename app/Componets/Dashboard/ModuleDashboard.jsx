@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
 import { fetchOutboundCalls, fetchInboundCalls, fetchEmailCampaigns } from "../../Redux/actions/authActions";
+import axiosInstance from "../../Redux/axiosInstance";
 import {
   ArrowUpRight,
   Calendar,
@@ -103,6 +104,56 @@ function normalizeTab(initialTab) {
   if (initialTab === "inbound" || initialTab === "Inbound Calls")   return "inbound";
   if (initialTab === "email"   || initialTab === "Email Campaign")  return "email";
   return "outbound";
+}
+
+function getDeliverabilityCounts(payload) {
+  const pickNum = (...vals) => {
+    for (const value of vals) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+  };
+
+  const walk = (obj, keys) => {
+    if (!obj || typeof obj !== "object") return null;
+    for (const key of keys) {
+      const direct = pickNum(obj?.[key]);
+      if (direct !== null) return direct;
+    }
+    for (const value of Object.values(obj)) {
+      if (value && typeof value === "object") {
+        const nested = walk(value, keys);
+        if (nested !== null) return nested;
+      }
+    }
+    return null;
+  };
+
+  const inbox = walk(payload, [
+    "inbox", "inbox_count", "delivered", "inbox_emails",
+    "healthy", "healthy_count", "healthy_mailboxes",
+  ]);
+  const spam = walk(payload, [
+    "spam", "spam_count", "spam_emails", "junk",
+    "unhealthy", "unhealthy_count", "unhealthy_mailboxes",
+    "at_risk", "at_risk_count", "at_risk_mailboxes",
+    "failed", "failed_count",
+  ]);
+  const total = walk(payload, [
+    "total", "total_count", "emails_total",
+    "mailboxes_total", "total_mailboxes", "mailboxes_count",
+  ]);
+
+  const safeInbox = inbox ?? 0;
+  const safeSpam = spam ?? 0;
+  const safeTotal = total ?? (safeInbox + safeSpam);
+
+  return {
+    inbox: safeInbox,
+    spam: safeSpam,
+    total: safeTotal,
+  };
 }
 
 /* ─── Custom bar tooltip ───────────────────────────────────────── */
@@ -420,6 +471,20 @@ export default function ModuleDashboard({
   const [activeTab,    setActiveTab]    = useState(normalizeTab(initialTab));
   const [activeFilter, setActiveFilter] = useState("this_year");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [emailDeliverabilityDashboard, setEmailDeliverabilityDashboard] = useState(null);
+  const [emailDeliverabilityLoading, setEmailDeliverabilityLoading] = useState(false);
+
+  const fetchEmailDeliverabilityDashboard = async () => {
+    setEmailDeliverabilityLoading(true);
+    try {
+      const res = await axiosInstance.get("/api/deliverability/smartlead/mailboxes/health-dashboard");
+      setEmailDeliverabilityDashboard(res.data);
+    } catch (_err) {
+      setEmailDeliverabilityDashboard(null);
+    } finally {
+      setEmailDeliverabilityLoading(false);
+    }
+  };
 
   // Fetch outbound calls whenever tab is "outbound" or filter changes
   useEffect(() => {
@@ -442,6 +507,7 @@ export default function ModuleDashboard({
     }
     if (activeTab === "email") {
       dispatch(fetchEmailCampaigns(activeFilter));
+      fetchEmailDeliverabilityDashboard();
     }
   }, [activeTab, activeFilter, dispatch, router]);
 
@@ -737,6 +803,7 @@ export default function ModuleDashboard({
     }
     if (activeTab === "email") {
       dispatch(fetchEmailCampaigns(activeFilter));
+      fetchEmailDeliverabilityDashboard();
     }
     setTimeout(() => setIsRefreshing(false), 800);
   };
@@ -1182,85 +1249,88 @@ export default function ModuleDashboard({
 
           {/* EM-2b ── Email Deliverability */}
           {(() => {
-            const apiDelivered = emailData?.email_deliverability?.delivered ?? emailData?.delivered ?? emailData?.total_delivered ?? null;
-            const apiSpam      = emailData?.email_deliverability?.spam      ?? emailData?.spam      ?? emailData?.spam_count     ?? emailData?.marked_as_spam ?? null;
-            // Fall back to static demo data when API has no deliverability fields
-            const delivered = apiDelivered ?? 58;
-            const spam      = apiSpam      ?? 4;
-            const total      = delivered + spam;
+            const { inbox, spam, total } = getDeliverabilityCounts(emailDeliverabilityDashboard ?? {});
             const pct        = (v) => total > 0 ? Math.round((v / total) * 100) : 0;
             const deliverabilityBars = [
-              { name: "Inbox", value: delivered, fill: "#22c55e", pct: pct(delivered) },
+              { name: "Inbox", value: inbox, fill: "#22c55e", pct: pct(inbox) },
               { name: "Spam",  value: spam,      fill: "#ef4444", pct: pct(spam)      },
             ];
-            const hasData = true;
+            const hasData = total > 0;
             return (
               <ChartCard
                 title="Email Deliverability"
                 subtitle="Inbox vs spam"
                 badge={hasData ? `${total} total` : undefined}
               >
-                <div className="flex flex-col items-center gap-4">
-                  <ResponsiveContainer width={180} height={180}>
-                    <PieChart>
-                      <Pie
-                        data={deliverabilityBars}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        dataKey="value"
-                        labelLine={false}
-                        label={({ cx, cy, midAngle, innerRadius, outerRadius, pct }) => {
-                          if (pct === 0) return null;
-                          const RADIAN = Math.PI / 180;
-                          const r = innerRadius + (outerRadius - innerRadius) * 0.5;
-                          const x = cx + r * Math.cos(-midAngle * RADIAN);
-                          const y = cy + r * Math.sin(-midAngle * RADIAN);
-                          return (
-                            <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>
-                              {`${pct}%`}
-                            </text>
-                          );
-                        }}
-                      >
-                        {deliverabilityBars.map((e, i) => (
-                          <Cell key={i} fill={e.fill} strokeWidth={0} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        content={({ active, payload }) => {
-                          if (!active || !payload?.length) return null;
-                          const d = payload[0].payload;
-                          return (
-                            <div className="bg-white border border-gray-200 shadow-lg rounded-xl px-3 py-2 text-[12px]">
-                              <p className="font-semibold text-gray-600 mb-0.5">{d.name}</p>
-                              <p className="font-bold text-[14px]" style={{ color: d.fill }}>{d.value} <span className="text-[11px] font-normal text-gray-400">({d.pct}%)</span></p>
-                            </div>
-                          );
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="w-full space-y-3">
-                    {deliverabilityBars.map((d) => (
-                      <div key={d.name}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.fill }} />
-                            <span className="text-[12px] font-[600] text-gray-700">{d.name}</span>
-                          </div>
-                          <span className="text-[12px] font-[700] text-gray-900">
-                            {d.value} <span className="text-[10px] font-[500] text-gray-400">({d.pct}%)</span>
-                          </span>
-                        </div>
-                        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${d.pct}%`, background: d.fill }} />
-                        </div>
-                      </div>
-                    ))}
+                {emailDeliverabilityLoading ? (
+                  <div className="h-[240px] flex items-center justify-center text-[13px] text-gray-400">
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading deliverability...
                   </div>
-                </div>
+                ) : !hasData ? (
+                  <div className="h-[240px] flex items-center justify-center text-[13px] text-gray-400">No deliverability data</div>
+                ) : (
+                  <div className="flex flex-col items-center gap-4">
+                    <ResponsiveContainer width={180} height={180}>
+                      <PieChart>
+                        <Pie
+                          data={deliverabilityBars}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          dataKey="value"
+                          labelLine={false}
+                          label={({ cx, cy, midAngle, innerRadius, outerRadius, pct: slicePct }) => {
+                            if (slicePct === 0) return null;
+                            const RADIAN = Math.PI / 180;
+                            const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+                            const x = cx + r * Math.cos(-midAngle * RADIAN);
+                            const y = cy + r * Math.sin(-midAngle * RADIAN);
+                            return (
+                              <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>
+                                {`${Math.round(slicePct * 100)}%`}
+                              </text>
+                            );
+                          }}
+                        >
+                          {deliverabilityBars.map((entry, index) => (
+                            <Cell key={index} fill={entry.fill} strokeWidth={0} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const datum = payload[0].payload;
+                            return (
+                              <div className="bg-white border border-gray-200 shadow-lg rounded-xl px-3 py-2 text-[12px]">
+                                <p className="font-semibold text-gray-600 mb-0.5">{datum.name}</p>
+                                <p className="font-bold text-[14px]" style={{ color: datum.fill }}>{datum.value} <span className="text-[11px] font-normal text-gray-400">({datum.pct}%)</span></p>
+                              </div>
+                            );
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="w-full space-y-3">
+                      {deliverabilityBars.map((datum) => (
+                        <div key={datum.name}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: datum.fill }} />
+                              <span className="text-[12px] font-[600] text-gray-700">{datum.name}</span>
+                            </div>
+                            <span className="text-[12px] font-[700] text-gray-900">
+                              {datum.value} <span className="text-[10px] font-[500] text-gray-400">({datum.pct}%)</span>
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${datum.pct}%`, background: datum.fill }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </ChartCard>
             );
           })()}
