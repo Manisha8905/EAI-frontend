@@ -12,6 +12,7 @@ import {
   Phone,
   RefreshCw,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import {
   Area,
@@ -462,6 +463,16 @@ export default function ModuleDashboard({
     : activeTab === "inbound" ? inboundData?.total_calls
     : null;
 
+  const emailTotalLeads = Number(
+    emailSm?.total_leads ??
+    emailData?.total_leads ??
+    emailSm?.leads_targeted_total ??
+    emailData?.leads_targeted_total ??
+    emailSm?.unique_recipients ??
+    emailData?.unique_recipients ??
+    0,
+  );
+
   // Loading flag
   const isLoading =
     (outboundLoading && activeTab === "outbound") ||
@@ -469,13 +480,13 @@ export default function ModuleDashboard({
     (emailLoading    && activeTab === "email");
 
   // ── KPI card values ────────────────────────────────────────────
-  // Card 1: Calls Processed (calls) / Emails Sent (email)
+  // Card 1: Calls Processed (calls) / Total Leads (email)
   const calls = emailSm
     ? {
-        today: emailSm.emails_sent_today,
-        week:  emailSm.emails_sent_this_week,
-        month: emailSm.emails_sent_this_month,
-        trend: `${emailData.total_emails} total`,
+        today: emailSm.total_leads_today ?? emailSm.leads_targeted_today ?? emailSm.unique_recipients_today ?? emailSm.emails_sent_today,
+        week:  emailSm.total_leads_this_week ?? emailSm.leads_targeted_this_week ?? emailSm.unique_recipients_this_week ?? emailSm.emails_sent_this_week,
+        month: emailSm.total_leads_this_month ?? emailSm.leads_targeted_this_month ?? emailSm.unique_recipients_this_month ?? emailSm.emails_sent_this_month,
+        trend: `${emailTotalLeads} total`,
       }
     : sm
     ? {
@@ -503,13 +514,13 @@ export default function ModuleDashboard({
       }
     : d.meetings;
 
-  // Card 3: Tasks Created (calls) / Responses Received (email)
+  // Card 3: Tasks Created (calls) / Leads Engaged (email)
   const tasks = emailSm
     ? {
-        today: emailSm.responses_received_today,
-        week:  emailSm.responses_received_this_week,
-        month: emailSm.responses_received_this_month,
-        trend: d.tasks.trend,
+        today: emailSm.leads_engaged_today ?? emailSm.engaged_leads_today ?? emailSm.responses_received_today,
+        week:  emailSm.leads_engaged_this_week ?? emailSm.engaged_leads_this_week ?? emailSm.responses_received_this_week,
+        month: emailSm.leads_engaged_this_month ?? emailSm.engaged_leads_this_month ?? emailSm.responses_received_this_month,
+        trend: `${Number(emailSm.leads_engaged_total ?? emailSm.engaged_leads_total ?? emailData?.leads_engaged_total ?? emailData?.engaged_leads_total ?? 0)} total`,
       }
     : sm
     ? {
@@ -520,8 +531,22 @@ export default function ModuleDashboard({
       }
     : d.tasks;
 
-  // Card 4: Avg Call Duration / Avg Emails per Lead
-  const duration = emailSm ? emailSm.average_emails_per_lead
+  const emailSentTotal = Number(
+    emailSm?.emails_sent_total ??
+    emailSm?.emails_sent ??
+    emailData?.emails_sent_total ??
+    emailData?.total_sent ??
+    (Array.isArray(emailData?.email_performance_by_month)
+      ? emailData.email_performance_by_month.reduce((sum, item) => sum + Number(item.email_count ?? 0), 0)
+      : 0) ??
+    0,
+  );
+
+  // Card 4: Avg Call Duration / Avg Emails per Lead (sent emails / total leads)
+  const duration = emailSm
+    ? (emailTotalLeads > 0
+      ? Number((emailSentTotal / emailTotalLeads).toFixed(2))
+      : Number(emailSm.average_emails_per_lead ?? emailData?.average_emails_per_lead ?? 0))
     : sm ? sm.average_call_duration
     : d.duration;
   const donut    = d.donut;
@@ -659,11 +684,11 @@ export default function ModuleDashboard({
   // EM chart 2: email outcomes (not in current API — placeholder)
   const emailOutcomes = emailData?.email_outcomes_distribution ?? null;
 
-  // EM chart 3: meetings — API uses `meeting_schedule_by_emails` with total_emails
+  // EM chart 3: meetings — compare total leads vs meetings per campaign
   const emailMeetingCampaign = (emailData?.meeting_schedule_by_emails ?? emailData?.meeting_schedule_by_campaign)
     ? (emailData.meeting_schedule_by_emails ?? emailData.meeting_schedule_by_campaign).map((item) => ({
         name:     item.campaign_name.length > 16 ? item.campaign_name.slice(0, 16) + "\u2026" : item.campaign_name,
-        emails:   item.total_emails ?? item.email_count ?? 0,
+        leads:    item.total_leads ?? item.lead_count ?? item.leads_targeted ?? item.unique_recipients ?? item.recipients_count ?? item.contacts_count ?? item.email_count ?? 0,
         meetings: item.meetings_scheduled,
       }))
     : null;
@@ -767,13 +792,13 @@ export default function ModuleDashboard({
       {/* ── KPI cards ── */}
       <section className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
 
-        {/* Card 1: Calls Processed / Emails Sent */}
+        {/* Card 1: Calls Processed / Total Leads */}
         <KpiCard
           gradient="border bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-indigo-400/25"
-          icon={Phone}
+          icon={activeTab === "email" ? Users : Phone}
           trend={calls.trend}
-          title={activeTab === "email" ? "Emails Sent" : "Calls Processed"}
+          title={activeTab === "email" ? "Total Leads" : "Calls Processed"}
           today={isLoading ? "…" : calls.today}
           week={isLoading ? "…" : calls.week}
           month={isLoading ? "…" : calls.month}
@@ -791,13 +816,13 @@ export default function ModuleDashboard({
           month={isLoading ? "…" : meetings.month}
         />
 
-        {/* Card 3: Tasks Created / Responses Received */}
+        {/* Card 3: Tasks Created / Leads Engaged */}
         <KpiCard
           gradient="border bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-purple-400/25"
           icon={CheckSquare}
           trend={tasks.trend}
-          title={activeTab === "email" ? "Responses Received" : "Tasks Created"}
+          title={activeTab === "email" ? "Leads Engaged" : "Tasks Created"}
           today={isLoading ? "…" : tasks.today}
           week={isLoading ? "…" : tasks.week}
           month={isLoading ? "…" : tasks.month}
@@ -1241,7 +1266,7 @@ export default function ModuleDashboard({
           })()}
 
           {/* EM-3 ── Meetings Scheduled */}
-          <ChartCard title="Meetings Scheduled" subtitle="Emails sent vs meetings per campaign">
+          <ChartCard title="Meetings Scheduled" subtitle="Total leads vs meetings per campaign">
             <div className="h-[240px] w-full">
               {emailMeetingCampaign ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -1251,7 +1276,7 @@ export default function ModuleDashboard({
                     <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} cursor={{ fill: "#faf5ff" }} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                    <Bar dataKey="emails"   name="Emails Sent" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="leads"    name="Total Leads" fill="#a855f7" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="meetings" name="Meetings"    fill="#14b8a6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

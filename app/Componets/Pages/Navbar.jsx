@@ -121,7 +121,7 @@ export default function Navbar() {
           </div>
           <div>
             <h1 className="font-poppins text-[14px] font-[700] text-[#0a0a0a] leading-tight">
-              Enterprise AI Portal
+              Enterprise AI  Platform
             </h1>
             <p className="font-inter text-[11px] text-gray-500 leading-tight">{auth?.role_display}</p>
           </div>

@@ -57,7 +57,7 @@ const Login = () => {
                 AI
               </div>
               <h1 className="font-poppins text-[18px] font-[700] text-[#0a0a0a] tracking-tight">
-                Enterprise AI Portal
+                Enterprise AI  Platform
               </h1>
               <p className="font-inter text-[13px] text-gray-500 mt-1">
                 Sign in to access your dashboard
@@ -203,7 +203,7 @@ const Login = () => {
         </div>
 
         <p className="text-center text-[12px] text-slate-400 mt-5">
-          Enterprise AI Portal &copy; {new Date().getFullYear()}
+          Enterprise AI  Platform &copy; {new Date().getFullYear()}
         </p>
       </div>
     </div>

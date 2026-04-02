@@ -17,6 +17,7 @@ import {
 } from "../../Redux/actions/authActions";
 import axiosInstance from "../../Redux/axiosInstance";
 import { toast } from "react-toastify";
+import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
 import {
   Plus,
   Search,
@@ -47,6 +48,7 @@ import {
   MinusCircle,
   SkipForward,
   Users,
+  Settings,
 } from "lucide-react";
 import {
   BarChart,
@@ -264,6 +266,9 @@ export default function CampaignPage() {
       setEmailSendingService(localStorage.getItem("emailSendingService") || "SMTP");
     }
   }, []);
+
+  /* ── Settings Panel ── */
+  const [showSettings, setShowSettings] = useState(false);
 
   /* ── Email Stats (from /campaigns/{id}/email-stats/) ── */
   const [emailStats, setEmailStats] = useState(null);
@@ -3076,10 +3081,116 @@ export default function CampaignPage() {
 
     /* ─── CALL HISTORY ─── */
     if (activeTab === "CALL") {
-      const callHistory_data = callHistory ?? [];
+      const normalizeTaskName = (task) => {
+        if (typeof task === "string") return task.trim();
+        if (!task || typeof task !== "object") return "";
+        return String(
+          task.task_name ??
+          task.name ??
+          task.title ??
+          task.task ??
+          task.description ??
+          "",
+        ).trim();
+      };
+
+      const parseBooleanLike = (value) => {
+        if (typeof value === "boolean") return value;
+        if (typeof value === "number") return value === 1;
+        const normalized = String(value ?? "").trim().toLowerCase();
+        if (["true", "1", "yes", "y"].includes(normalized)) return true;
+        if (["false", "0", "no", "n", ""].includes(normalized)) return false;
+        return Boolean(value);
+      };
+
+      const extractTaskNames = (source) => {
+        const rawTasks = source?.tasksList ?? source?.tasks_list ?? source?.task_list ?? source?.tasks ?? [];
+        if (Array.isArray(rawTasks)) {
+          return rawTasks.map(normalizeTaskName).filter(Boolean);
+        }
+        if (typeof rawTasks === "string") {
+          const raw = rawTasks.trim();
+          if (!raw) return [];
+          if ((raw.startsWith("[") && raw.endsWith("]")) || (raw.startsWith("{") && raw.endsWith("}"))) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) return parsed.map(normalizeTaskName).filter(Boolean);
+            } catch {
+              // Fallback to text splitting when payload is not valid JSON.
+            }
+          }
+          return raw
+            .split(/\r?\n|,/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+        }
+        return [];
+      };
+
+      const normalizeCallStatus = (row) => {
+        const raw = String(row.call_status ?? row.status ?? "")
+          .toUpperCase()
+          .replace(/[-_]/g, " ")
+          .trim();
+        if (raw === "COMPLETED") return "COMPLETED";
+        if (["VOICE MAIL", "VOICEMAIL"].includes(raw)) return "VOICE MAIL";
+        if (["NO ANSWER", "NOT ANSWERED"].includes(raw)) return "NO ANSWER";
+        if (["SKIPPED", "SKIP"].includes(raw)) return "SKIPPED";
+        if (["FAILED", "TIMEOUT", "ERROR", "CANCELLED"].includes(raw)) return "FAILED";
+        if (raw === "BUSY") return "BUSY";
+        return raw || "UNKNOWN";
+      };
+
+      const callHistoryRows = Array.isArray(callHistory)
+        ? callHistory
+        : Array.isArray(callHistory?.calls)
+          ? callHistory.calls
+          : [];
+
+      const callHistory_data = callHistoryRows.map((row) => {
+        const duration = Number(row.call_duration ?? row.duration ?? 0);
+        const tasksList = extractTaskNames(row);
+        const apiTaskCount = Number(
+          row.tasks_count ??
+          row.task_count ??
+          row.total_tasks ??
+          row.tasksCount ??
+          0,
+        );
+        const safeTaskCount = Number.isFinite(apiTaskCount) ? apiTaskCount : 0;
+        return {
+          ...row,
+          name: row.lead_name ?? row.name ?? "—",
+          phone: row.phone_number ?? row.phone ?? "—",
+          company: row.company_name ?? row.company ?? "—",
+          dateTime:
+            row.call_datetime ??
+            row.dateTime ??
+            [row.call_date, row.call_time].filter(Boolean).join("\n") ??
+            "—",
+          duration,
+          status: normalizeCallStatus(row),
+          meeting: parseBooleanLike(row.meeting_scheduled ?? row.meeting ?? row.meeting_booked),
+          tasksList,
+          tasksCount: Math.max(safeTaskCount, tasksList.length),
+          summary: row.call_summary ?? row.summary ?? "",
+          transcript: row.call_transcript ?? row.transcript ?? "",
+        };
+      });
+      const defaultCallStatuses = [
+        "COMPLETED",
+        "VOICE MAIL",
+        "NO ANSWER",
+        "FAILED",
+        "SKIPPED",
+        "BUSY",
+      ];
+      const dynamicCallStatuses = [...new Set(callHistory_data.map((r) => r.status).filter(Boolean))]
+        .filter((s) => !defaultCallStatuses.includes(s));
       const callStatuses = [
         "All Status",
-        ...new Set(callHistory_data.map((r) => r.status).filter(Boolean)),
+        ...defaultCallStatuses,
+        ...dynamicCallStatuses,
       ];
       const callRows = callHistory_data.filter((r) => {
         const ms =
@@ -3089,9 +3200,20 @@ export default function CampaignPage() {
         return ms && ss;
       });
       const totalCalls = callHistory_data.length;
+      const totalTask = callHistory_data.reduce(
+        (sum, r) =>
+          sum + Number(
+            r.tasksCount ??
+            r.tasks_count ??
+            (Array.isArray(r.tasks_list) ? r.tasks_list.length : 0) ??
+            0,
+          ),
+        0,
+      );
       const completed = callHistory_data.filter(
         (r) => r.status === "COMPLETED",
       ).length;
+      
       const voiceMail = callHistory_data.filter(
         (r) => r.status === "VOICE MAIL",
       ).length;
@@ -3101,11 +3223,14 @@ export default function CampaignPage() {
       const failed = callHistory_data.filter(
         (r) => ["FAILED", "TIMEOUT", "ERROR", "CANCELLED"].includes((r.status ?? "").toUpperCase()),
       ).length;
+      const skipped = callHistory_data.filter(
+        (r) => (r.status ?? "").toUpperCase() === "SKIPPED",
+      ).length;
       const busy = callHistory_data.filter(
         (r) => (r.status ?? "").toUpperCase() === "BUSY",
       ).length;
       const meetingBooked = callHistory_data.filter((r) => r.meeting).length;
-      const avgDuration =
+      const avgCallDuration =
         totalCalls > 0
           ? (
               callHistory_data.reduce(
@@ -3119,14 +3244,15 @@ export default function CampaignPage() {
         { name: "Voice Mail", value: voiceMail, fill: "#3b82f6" },
         { name: "No Answer", value: noAnswer, fill: "#93c5fd" },
         { name: "Failed", value: failed, fill: "#ef4444" },
+        { name: "Skipped", value: skipped, fill: "#94a3b8" },
         { name: "Busy", value: busy, fill: "#f59e0b" },
       ];
       const meetingDonut = [
-        { name: "Meeting Booked", value: meetingBooked, color: "#1d4ed8" },
+        { name: "Meeting Booked", value: meetingBooked, color: "#22c55e" },
         {
           name: "No Meeting",
           value: totalCalls - meetingBooked,
-          color: "#bfdbfe",
+          color: "#f59e0b",
         },
       ].filter((s) => s.value > 0);
       return (
@@ -3155,7 +3281,7 @@ export default function CampaignPage() {
             </div>
           ) : (
             <>
-              <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+              <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
                 {[
                   {
                     label: "Total Calls",
@@ -3165,50 +3291,22 @@ export default function CampaignPage() {
                     ring: "ring-blue-200",
                   },
                   {
-                    label: "Completed",
-                    value: completed || c.completed,
-                    sub: "successful",
+                    label: "Total Tasks",
+                    value: totalTask,
+                    sub: "tasks created",
                     color: "text-blue-600",
                     ring: "ring-blue-200",
-                  },
-                  {
-                    label: "Voice Mail",
-                    value: voiceMail,
-                    sub: "left message",
-                    color: "text-blue-600",
-                    ring: "ring-blue-200",
-                  },
-                  {
-                    label: "No Answer",
-                    value: noAnswer || c.noAnswer,
-                    sub: "unreachable",
-                    color: "text-blue-600",
-                    ring: "ring-blue-200",
-                  },
-                  {
-                    label: "Failed",
-                    value: failed,
-                    sub: "error / timeout",
-                    color: "text-red-500",
-                    ring: "ring-red-200",
-                  },
-                  {
-                    label: "Busy",
-                    value: busy,
-                    sub: "line busy",
-                    color: "text-amber-500",
-                    ring: "ring-amber-200",
                   },
                   {
                     label: "Meetings",
-                    value: meetingBooked || c.meetings,
+                    value: meetingBooked,
                     sub: "booked",
                     color: "text-blue-600",
                     ring: "ring-blue-200",
                   },
                   {
-                    label: "Avg Duration",
-                    value: avgDuration,
+                    label: "Avg Call Duration",
+                    value: avgCallDuration,
                     sub: "min / call",
                     color: "text-blue-600",
                     ring: "ring-blue-200",
@@ -3282,24 +3380,25 @@ export default function CampaignPage() {
                       <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
                         Meeting Conversion
                       </h3>
-                      <p className="text-[12px] text-gray-400 mb-2">
+                      <p className="text-[12px] text-gray-400 mb-3">
                         Calls that led to a meeting
                       </p>
-                      <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                        <ResponsiveContainer width={140} height={140}>
+                      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                        <div className="relative">
+                        <ResponsiveContainer width={170} height={170}>
                           <PieChart>
                             <Pie
                               data={meetingDonut}
                               cx="50%"
                               cy="50%"
-                              innerRadius={42}
-                              outerRadius={65}
+                              innerRadius={48}
+                              outerRadius={74}
                               dataKey="value"
+                              paddingAngle={0}
                               labelLine={false}
-                              label={renderPieLabel}
                             >
                               {meetingDonut.map((s, i) => (
-                                <Cell key={i} fill={s.color} strokeWidth={0} />
+                                <Cell key={i} fill={s.color} stroke="none" strokeWidth={0} />
                               ))}
                             </Pie>
                             <Tooltip
@@ -3311,22 +3410,31 @@ export default function CampaignPage() {
                             />
                           </PieChart>
                         </ResponsiveContainer>
-                        <div className="space-y-1.5 w-full">
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="text-center">
+                            <p className="text-[22px] font-[800] leading-none text-gray-900">{meetingBooked}</p>
+                            <p className="mt-0.5 text-[10px] font-[700] text-gray-400 uppercase tracking-wide">
+                              {totalCalls > 0 ? `${Math.round((meetingBooked / totalCalls) * 100)}%` : "0%"}
+                            </p>
+                          </div>
+                        </div>
+                        </div>
+                        <div className="space-y-2 w-full">
                           {meetingDonut.map((s) => (
                             <div
                               key={s.name}
-                              className="flex items-center justify-between"
+                              className="flex items-center justify-between rounded-lg bg-gray-50/70 px-2.5 py-1.5"
                             >
                               <div className="flex items-center gap-2">
                                 <span
-                                  className="w-2.5 h-2.5 rounded-sm shrink-0"
+                                  className="w-3 h-3 rounded-full shrink-0"
                                   style={{ background: s.color }}
                                 />
-                                <span className="text-[11px] text-gray-600">
+                                <span className="text-[11px] font-[600] text-gray-700">
                                   {s.name}
                                 </span>
                               </div>
-                              <span className="text-[12px] font-[700] text-gray-800">
+                              <span className="text-[12px] font-[800] text-gray-900">
                                 {s.value}
                               </span>
                             </div>
@@ -3381,8 +3489,9 @@ export default function CampaignPage() {
                           "Phone",
                           "Company",
                           "Date & Time",
-                          "Duration (min)",
+                          // "Duration (min)",
                           "Status",
+                          "Tasks",         
                           "Meeting",
                           "Actions",
                         ].map((h) => (
@@ -3399,7 +3508,7 @@ export default function CampaignPage() {
                       {callRows.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={9}
                             className="px-4 py-12 text-center text-[13px] text-gray-400"
                           >
                             No call records available.
@@ -3423,9 +3532,9 @@ export default function CampaignPage() {
                             <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-pre-line leading-tight">
                               {formatTableDateTime(row.dateTime)}
                             </td>
-                            <td className="px-3 py-3 text-[12px] text-gray-700 text-center">
-                              {row.duration}
-                            </td>
+                            {/* <td className="px-3 py-3 text-[12px] text-gray-700 text-center">
+                              {Number.isFinite(Number(row.duration)) ? Number(row.duration).toFixed(2) : "0.00"}
+                            </td> */}
                             <td className="px-3 py-3">
                               {row.status === "SKIPPED" && (row.skip_reason || row.skipReason) ? (
                                 <div className="relative group inline-block">
@@ -3447,6 +3556,37 @@ export default function CampaignPage() {
                                   {row.status}
                                 </span>
                               )}
+                            </td>
+                            <td className="px-3 py-3">
+                              {(() => {
+                                const taskNames = Array.isArray(row.tasksList) ? row.tasksList : extractTaskNames(row);
+                                const taskCount = Math.max(Number(row.tasksCount ?? row.tasks_count ?? 0) || 0, taskNames.length);
+                                const hasTasks = taskCount > 0;
+                                return (
+                                  <div className="relative group inline-block">
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border cursor-default ${
+                                      hasTasks
+                                        ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
+                                        : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
+                                    }`}>
+                                      {taskCount} task{taskCount > 1 ? "s" : ""}
+                                    </span>
+                                    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[320px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
+                                      <p className="font-[600] mb-1">Task List</p>
+                                      {taskNames.length > 0 ? (
+                                        <ul className="space-y-0.5 text-gray-200">
+                                          {taskNames.map((task, ti) => (
+                                            <li key={ti}>{`${ti + 1}. ${task}`}</li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <p className="text-gray-300">No task names available</p>
+                                      )}
+                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="px-3 py-3 text-[12px] text-gray-700 text-center">
                               {row.meeting ? "Yes" : "No"}
@@ -3473,7 +3613,7 @@ export default function CampaignPage() {
                   </p>
                   <span className="flex items-center gap-1.5 text-[12px] text-green-600 font-[500]">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    {c.meetings} meetings booked
+                    {meetingBooked} meetings booked
                   </span>
                 </div>
               </div>
@@ -3502,12 +3642,21 @@ export default function CampaignPage() {
                   </button>
                 </div>
                 <div className="p-6 space-y-4 overflow-y-auto">
+                  {(() => {
+                    const transcriptTaskNames = extractTaskNames(transcript);
+                    const transcriptTaskCount = Math.max(
+                      Number(transcript.tasksCount ?? transcript.tasks_count ?? 0) || 0,
+                      transcriptTaskNames.length,
+                    );
+                    return (
+                      <>
                   <div className="grid grid-cols-2 gap-4">
                     {[
                       ["Lead Name", transcript.name],
                       ["Company", transcript.company],
                       ["Date & Time", transcript.dateTime],
                       ["Duration", `${transcript.duration} min`],
+                      ["Tasks", `${transcriptTaskCount} total`],
                     ].map(([lbl, val]) => (
                       <div key={lbl}>
                         <p className="text-[11px] font-[600] text-blue-500 uppercase tracking-wide mb-0.5">
@@ -3520,6 +3669,20 @@ export default function CampaignPage() {
                     ))}
                   </div>
                   <div>
+                  {transcriptTaskNames.length > 0 && (
+                    <div>
+                      <p className="text-[12px] font-[600] text-gray-700 mb-2">
+                        Task List
+                      </p>
+                      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                        <ul className="space-y-1 text-[12px] text-gray-700">
+                          {transcriptTaskNames.map((task, idx) => (
+                            <li key={idx}>{`${idx + 1}. ${task}`}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
                     <p className="text-[12px] font-[600] text-gray-700 mb-2">
                       Transcript
                     </p>
@@ -3542,6 +3705,9 @@ export default function CampaignPage() {
                       )}
                     </div>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -3715,18 +3881,23 @@ export default function CampaignPage() {
             analyticsCampaign?.skipped,
           )
         : statSkipped;
-      const cardReplies = Math.max(ehReplies, Number(emailHistoryTotalReplied ?? 0) || 0);
+      const apiTotalLeads = Number(emailHistoryTotalCount ?? 0) || 0;
+      const apiTotalReplied = Number(emailHistoryTotalReplied ?? 0) || 0;
+      const cardTotalLeads = apiTotalLeads;
+      const cardReplies = apiTotalReplied;
       const funnelData = [
-        { stage: "Sent",    value: cardSent,    fill: "#1d4ed8" },
-        { stage: "Failed",  value: cardFailed,  fill: "#3b82f6" },
-        { stage: "Skipped", value: cardSkipped, fill: "#93c5fd" },
-        { stage: "Replied", value: cardReplies, fill: "#16a34a" },
+        { stage: "Total Leads",   value: cardTotalLeads, fill: "#6366f1" },
+        { stage: "Delivered",     value: cardSent,       fill: "#1d4ed8" },
+        { stage: "Skipped",       value: cardSkipped,    fill: "#93c5fd" },
+        { stage: "Failed",        value: cardFailed,     fill: "#3b82f6" },
+        { stage: "Leads Engaged", value: cardReplies,    fill: "#16a34a" },
       ];
       const statusDonut = [
-        { name: "Sent",    value: cardSent,    color: "#1d4ed8" },
-        { name: "Failed",  value: cardFailed,  color: "#3b82f6" },
-        { name: "Skipped", value: cardSkipped, color: "#93c5fd" },
-        { name: "Replied", value: cardReplies, color: "#16a34a" },
+        { name: "Total Leads",   value: cardTotalLeads, color: "#6366f1" },
+        { name: "Delivered",     value: cardSent,       color: "#1d4ed8" },
+        { name: "Skipped",       value: cardSkipped,    color: "#93c5fd" },
+        { name: "Failed",        value: cardFailed,     color: "#3b82f6" },
+        { name: "Leads Engaged", value: cardReplies,    color: "#16a34a" },
       ];
       return (
         <main className="min-h-screen bg-[#f4f5f7] p-4">
@@ -3749,42 +3920,56 @@ export default function CampaignPage() {
           </div>
 
           {/* KPI strip — cards are clickable to filter the table */}
-          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {[
               {
-                label: "Total Sent",
-                value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSent,
-                sub: "delivered",
+                label: "Total Leads",
+                value: emailHistoryLoading ? "…" : cardTotalLeads,
+                icon: Users,
                 color: "text-blue-600",
-                ring: "ring-blue-200",
-                filter: "SENT",
+                bg: "bg-blue-50",
+                border: "border-blue-100",
+                filter: "All Status",
               },
               {
-                label: "Failed",
-                value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardFailed,
-                sub: "delivery failed",
+                label: "Delivered",
+                value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSent,
+                icon: Mail,
                 color: "text-blue-600",
-                ring: "ring-blue-200",
-                filter: "FAILED",
+                bg: "bg-blue-50",
+                border: "border-blue-100",
+                filter: "SENT",
               },
               {
                 label: "Skipped",
                 value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSkipped,
-                sub: "skipped",
+                icon: SkipForward,
                 color: "text-blue-600",
-                ring: "ring-blue-200",
+                bg: "bg-blue-50",
+                border: "border-blue-100",
                 filter: "SKIPPED",
               },
               {
-                label: "Total Replies",
+                label: "Failed",
+                value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardFailed,
+                icon: MinusCircle,
+                color: "text-blue-600",
+                bg: "bg-blue-50",
+                border: "border-blue-100",
+                filter: "FAILED",
+              },
+              {
+                label: "Leads Engaged",
                 value: emailHistoryLoading ? "…" : cardReplies,
-                sub: "leads who replied",
-                color: "text-green-600",
-                ring: "ring-green-200",
+                icon: TrendingUp,
+                color: "text-blue-600",
+                bg: "bg-blue-50",
+                border: "border-blue-100",
                 filter: "REPLIED",
               },
             ].map((k) => {
               const isActive = emailStatus === k.filter;
+              const Icon = k.icon;
               return (
                 <article
                   key={k.label}
@@ -3792,164 +3977,129 @@ export default function CampaignPage() {
                   tabIndex={0}
                   onClick={() => setEmailStatus(isActive ? "All Status" : k.filter)}
                   onKeyDown={(e) => e.key === "Enter" && setEmailStatus(isActive ? "All Status" : k.filter)}
-                  className={`rounded-2xl bg-white border shadow-sm p-4 flex flex-col gap-0.5 ring-1 cursor-pointer transition-all select-none
+                  className={`bg-white rounded-2xl border ${k.border} shadow-sm p-4 flex items-center gap-3 cursor-pointer transition-all select-none
                     ${isActive
-                      ? `${k.ring} border-transparent ring-2 shadow-md`
-                      : `border-gray-100 ${k.ring} hover:shadow-md hover:ring-2`
+                      ? "ring-2 ring-blue-300 border-blue-200 shadow-md"
+                      : "hover:shadow-md hover:border-blue-200"
                     }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
-                      {k.label}
-                    </p>
-                    {isActive && (
-                      <span className="text-[9px] font-[700] uppercase tracking-wide bg-indigo-50 text-indigo-600 border border-indigo-200 px-1.5 py-0.5 rounded-full">
-                        Filtered
-                      </span>
-                    )}
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${k.bg}`}
+                  >
+                    <Icon className={`h-5 w-5 ${k.color}`} />
                   </div>
-                  <p className={`text-[28px] font-[800] leading-none ${k.color}`}>
-                    {k.value}
-                  </p>
-                  <p className="text-[11px] text-gray-400">{k.sub}</p>
+                  <div>
+                    <p className={`text-[22px] font-[800] ${k.color}`}>
+                      {k.value}
+                    </p>
+                    <p className="text-[11px] text-gray-400 font-[500]">{k.label}</p>
+                  </div>
                 </article>
               );
             })}
           </section>
-          {isSmtpCampaign && (
-            <p className="-mt-2 mb-4 text-[11px] text-gray-400">
-              Cards source: Analytics Dashboard (SMTP campaign)
-            </p>
-          )}
-
-          {isSmtpCampaign && (
-            <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {[
-                { label: "Total Sent", value: smtpTotals.total_sent, sub: "analytics" },
-                { label: "Delivered", value: smtpTotals.delivered, sub: "analytics" },
-                { label: "Opened", value: smtpTotals.opened, sub: "analytics" },
-                { label: "Clicked", value: smtpTotals.clicked, sub: "analytics" },
-                { label: "Bounced", value: smtpTotals.bounced, sub: "analytics" },
-              ].map((k) => (
-                <article
-                  key={k.label}
-                  className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ring-blue-200"
-                >
-                  <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
-                    {k.label}
-                  </p>
-                  <p className="text-[24px] font-[800] leading-none text-blue-600">
-                    {emailCardAnalyticsLoading ? "…" : k.value}
-                  </p>
-                  <p className="text-[11px] text-gray-400">{k.sub}</p>
-                </article>
-              ))}
-            </section>
-          )}
 
           {/* Charts */}
           <section className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
-                  Email Engagement Funnel
-                </h3>
-                <p className="text-[12px] text-gray-400 mb-4">
-                  Sent vs failed vs skipped
-                </p>
-                <ResponsiveContainer width="100%" height={170}>
-                  <BarChart
-                    data={funnelData}
-                    barSize={38}
-                    margin={{ top: 0, right: 10, left: -18, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#f1f5f9"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="stage"
-                      tick={{ fontSize: 12, fill: "#64748b" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#94a3b8" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: 10,
-                        border: "none",
-                        fontSize: 12,
-                      }}
-                    />
-                    <Bar dataKey="value" name="Count" radius={[8, 8, 0, 0]}>
-                      {funnelData.map((e, i) => (
-                        <Cell key={i} fill={e.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+            {/* SMTP Analytics Bar Chart */}
+            {isSmtpCampaign && (
+            <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-[15px] font-[700] text-gray-900">SMTP Analytics</h3>
+                  <p className="text-[12px] text-gray-400 mt-0.5">Opened · Clicked · Bounced breakdown</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[{label:"Opened",color:"#f59e0b"},{label:"Clicked",color:"#10b981"},{label:"Bounced",color:"#ef4444"}].map((l) => (
+                    <span key={l.label} className="flex items-center gap-1 text-[10px] font-[600] text-gray-500">
+                      <span className="w-2 h-2 rounded-full inline-block" style={{background:l.color}} />
+                      {l.label}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col">
-                  <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
-                    Email Status Split
-                  </h3>
-                  <p className="text-[12px] text-gray-400 mb-2">
-                    Status distribution across email outcomes
-                  </p>
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                    <ResponsiveContainer width={140} height={140}>
-                      <PieChart>
-                        <Pie
-                          data={statusDonut}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={42}
-                          outerRadius={65}
-                          dataKey="value"
-                          labelLine={false}
-                          label={renderEmailStatusPieLabel}
-                        >
-                          {statusDonut.map((s, i) => (
-                            <Cell key={i} fill={s.color} strokeWidth={0} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          contentStyle={{
-                            borderRadius: 10,
-                            border: "none",
-                            fontSize: 12,
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="space-y-1.5 w-full">
-                      {statusDonut.map((s) => (
-                        <div
-                          key={s.name}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-2.5 h-2.5 rounded-sm shrink-0"
-                              style={{ background: s.color }}
-                            />
-                            <span className="text-[11px] text-gray-600">
-                              {s.name}
-                            </span>
-                          </div>
-                          <span className="text-[12px] font-[700] text-gray-800">
-                            {s.value}
-                          </span>
-                        </div>
-                      ))}
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart
+                  data={[
+                    { stage: "Opened",  value: smtpTotals.opened,  fill: "#f59e0b" },
+                    { stage: "Clicked", value: smtpTotals.clicked, fill: "#10b981" },
+                    { stage: "Bounced", value: smtpTotals.bounced, fill: "#ef4444" },
+                  ]}
+                  barSize={64}
+                  margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="smtpG0" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/><stop offset="100%" stopColor="#f59e0b" stopOpacity={0.5}/></linearGradient>
+                    <linearGradient id="smtpG1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={1}/><stop offset="100%" stopColor="#10b981" stopOpacity={0.5}/></linearGradient>
+                    <linearGradient id="smtpG2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" stopOpacity={1}/><stop offset="100%" stopColor="#ef4444" stopOpacity={0.5}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="stage" tick={{ fontSize: 12, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: "#f8fafc", radius: 6 }}
+                    contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }}
+                  />
+                  <Bar dataKey="value" name="Count" radius={[8, 8, 0, 0]}>
+                    {["url(#smtpG0)","url(#smtpG1)","url(#smtpG2)"].map((fill, i) => (
+                      <Cell key={i} fill={fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            )}
+
+            {/* Email Status Split */}
+            <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5 flex flex-col ${isSmtpCampaign ? "" : "md:col-span-3"}`}>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-[15px] font-[700] text-gray-900">Status Split</h3>
+                  <p className="text-[12px] text-gray-400 mt-0.5">Distribution by outcome</p>
+                </div>
+              </div>
+              <div className="flex-1 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] items-center gap-3 md:gap-4">
+                <div className="relative mx-auto">
+                  <ResponsiveContainer width={210} height={210}>
+                    <PieChart>
+                      <Pie
+                        data={statusDonut}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={52}
+                        outerRadius={90}
+                        dataKey="value"
+                        paddingAngle={0}
+                        labelLine={false}
+                      >
+                        {statusDonut.map((s, i) => (
+                          <Cell key={i} fill={s.color} strokeWidth={0} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                      <p className="text-[26px] font-[800] text-gray-900 leading-none">{cardTotalLeads}</p>
+                      <p className="text-[10px] font-[700] text-gray-400 uppercase tracking-wide mt-0.5">Total Leads</p>
                     </div>
                   </div>
                 </div>
-            </section>
+                <div className="w-full space-y-1.5">
+                  {statusDonut.map((s) => (
+                    <div key={s.name} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 bg-gray-50/70">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full shrink-0" style={{ background: s.color }} />
+                        <span className="text-[12px] text-gray-700 font-[600]">{s.name}</span>
+                      </div>
+                      <span className="text-[13px] font-[800] text-gray-900">{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
 
           {/* Email Deliverability Chart */}
           <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
@@ -4065,8 +4215,9 @@ export default function CampaignPage() {
                       "Subject",
                       "Date & Time",
                       "Status",
-                      "Clicked",
+                      // "Clicked",
                       "Meeting",
+                      "Tasks",
                       "Actions",
                     ].map((h) => (
                       <th
@@ -4082,7 +4233,7 @@ export default function CampaignPage() {
                   {emailRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="px-4 py-12 text-center text-[13px] text-gray-400"
                       >
                         No email records available.
@@ -4150,15 +4301,46 @@ export default function CampaignPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-[12px] text-gray-700">
+                        {/* <td className="px-3 py-3 text-[12px] text-gray-700">
                           {row.clicked ? "Yes" : "No"}
-                        </td>
+                        </td> */}
                         <td className="px-3 py-3">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${row.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
                           >
                             {row.meeting ? "Yes" : "No"}
                           </span>
+                        </td>
+                        <td className="px-3 py-3">
+                          {(() => {
+                            const taskNames = Array.isArray(row.follow_up_tasks) ? row.follow_up_tasks : [];
+                            const taskCount = taskNames.length;
+                            const hasTasks = taskCount > 0;
+                            return (
+                              <div className="relative group inline-block">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border cursor-default ${
+                                  hasTasks
+                                    ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
+                                    : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
+                                }`}>
+                                  task{taskCount !== 1 ? "s" : ""}
+                                </span>
+                                <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[320px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
+                                  <p className="font-[600] mb-1">Follow-up Tasks</p>
+                                  {taskNames.length > 0 ? (
+                                    <ul className="space-y-0.5 text-gray-200">
+                                      {taskNames.map((task, ti) => (
+                                        <li key={ti}>{`${ti + 1}. ${task}`}</li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-gray-300">No tasks available</p>
+                                  )}
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-2">
@@ -4604,11 +4786,12 @@ export default function CampaignPage() {
                           innerRadius={42}
                           outerRadius={65}
                           dataKey="value"
+                          paddingAngle={0}
                           labelLine={false}
                           label={renderPieLabel}
                         >
                           {outcomeDonut.map((s, i) => (
-                            <Cell key={i} fill={s.color} strokeWidth={0} />
+                            <Cell key={i} fill={s.color} stroke="none" strokeWidth={0} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -4973,11 +5156,12 @@ export default function CampaignPage() {
                           innerRadius={42}
                           outerRadius={65}
                           dataKey="value"
+                          paddingAngle={0}
                           labelLine={false}
                           label={renderPieLabel}
                         >
                           {outcomeDonut.map((s, i) => (
-                            <Cell key={i} fill={s.color} strokeWidth={0} />
+                            <Cell key={i} fill={s.color} stroke="none" strokeWidth={0} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -5223,7 +5407,10 @@ export default function CampaignPage() {
             {
               label: "Total Leads",
               value: c.totalLeads,
-              bg: "bg-gradient-to-br from-[#4285F4] to-[#2563EB]",
+              icon: Users,
+              color: "text-blue-600",
+              bg: "bg-blue-50",
+              border: "border-blue-100",
             },
             {
               label: "Completed",
@@ -5239,28 +5426,42 @@ export default function CampaignPage() {
                     c.totalCompleted ??
                     c.converted ??
                     0),
-              bg: "bg-gradient-to-br from-[#22C55E] to-[#16A34A]",
+              icon: CheckCircle2,
+              color: "text-blue-600",
+              bg: "bg-blue-50",
+              border: "border-blue-100",
             },
             {
               label: "Meetings",
               value: c.meetings,
-              bg: "bg-gradient-to-br from-[#A855F7] to-[#7C3AED]",
+              icon: Calendar,
+              color: "text-blue-600",
+              bg: "bg-blue-50",
+              border: "border-blue-100",
             },
             {
               label: "Conv. Rate",
               value: `${c.convRate}%`,
-              bg: "bg-gradient-to-br from-[#2DD4BF] to-[#0D9488]",
+              icon: TrendingUp,
+              color: "text-blue-600",
+              bg: "bg-blue-50",
+              border: "border-blue-100",
             },
-          ].map(({ label, value, bg }) => (
+          ].map(({ label, value, icon: Icon, color, bg, border }) => (
             <article
               key={label}
-              className={`rounded-xl ${bg} border-none shadow-lg px-4 py-3 flex items-center gap-3`}
+              className={`bg-white rounded-2xl border ${border} shadow-sm p-4 flex items-center gap-3`}
             >
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}
+              >
+                <Icon className={`h-5 w-5 ${color}`} />
+              </div>
               <div>
-                <p className="text-[22px] font-[800] leading-none text-white">
+                <p className={`text-[22px] font-[800] ${color}`}>
                   {value}
                 </p>
-                <p className="text-[11px] text-white/80 mt-0.5">{label}</p>
+                <p className="text-[11px] text-gray-400 font-[500]">{label}</p>
               </div>
             </article>
           ))}
@@ -5337,6 +5538,14 @@ export default function CampaignPage() {
             <RefreshCw
               className={`h-4 w-4 ${refreshing || loading ? "animate-spin" : ""}`}
             />
+          </button>
+          {/* Settings */}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition shadow-sm"
+          >
+            <Settings className="h-4 w-4" />
+            Settings
           </button>
           {/* Create */}
           <button

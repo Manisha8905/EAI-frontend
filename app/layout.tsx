@@ -19,7 +19,7 @@ const jakarta = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: "AI SDR",
-  description: "Enterprise AI Portal",
+  description: "Enterprise AI  Platform",
 };
 
 export default function RootLayout({

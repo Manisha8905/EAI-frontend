@@ -3381,7 +3381,7 @@ function LeadsPage({ onBack }) {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {["Name", "Total Leads", "Created", "Action", ""].map((h) => (
+                  {["Name", "Total Leads", "Created", "Action"].map((h) => (
                     <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -3403,16 +3403,14 @@ function LeadsPage({ onBack }) {
                             ? new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                             : "—"}
                         </td>
-                        <td className="px-5 py-3.5">
+                        <td className="px-5 py-3.5 flex items-center gap-2">
                           <button
                             onClick={() => openDetail(l)}
                             className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
                           >
-                            <Eye className="h-3.5 w-3.5" />View Leads
+                            <Eye className="h-3.5 w-3.5" />
                           </button>
-                        </td>
-                        <td className="px-5 py-3.5 text-center">
-                          <button
+                            <button
                             onClick={() => setDeleteListTarget({ id: l.id, name: l.name })}
                             disabled={deletingListId === l.id}
                             className="text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition disabled:opacity-40"
@@ -3423,6 +3421,9 @@ function LeadsPage({ onBack }) {
                               : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
                         </td>
+                        {/* <td className="px-5 py-3.5 text-center">
+                        
+                        </td> */}
                       </tr>
                     );
                   })
@@ -4056,11 +4057,6 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
-  const [deliverabilityMeta, setDeliverabilityMeta] = useState({
-    supportedProviders: [],
-    smartleadConfigured: false,
-    smartleadApiKeyMasked: "",
-  });
 
   const setField = (section, key) => (e) => {
     const value = e?.target?.type === "checkbox" ? e.target.checked : e.target.value;
@@ -4095,7 +4091,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
     (async () => {
       setLoading(true);
-      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes, deliverabilityProviderRes] = await Promise.allSettled([
+      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes] = await Promise.allSettled([
         axiosInstance.get("/api/globalsetting/twilio"),
         axiosInstance.get("/api/globalsetting/elevenlabs"),
         axiosInstance.get("/api/globalsetting/linkedin-scraping"),
@@ -4103,7 +4099,6 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         axiosInstance.get("/api/globalsetting/tm-own-solution"),
         axiosInstance.get("/api/globalsetting/groq"),
         axiosInstance.get("/api/globalsetting/app-config"),
-        axiosInstance.get("/api/deliverability/provider"),
       ]);
 
       setForms((prev) => {
@@ -4174,15 +4169,6 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           };
         }
 
-        if (deliverabilityProviderRes.status === "fulfilled") {
-          const d = deliverabilityProviderRes.value?.data ?? {};
-          next.groq = {
-            ...next.groq,
-            email_deliverability_provider:
-              d.active_provider ?? next.groq.email_deliverability_provider,
-          };
-        }
-
         if (appConfigRes.status === "fulfilled") {
           const d = appConfigRes.value?.data ?? {};
           next.appConfig = {
@@ -4202,15 +4188,6 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
         return next;
       });
-
-      if (deliverabilityProviderRes.status === "fulfilled") {
-        const d = deliverabilityProviderRes.value?.data ?? {};
-        setDeliverabilityMeta({
-          supportedProviders: Array.isArray(d.supported_providers) ? d.supported_providers : [],
-          smartleadConfigured: !!d.smartlead_configured,
-          smartleadApiKeyMasked: d.smartlead_api_key_masked ?? "",
-        });
-      }
 
       setLoading(false);
     })();
@@ -4242,29 +4219,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       if (section === "groq") {
         await axiosInstance.put("/api/globalsetting/groq", {
           groq_api_key: forms.groq.groq_api_key,
-        });
-      }
-      if (section === "deliverabilityProvider") {
-        if (!forms.groq.email_deliverability_provider) {
-          toast.error("Please select an email deliverability provider.");
-          return;
-        }
-        const res = await axiosInstance.put("/api/deliverability/provider", {
-          provider: forms.groq.email_deliverability_provider,
-        });
-        const d = res?.data ?? {};
-        setForms((prev) => ({
-          ...prev,
-          groq: {
-            ...prev.groq,
-            email_deliverability_provider:
-              d.active_provider ?? prev.groq.email_deliverability_provider,
-          },
-        }));
-        setDeliverabilityMeta({
-          supportedProviders: Array.isArray(d.supported_providers) ? d.supported_providers : deliverabilityMeta.supportedProviders,
-          smartleadConfigured: !!d.smartlead_configured,
-          smartleadApiKeyMasked: d.smartlead_api_key_masked ?? "",
+          email_deliverability_provider: forms.groq.email_deliverability_provider,
         });
       }
       if (section === "appConfig") {
@@ -4451,38 +4406,16 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <SaveBtn section="groq" />
             </div>
             <Field label="Groq API Key" type="password" value={forms.groq.groq_api_key} onChange={setField("groq", "groq_api_key")} />
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-blue-600" />
-                <h3 className="text-[14px] font-[700] text-gray-900">Email Deliverability Provider</h3>
-              </div>
-              <SaveBtn section="deliverabilityProvider" />
-            </div>
             <SelectField
               label="Email Deliverability"
               value={forms.groq.email_deliverability_provider}
               onChange={setField("groq", "email_deliverability_provider")}
               options={[
-                { value: "", label: "— Select —" },
-                ...deliverabilityMeta.supportedProviders.map((provider) => ({
-                  value: provider,
-                  label: provider,
-                })),
+                { value: "",       label: "— Select —" },
+                { value: "enable", label: "Enable" },
+                { value: "disable", label: "Disable" },
               ]}
             />
-            <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-3">
-              <p className="text-[11px] text-gray-500">
-                Smartlead configured: <span className={`font-[600] ${deliverabilityMeta.smartleadConfigured ? "text-green-600" : "text-red-600"}`}>{deliverabilityMeta.smartleadConfigured ? "Yes" : "No"}</span>
-              </p>
-              {deliverabilityMeta.smartleadApiKeyMasked ? (
-                <p className="mt-1 text-[11px] text-gray-500">
-                  Smartlead key: <span className="font-[600] text-gray-700">{deliverabilityMeta.smartleadApiKeyMasked}</span>
-                </p>
-              ) : null}
-            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">

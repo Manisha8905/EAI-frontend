@@ -541,20 +541,37 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
         dateTime = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + "\n" + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
       }
 
+      const rawTasks = r.tasks_list ?? r.task_list ?? r.tasks ?? [];
+      const tasks_list = Array.isArray(rawTasks)
+        ? rawTasks
+        : typeof rawTasks === "string"
+          ? rawTasks
+          : [];
+      const tasks_count = Number(
+        r.tasks_count ??
+        r.task_count ??
+        r.total_tasks ??
+        (Array.isArray(tasks_list) ? tasks_list.length : 0) ??
+        0,
+      );
+
       return {
         name:       r.lead_name          ?? r.name             ?? r.contact_name  ?? "—",
-        phone:      r.phone_number        ?? r.phone             ?? r.contact_phone ?? "—",
-        company:    r.company_name        ?? r.company           ?? r.organization  ?? r.campaign_name ?? "—",
+        phone:      r.phone_number       ?? r.phone            ?? r.contact_phone ?? "—",
+        company:    r.company_name       ?? r.company          ?? r.organization  ?? r.campaign_name ?? "—",
         dateTime,
-        duration:   r.call_duration       ?? r.duration          ?? "0",
-        status:     (r.call_status        ?? r.status            ?? "").toUpperCase(),
+        duration:   r.call_duration      ?? r.duration         ?? "0",
+        status:     (r.call_status       ?? r.status           ?? "").toUpperCase(),
+        call_status: r.call_status       ?? r.status           ?? "",
+        meeting_scheduled: r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled,
         meeting:    normalizeBooleanish(r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
-        transcript: r.call_transcript     ?? r.transcript        ?? r.call_summary  ?? "",
-        summary:    r.call_summary        ?? "",
-        recording:  r.recording_url       ?? null,
+        tasks_count,
+        tasks_list,
+        transcript: r.call_transcript    ?? r.transcript       ?? "",
+        recording:  r.recording_url      ?? null,
         skippable:  normalizeBooleanish(r.skippable ?? r.is_skippable),
-        skip_reason: r.skip_reason        ?? r.skipReason        ?? null,
-        skipReason: r.skipReason          ?? r.skip_reason       ?? null,
+        skip_reason: r.skip_reason       ?? r.skipReason       ?? null,
+        skipReason: r.skipReason         ?? r.skip_reason      ?? null,
       };
     });
     dispatch({ type: CALL_HISTORY_SUCCESS, payload: normalized });
@@ -573,8 +590,10 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       params: { campaign_id: campaignId },
     });
     const raw = extractArray(res.data);
-    const totalCount = res.data?.total_count ?? raw.length;
-    const totalReplied = Number(res.data?.total_replied ?? 0) || 0;
+    const totalCount = Number(res.data?.total_count ?? res.data?.total ?? raw.length) || 0;
+    const totalReplied = Number(
+      res.data?.total_replied ?? res.data?.replied ?? res.data?.total_replies ?? 0,
+    ) || 0;
 
     // Build reply map by email id from this same email-history payload only.
     const toKey = (id) => (id === null || id === undefined ? null : String(id));
@@ -633,6 +652,13 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
       status:    (r.status      ?? r.email_status   ?? "").toUpperCase(),
       clicked:   r.clicked      ?? r.is_clicked     ?? false,
       meeting:   normalizeBooleanish(r.meeting_requested ?? r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
+      follow_up_tasks: Array.isArray(r.follow_up_tasks)
+        ? r.follow_up_tasks
+        : r.follow_up_tasks == null
+          ? []
+          : typeof r.follow_up_tasks === "string"
+            ? [r.follow_up_tasks]
+            : [],
       skippable: r.skippable    ?? false,
       skipReason: r.skip_reason ?? null,
       campaign_name: r.campaign_name ?? "",
@@ -760,7 +786,7 @@ export const fetchInboundCallHistory = () => async (dispatch) => {
         status:   (r.call_status    ?? r.status        ?? "").toUpperCase(),
         meeting:  normalizeBooleanish(r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
         transcript: r.call_transcript ?? r.transcript ?? "",
-        summary: r.call_summary ?? r.summary ?? "",
+        transcript: r.call_transcript ?? r.transcript ?? "",
         recording: r.recording_url ?? null,
       };
     });

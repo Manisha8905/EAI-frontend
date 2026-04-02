@@ -692,7 +692,7 @@ function AllCampaignActivity({ campaign, onBack }) {
           </thead>
           <tbody>
             {data.map((row, idx) => (
-              <tr key={row.serial} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+              <tr key={row.serial} className={`border-b text-center border-gray-50 hover:bg-gray-50/60 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
                 <td className="px-5 py-3.5 text-[13px] text-gray-500 font-[500]">{row.serial}</td>
                 <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-800">{row.leadName}</td>
                 <td className="px-5 py-3.5">{row.call ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50"><CheckCircle2 className="h-4.5 w-4.5 text-green-500" /></span> : <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50"><X className="h-4 w-4 text-red-400" /></span>}</td>
@@ -2336,7 +2336,7 @@ function CampaignOverviewDetail({ campaign, onBack }) {
           </thead>
           <tbody>
             {campaign.allActivity.map((row, idx) => (
-              <tr key={row.serial} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+              <tr key={row.serial} className={`${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
                 <td className="px-5 py-3.5 text-[13px] text-gray-500">{row.serial}</td>
                 <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-800">{row.leadName}</td>
                 <td className="px-5 py-3.5">{row.call ? <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-green-50"><CheckCircle2 className="h-4 w-4 text-green-500" /></span> : <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50"><X className="h-4 w-4 text-red-400" /></span>}</td>
