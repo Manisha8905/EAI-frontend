@@ -5813,14 +5813,7 @@ export default function CampaignPage() {
               className={`h-4 w-4 ${refreshing || loading ? "animate-spin" : ""}`}
             />
           </button>
-          {/* Settings */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition shadow-sm"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </button>
+    
           {/* Create */}
           <button
             onClick={() => setShowCreate(true)}
