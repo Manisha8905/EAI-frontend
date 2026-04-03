@@ -726,15 +726,12 @@ export default function CampaignPage() {
     const savedEmail =
       typeof window !== "undefined" ? localStorage.getItem("userEmail") || "" : "";
     if (!savedEmail) return;
-    setForm((prev) => {
-      if ((prev.logged_in_user_email ?? "").trim()) return prev;
-      return {
-        ...prev,
-        logged_in_user_email: savedEmail,
-        from_email: prev.from_email || savedEmail,
-        reply_to_email: prev.reply_to_email || savedEmail,
-      };
-    });
+
+    setForm((prev) => ({
+      ...prev,
+      from_email: prev.from_email || savedEmail,
+      reply_to_email: prev.reply_to_email || savedEmail,
+    }));
   }, [showCreate, editingCampaignId]);
 
   /* ── Fetch history data when a campaign activity tab is opened ── */
@@ -1975,7 +1972,7 @@ export default function CampaignPage() {
                   className={inputCls}
                 />
               </Field>
-              <Field label="Meeting Invite Sender Email">
+              <Field label="Meeting Invite Sender Email" required={form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL")}>
                 <input
                   type="email"
                   name="logged_in_user_email"
@@ -3721,21 +3718,23 @@ export default function CampaignPage() {
                                         ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
                                         : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
                                     }`}>
-                                      {taskCount} task{taskCount > 1 ? "s" : ""}
+                                      {taskCount} {taskCount > 1 ? "s" : ""}
                                     </span>
-                                    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[320px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
-                                      <p className="font-[600] mb-1">Task List</p>
-                                      {taskNames.length > 0 ? (
-                                        <ul className="space-y-0.5 text-gray-200">
-                                          {taskNames.map((task, ti) => (
-                                            <li key={ti}>{`${ti + 1}. ${task}`}</li>
-                                          ))}
-                                        </ul>
-                                      ) : (
-                                        <p className="text-gray-300">No task names available</p>
-                                      )}
-                                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                                    </div>
+                                    {hasTasks && (
+                                      <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max max-w-[320px] rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg pointer-events-none">
+                                        <p className="font-[600] mb-1">Task List</p>
+                                        {taskNames.length > 0 ? (
+                                          <ul className="space-y-0.5 text-gray-200">
+                                            {taskNames.map((task, ti) => (
+                                              <li key={ti}>{`${ti + 1}. ${task}`}</li>
+                                            ))}
+                                          </ul>
+                                        ) : (
+                                          <p className="text-gray-300">No task names available</p>
+                                        )}
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })()}
@@ -4559,13 +4558,13 @@ export default function CampaignPage() {
                                     ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
                                     : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
                                 }`}
-                                onMouseEnter={(taskNames.length > 0 || hasTasks) ? (e) => {
+                                onMouseEnter={hasTasks ? (e) => {
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   setEmailTooltip({ kind: "tasks", taskNames, taskCount, rect });
                                 } : undefined}
-                                onMouseLeave={(taskNames.length > 0 || hasTasks) ? () => setEmailTooltip(null) : undefined}
+                                onMouseLeave={hasTasks ? () => setEmailTooltip(null) : undefined}
                               >
-                                {hasTasks ? `${taskCount} task${taskCount !== 1 ? "s" : ""}` : "0 tasks"}
+                                {hasTasks ? `${taskCount} ${taskCount !== 1 ? "" : ""}` : "0 "}
                               </span>
                             );
                           })()}
@@ -5698,14 +5697,14 @@ export default function CampaignPage() {
               bg: "bg-blue-50",
               border: "border-blue-100",
             },
-            //    {
-            //   label: "Total Tasks",
-            //   value: c.total_tasks_count ? c.total_tasks_count : 0,
-            //   icon: CheckCircle2,
-            //   color: "text-blue-600",
-            //   bg: "bg-blue-50",
-            //   border: "border-blue-100",
-            // },
+               {
+              label: "Total Tasks",
+              value: c.total_tasks_count ? c.total_tasks_count : 0,
+              icon: CheckCircle2,
+              color: "text-blue-600",
+              bg: "bg-blue-50",
+              border: "border-blue-100",
+            },
             {
               label: "Meetings",
               value: c.meetings,
@@ -5714,14 +5713,14 @@ export default function CampaignPage() {
               bg: "bg-blue-50",
               border: "border-blue-100",
             },
-            {
-              label: "Conv. Rate",
-              value: `${c.convRate}%`,
-              icon: TrendingUp,
-              color: "text-blue-600",
-              bg: "bg-blue-50",
-              border: "border-blue-100",
-            },
+            // {
+            //   label: "Conv. Rate",
+            //   value: `${c.convRate}%`,
+            //   icon: TrendingUp,
+            //   color: "text-blue-600",
+            //   bg: "bg-blue-50",
+            //   border: "border-blue-100",
+            // },
           ].map(({ label, value, icon: Icon, color, bg, border }) => (
             <article
               key={label}

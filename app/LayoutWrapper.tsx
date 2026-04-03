@@ -48,8 +48,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       }
       return;
     }
-    // Admin-only path guard
-    if (ADMIN_ONLY_PATHS.some((p) => pathname.startsWith(p)) && !isAdminRole(role)) {
+    // Admin-only path guard — only restrict non-admin from /user-management
+    if (pathname.startsWith("/user-management") && !isAdminRole(role)) {
       router.replace("/sales");
     }
   }, [pathname, router]);

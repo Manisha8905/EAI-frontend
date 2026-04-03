@@ -1036,8 +1036,9 @@ function EmailTemplatesPage({ onBack }) {
       if (form.ai_context.trim()) fd.append("ai_context", form.ai_context.trim());
       if (htmlFile) {
         fd.append("file", htmlFile, htmlFile.name);
-      } else if (form.body.trim()) {
-        fd.append("file", new Blob([form.body], { type: "text/html" }), "template.html");
+      } else {
+        const htmlContent = form.body.trim() || "<!DOCTYPE html><html><body><p>Email Template</p></body></html>";
+        fd.append("file", new Blob([htmlContent], { type: "text/html" }), "template.html");
       }
       const res = await axiosInstance.post("/api/email-templates/upload", fd, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -1168,8 +1169,9 @@ function EmailTemplatesPage({ onBack }) {
       if (editForm.ai_context.trim()) fd.append("ai_context", editForm.ai_context.trim());
       if (editFile) {
         fd.append("file", editFile, editFile.name);
-      } else if (editForm.body.trim()) {
-        fd.append("file", new Blob([editForm.body], { type: "text/html" }), "template.html");
+      } else {
+        const htmlContent = editForm.body.trim() || "<!DOCTYPE html><html><body><p>Email Template</p></body></html>";
+        fd.append("file", new Blob([htmlContent], { type: "text/html" }), "template.html");
       }
       const res = await axiosInstance.put(
         `/api/email-templates/${editModal.id}`,
@@ -1354,8 +1356,8 @@ function EmailTemplatesPage({ onBack }) {
                           >
                             <Wrench className="h-3.5 w-3.5" />
                     
-                            <FileText className="h-3.5 w-3.5" />
-                            Preview
+                            {/* <FileText className="h-3.5 w-3.5" /> */}
+                            Edit
                           </button> 
                           {/* Delete */}
                           <button
@@ -1396,14 +1398,14 @@ function EmailTemplatesPage({ onBack }) {
                   required
                   placeholder="e.g. Enterprise Intro"
                   value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  onChange={(value) => setForm((f) => ({ ...f, name: value }))}
                 />
                 <Field
                   label="Subject"
                   required
                   placeholder="Email subject line…"
                   value={form.subject}
-                  onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                  onChange={(value) => setForm((f) => ({ ...f, subject: value }))}
                 />
               </div>
             </div>
@@ -1416,13 +1418,13 @@ function EmailTemplatesPage({ onBack }) {
                   label="Category"
                   placeholder="e.g. onboarding, follow-up"
                   value={form.category}
-                  onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+                  onChange={(value) => setForm((f) => ({ ...f, category: value }))}
                 />
                 <Field
                   label="AI Tone"
                   placeholder="e.g. professional, friendly"
                   value={form.ai_tone}
-                  onChange={(e) => setForm((f) => ({ ...f, ai_tone: e.target.value }))}
+                  onChange={(value) => setForm((f) => ({ ...f, ai_tone: value }))}
                 />
               </div>
               <div>
@@ -1437,7 +1439,6 @@ function EmailTemplatesPage({ onBack }) {
               </div>
             </div>
 
-            {/* ── Section 3: HTML Content ── */}
             <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-3">
               <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">
                 HTML Content <span className="text-red-400">*</span>
@@ -1626,14 +1627,14 @@ function EmailTemplatesPage({ onBack }) {
                   required
                   placeholder="Template name"
                   value={editForm.name}
-                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                  onChange={(value) => setEditForm((f) => ({ ...f, name: value }))}
                 />
                 <Field
                   label="Subject"
                   required
                   placeholder="Email subject line…"
                   value={editForm.subject}
-                  onChange={(e) => setEditForm((f) => ({ ...f, subject: e.target.value }))}
+                  onChange={(value) => setEditForm((f) => ({ ...f, subject: value }))}
                 />
               </div>
             </div>
@@ -1646,13 +1647,13 @@ function EmailTemplatesPage({ onBack }) {
                   label="Category"
                   placeholder="e.g. onboarding, follow-up"
                   value={editForm.category}
-                  onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))}
+                  onChange={(value) => setEditForm((f) => ({ ...f, category: value }))}
                 />
                 <Field
                   label="AI Tone"
                   placeholder="e.g. professional, friendly"
                   value={editForm.ai_tone}
-                  onChange={(e) => setEditForm((f) => ({ ...f, ai_tone: e.target.value }))}
+                  onChange={(value) => setEditForm((f) => ({ ...f, ai_tone: value }))}
                 />
               </div>
               <div>

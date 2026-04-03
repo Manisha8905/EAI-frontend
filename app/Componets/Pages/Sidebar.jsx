@@ -222,6 +222,8 @@ const isAdmin = (role) => {
 /* ─── Role → allowed sidebar section keys (null = all) ───────── */
 const ROLE_SECTION_KEYS = {
   SALES: ["ai", "analytics"],
+  ADMIN: null, // Admin sees all sections
+  SUPERADMIN: null, // SuperAdmin sees all sections
 };
 
 /* ════════════════════════════════════════════════════════════════
