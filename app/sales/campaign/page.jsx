@@ -4413,22 +4413,22 @@ export default function CampaignPage() {
 
             {/* Email Status Split */}
             <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5 flex flex-col overflow-hidden ${isSmtpCampaign ? "" : "md:col-span-3"}`}>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <div>
                   <h3 className="text-[15px] font-[700] text-gray-900">Status Split</h3>
                   <p className="text-[12px] text-gray-400 mt-0.5">Distribution by outcome</p>
                 </div>
               </div>
-              <div className="flex-1 flex flex-col items-center gap-3">
-                <div className="relative w-[180px] h-[180px] shrink-0">
+              <div className={`flex-1 flex items-center gap-6 ${isSmtpCampaign ? "flex-col" : "flex-col md:flex-row"}`}>
+                <div className={`relative shrink-0 ${isSmtpCampaign ? "w-[180px] h-[180px]" : "w-[200px] h-[200px]"}`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={statusDonut}
                         cx="50%"
                         cy="50%"
-                        innerRadius={45}
-                        outerRadius={80}
+                        innerRadius={isSmtpCampaign ? 45 : 55}
+                        outerRadius={isSmtpCampaign ? 80 : 90}
                         dataKey="value"
                         paddingAngle={0}
                         labelLine={false}
@@ -4442,12 +4442,12 @@ export default function CampaignPage() {
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center">
-                      <p className="text-[22px] font-[800] text-gray-900 leading-none">{cardTotalLeads}</p>
+                      <p className="text-[24px] font-[800] text-gray-900 leading-none">{cardTotalLeads}</p>
                       <p className="text-[9px] font-[700] text-gray-400 uppercase tracking-wide mt-0.5">Total Leads</p>
                     </div>
                   </div>
                 </div>
-                <div className="w-full space-y-1.5">
+                <div className="w-full flex-1 space-y-1.5">
                   {statusDonut.map((s) => (
                     <div key={s.name} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 bg-gray-50/70">
                       <div className="flex items-center gap-2 min-w-0">
