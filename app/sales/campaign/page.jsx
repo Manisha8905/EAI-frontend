@@ -4033,7 +4033,7 @@ export default function CampaignPage() {
         const taskCount = Number(row.total_tasks ?? row.follow_up_tasks?.length ?? 0) || 0;
         return sum + taskCount;
       }, 0);
-      const emailStatuses = ["All Status", "SENT", "FAILED", "SKIPPED", "REPLIED"];
+      const emailStatuses = ["All Status", "SENT", "FAILED", "SKIPPED", "REPLIED" ,"DELIVERED"];
       const emailRows = emailHistoryData.filter((r) => {
         // Search filter: match if name or company contains search term (or search is empty)
         const nameMatch = (r.name ?? "").toLowerCase().includes(emailSearch.toLowerCase());
