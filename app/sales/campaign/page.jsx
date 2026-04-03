@@ -1249,6 +1249,22 @@ export default function CampaignPage() {
     return formatTableDateTime(str);
   };
 
+  const formatCallDuration = (valueInMinutes) => {
+    const minutes = Number(valueInMinutes);
+    if (!Number.isFinite(minutes) || minutes <= 0) return "0 sec";
+    if (minutes < 1) {
+      const rawSeconds = minutes * 60;
+      const roundedSeconds = rawSeconds.toFixed(2);
+      const normalizedSeconds = roundedSeconds
+        .replace(/(\.\d*?[1-9])0+$/, "$1")
+        .replace(/\.00$/, "");
+      return `${normalizedSeconds} sec`;
+    }
+    const rounded = minutes.toFixed(minutes < 10 ? 2 : 1);
+    const normalizedMinutes = rounded.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.00$/, ".0");
+    return `${normalizedMinutes} min`;
+  };
+
   const escapeHtml = (value) =>
     String(value)
       .replace(/&/g, "&amp;")
@@ -3379,15 +3395,14 @@ export default function CampaignPage() {
         (r) => (r.status ?? "").toUpperCase() === "BUSY",
       ).length;
       const meetingBooked = callHistory_data.filter((r) => r.meeting).length;
-      const avgCallDuration =
+      const avgCallDurationMinutes =
         totalCalls > 0
-          ? (
-              callHistory_data.reduce(
-                (s, r) => s + parseFloat(r.duration || 0),
-                0,
-              ) / totalCalls
-            ).toFixed(1)
-          : "0.0";
+          ? callHistory_data.reduce(
+              (s, r) => s + parseFloat(r.duration || 0),
+              0,
+            ) / totalCalls
+          : 0;
+      const avgCallDuration = formatCallDuration(avgCallDurationMinutes);
       const statusBarData = [
         { name: "Completed", value: completed, fill: "#1d4ed8" },
         { name: "Voice Mail", value: voiceMail, fill: "#3b82f6" },
@@ -3456,7 +3471,7 @@ export default function CampaignPage() {
                   {
                     label: "Avg Call Duration",
                     value: avgCallDuration,
-                    sub: "min / call",
+                    sub: "per call",
                     color: "text-blue-600",
                     ring: "ring-blue-200",
                   },
@@ -3806,7 +3821,7 @@ export default function CampaignPage() {
                       ["Lead Name", transcript.name],
                       ["Company", transcript.company],
                       ["Date & Time", transcript.dateTime],
-                      ["Duration", `${transcript.duration} min`],
+                      ["Duration", formatCallDuration(transcript.duration)],
                       ["Tasks", `${transcriptTaskCount} total`],
                     ].map(([lbl, val]) => (
                       <div key={lbl}>
@@ -5690,7 +5705,7 @@ export default function CampaignPage() {
               border: "border-blue-100",
             },
             {
-              label: "Completed",
+              label: "Processed",
             value: c.completed ? c.completed : c.completed ?? 0,
               icon: CheckCircle2,
               color: "text-blue-600",

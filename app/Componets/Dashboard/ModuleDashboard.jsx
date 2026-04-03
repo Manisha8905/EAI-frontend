@@ -170,6 +170,46 @@ const BarTooltip = ({ active, payload, label }) => {
   );
 };
 
+const CampaignComparisonTooltip = ({
+  active,
+  payload,
+  label,
+  valueLabels = {},
+  order = [],
+  showTitle = true,
+}) => {
+  if (!active || !payload?.length) return null;
+
+  const row = payload[0]?.payload ?? {};
+  const title = row.campaignName ?? label;
+  const sortedPayload = payload
+    .slice()
+    .sort((a, b) => {
+      const ia = order.indexOf(a.dataKey);
+      const ib = order.indexOf(b.dataKey);
+      const sa = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+      const sb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+      return sa - sb;
+    });
+
+  return (
+    <div className="bg-white border border-gray-200 shadow-lg rounded-xl px-4 py-3 text-[12px] min-w-[180px]">
+      {showTitle && <p className="font-semibold text-gray-700 mb-2 break-words">{title}</p>}
+      <div className="space-y-1.5">
+        {sortedPayload.map((entry) => (
+          <div key={entry.dataKey} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+              <span className="text-gray-500 truncate">{valueLabels[entry.dataKey] ?? entry.name}</span>
+            </div>
+            <span className="font-bold text-gray-800">{entry.value ?? 0}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 /* ─── Donut chart with centred label ──────────────────────────── */
 function DonutChart({ resolved, label }) {
   const remaining = 100 - resolved;
@@ -332,6 +372,22 @@ const AreaTooltip = ({ active, payload, label }) => {
       </p>
     </div>
   );
+};
+
+const formatCallDuration = (valueInMinutes) => {
+  const minutes = Number(valueInMinutes);
+  if (!Number.isFinite(minutes) || minutes <= 0) return "0 sec";
+  if (minutes < 1) {
+    const rawSeconds = minutes * 60;
+    const roundedSeconds = rawSeconds.toFixed(2);
+    const normalizedSeconds = roundedSeconds
+      .replace(/(\.\d*?[1-9])0+$/, "$1")
+      .replace(/\.00$/, "");
+    return `${normalizedSeconds} sec`;
+  }
+  const rounded = minutes.toFixed(minutes < 10 ? 2 : 1);
+  const normalizedMinutes = rounded.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.00$/, ".0");
+  return `${normalizedMinutes} min`;
 };
 
 /* ─── Shared chart card wrapper ──────────────────────────────────────── */
@@ -615,6 +671,7 @@ export default function ModuleDashboard({
       : Number(emailSm.average_emails_per_lead ?? emailData?.average_emails_per_lead ?? 0))
     : sm ? sm.average_call_duration
     : d.duration;
+  const durationDisplay = activeTab === "email" ? duration : formatCallDuration(duration);
   const donut    = d.donut;
 
   // ── Chart data ─────────────────────────────────────────────────
@@ -753,6 +810,7 @@ export default function ModuleDashboard({
   // EM chart 3: meetings — compare total leads vs meetings per campaign
   const emailMeetingCampaign = (emailData?.meeting_schedule_by_emails ?? emailData?.meeting_schedule_by_campaign)
     ? (emailData.meeting_schedule_by_emails ?? emailData.meeting_schedule_by_campaign).map((item) => ({
+        campaignName: item.campaign_name,
         name:     item.campaign_name.length > 16 ? item.campaign_name.slice(0, 16) + "\u2026" : item.campaign_name,
         leads:    item.total_leads ?? item.lead_count ?? item.leads_targeted ?? item.unique_recipients ?? item.recipients_count ?? item.contacts_count ?? item.email_count ?? 0,
         meetings: item.meetings_scheduled,
@@ -909,10 +967,10 @@ export default function ModuleDashboard({
             {activeTab === "email" ? "Avg Emails / Lead" : "Avg Call Duration"}
           </p>
           <p className="text-[48px] font-bold leading-none">
-            {isLoading ? "…" : duration}
+            {isLoading ? "…" : durationDisplay}
           </p>
           <p className="text-[12px] text-white/60 mt-1">
-            {activeTab === "email" ? "Emails per lead" : "Minutes per call"}
+            {activeTab === "email" ? "Emails per lead" : "per call"}
           </p>
         </article>
       </section>
@@ -1344,7 +1402,10 @@ export default function ModuleDashboard({
                     <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#9ca3af" }} />
                     <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} cursor={{ fill: "#faf5ff" }} />
+                    <Tooltip
+                      content={<CampaignComparisonTooltip valueLabels={{ leads: "Total Leads", meetings: "Meetings" }} order={["leads", "meetings"]} showTitle={false} />}
+                      cursor={{ fill: "#faf5ff" }}
+                    />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                     <Bar dataKey="leads"    name="Total Leads" fill="#a855f7" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="meetings" name="Meetings"    fill="#14b8a6" radius={[4, 4, 0, 0]} />
