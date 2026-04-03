@@ -709,13 +709,35 @@ export default function CampaignPage() {
         console.error("[email-templates] fetch error:", err);
       });
     axiosInstance
-      .get("/api/smtp/providers")
+      .get("/api/smtp/saved-providers")
       .then((res) => {
         const d = res.data;
-        const raw = Array.isArray(d) ? d : Array.isArray(d?.providers) ? d.providers : [];
+        const raw = Array.isArray(d)
+          ? d
+          : Array.isArray(d?.saved_providers)
+            ? d.saved_providers
+            : Array.isArray(d?.providers)
+              ? d.providers
+              : Array.isArray(d?.items)
+                ? d.items
+                : Array.isArray(d?.data)
+                  ? d.data
+                  : [];
         setSmtpProvidersList(raw.map((p) => ({
-          name: p.name ?? p.provider_name ?? p.provider ?? String(p),
-          is_current: !!(p.is_current ?? p.is_active ?? p.selected ?? p.is_default ?? false),
+          name:
+            p.name ??
+            p.provider_name ??
+            p.smtp_provider_name ??
+            p.provider ??
+            String(p),
+          is_current: !!(
+            p.is_current ??
+            p.is_active ??
+            p.selected ??
+            p.is_default ??
+            p.default ??
+            false
+          ),
         })));
       })
       .catch(() => {});

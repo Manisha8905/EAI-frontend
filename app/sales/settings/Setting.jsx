@@ -2184,45 +2184,99 @@ function SMTPProvidersPage({ onBack }) {
   const fetchList = async () => {
     setLoadingList(true);
     try {
-      const [availRes, provRes] = await Promise.allSettled([
-        axiosInstance.get("/api/smtp/available-providers"),
+      const [providersRes, savedRes] = await Promise.allSettled([
         axiosInstance.get("/api/smtp/providers"),
+        axiosInstance.get("/api/smtp/saved-providers"),
       ]);
 
       const labelMap = Object.fromEntries(SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]));
 
-      /* ── Table: available (configured) providers from /available-providers ── */
-      if (availRes.status === "fulfilled") {
-        const d = availRes.value.data;
-        const rawAvail = d?.available_providers ?? (Array.isArray(d) ? d : []);
-        const available = rawAvail.map((p) => ({
-          provider: p.name ?? p.provider ?? String(p),
-          name:     labelMap[p.name ?? p.provider] ?? p.display_name ?? p.name ?? p.provider,
-          ready:    p.ready ?? true,
-          description: p.description ?? "",
+      const rawSaved =
+        savedRes.status === "fulfilled"
+          ? (() => {
+              const d = savedRes.value.data;
+              if (Array.isArray(d)) return d;
+              if (Array.isArray(d?.saved_providers)) return d.saved_providers;
+              if (Array.isArray(d?.providers)) return d.providers;
+              if (Array.isArray(d?.items)) return d.items;
+              if (Array.isArray(d?.data)) return d.data;
+              return [];
+            })()
+          : [];
+
+      const normalizedSaved = rawSaved.map((p) => {
+        const providerKey = String(
+          p.provider ??
+          p.provider_name ??
+          p.smtp_provider_name ??
+          p.type ??
+          p.name ??
+          "",
+        ).trim();
+        return {
+          id: p.credential_id ?? p.id ?? p.provider_id ?? p.config_id ?? providerKey,
+          provider: providerKey,
+          name:
+            p.display_name ??
+            p.name ??
+            p.configuration_name ??
+            labelMap[providerKey] ??
+            providerKey,
+          is_current: !!(p.is_current ?? p.is_active ?? p.selected ?? p.is_default ?? p.default ?? false),
+          raw: p,
+        };
+      });
+
+      /* ── Provider type options for create modal from /api/smtp/providers ── */
+      if (providersRes.status === "fulfilled") {
+        const d = providersRes.value.data;
+        const rawProviders = Array.isArray(d)
+          ? d
+          : Array.isArray(d?.providers)
+            ? d.providers
+            : Array.isArray(d?.items)
+              ? d.items
+              : Array.isArray(d?.data)
+                ? d.data
+                : Array.isArray(d?.results)
+                  ? d.results
+                  : [];
+
+        const opts = rawProviders.map((p) => {
+          const key =
+            typeof p === "string"
+              ? p
+              : (p.name ?? p.provider ?? p.value ?? p.provider_name ?? "");
+          return {
+            value: key,
+            label:
+              labelMap[key] ??
+              (typeof p === "string"
+                ? p
+                : (p.display_name ?? p.label ?? p.name ?? p.provider ?? key)),
+          };
+        }).filter((p) => p.value);
+
+        setAllProviderOpts(opts);
+      }
+
+      /* ── Configured map + fallback table rows from /saved-providers ── */
+      const savedMap = {};
+      normalizedSaved.forEach((p) => {
+        const key = String(p.provider ?? "").toLowerCase();
+        if (key) savedMap[key] = p.raw;
+      });
+      setConfiguredMap(savedMap);
+
+      setList((prev) => {
+        if (prev.length > 0) return prev;
+        return normalizedSaved.map((p) => ({
+          provider: p.provider,
+          name: p.name,
+          ready: true,
+          description: "",
         }));
-        setList(available);
-
-        /* build configuredMap from available-providers (they are all configured) */
-        const map = {};
-        rawAvail.forEach((p) => {
-          const key = (p.name ?? p.provider ?? "").toLowerCase();
-          if (key) map[key] = p;
-        });
-        setConfiguredMap(map);
-      }
-
-      /* ── Modal dropdown: all supported provider types from /providers ── */
-      if (provRes.status === "fulfilled") {
-        const d = provRes.value.data;
-        const raw = Array.isArray(d) ? d : (d?.providers ?? d?.data ?? d?.results ?? []);
-        setAllProviderOpts(
-          raw.map((p) => ({
-            value: p.name ?? p.provider ?? p.value,
-            label: labelMap[p.name ?? p.provider] ?? p.display_name ?? p.label ?? p.name ?? p.provider,
-          }))
-        );
-      }
+      });
     } catch {
       // silently ignore
     } finally {
@@ -2234,8 +2288,50 @@ function SMTPProvidersPage({ onBack }) {
   const setCred = (key, val) =>
     setForm((f) => ({ ...f, credentials: { ...f.credentials, [key]: val } }));
 
-  const openCreate = () => {
-    const firstProvider = allProviderOpts[0]?.value ?? "mailgun";
+  const openCreate = async () => {
+    let providerOpts = allProviderOpts;
+
+    try {
+      const res = await axiosInstance.get("/api/smtp/providers");
+      const d = res.data;
+      const labelMap = Object.fromEntries(SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]));
+      const rawProviders = Array.isArray(d)
+        ? d
+        : Array.isArray(d?.providers)
+          ? d.providers
+          : Array.isArray(d?.items)
+            ? d.items
+            : Array.isArray(d?.data)
+              ? d.data
+              : Array.isArray(d?.results)
+                ? d.results
+                : [];
+
+      providerOpts = rawProviders
+        .map((p) => {
+          const key =
+            typeof p === "string"
+              ? p
+              : (p.name ?? p.provider ?? p.value ?? p.provider_name ?? "");
+          return {
+            value: key,
+            label:
+              labelMap[key] ??
+              (typeof p === "string"
+                ? p
+                : (p.display_name ?? p.label ?? p.name ?? p.provider ?? key)),
+          };
+        })
+        .filter((p) => p.value);
+
+      if (providerOpts.length > 0) {
+        setAllProviderOpts(providerOpts);
+      }
+    } catch {
+      // Keep existing options if fetch fails.
+    }
+
+    const firstProvider = providerOpts[0]?.value ?? "mailgun";
     setForm({ name: "", provider: firstProvider, credentials: {} });
     setErrors({});
     setShow(true);
@@ -2283,9 +2379,9 @@ function SMTPProvidersPage({ onBack }) {
 
   const del = async (providerKey) => {
     const cfg = configuredMap[providerKey?.toLowerCase()];
-    const apiId = cfg?.id ?? cfg?.provider ?? providerKey;
+    const apiId = cfg?.credential_id ?? cfg?.id ?? cfg?.provider_id ?? cfg?.config_id ?? cfg?.provider ?? providerKey;
     try {
-      await axiosInstance.delete(`/api/smtp/providers/${apiId}`);
+      await axiosInstance.delete(`/api/smtp/saved-providers/${apiId}`);
       setConfiguredMap((m) => { const n = { ...m }; delete n[providerKey?.toLowerCase()]; return n; });
       toast.success("Provider removed.");
     } catch {
@@ -4682,7 +4778,7 @@ export default function Setting() {
       try {
         const [availableRes, configuredRes] = await Promise.allSettled([
           axiosInstance.get("/api/smtp/available-providers"),
-          axiosInstance.get("/api/smtp/providers"),
+          axiosInstance.get("/api/smtp/saved-providers"),
         ]);
 
         // Build provider list from available-providers
@@ -4705,14 +4801,25 @@ export default function Setting() {
         }
         setSmtpProviderList(providers);
 
-        // Determine the currently active provider from /api/smtp/providers
+        // Determine the currently active provider from /api/smtp/saved-providers
         if (configuredRes.status === "fulfilled") {
           const d = configuredRes.value.data;
-          const activeProvider = Array.isArray(d)
-            ? d.find((p) => p.is_active ?? p.selected ?? p.is_default)
+          const saved = Array.isArray(d)
+            ? d
+            : (d?.saved_providers ?? d?.providers ?? d?.items ?? d?.data ?? []);
+          const activeProvider = Array.isArray(saved)
+            ? saved.find((p) => p.is_current ?? p.is_active ?? p.selected ?? p.is_default ?? p.default)
             : (d?.active_provider ?? d?.selected_provider ?? d?.provider ?? null);
           if (activeProvider) {
-            const name = typeof activeProvider === "string" ? activeProvider : (activeProvider.name ?? activeProvider.provider ?? "");
+            const name = typeof activeProvider === "string"
+              ? activeProvider
+              : (
+                activeProvider.provider ??
+                activeProvider.provider_name ??
+                activeProvider.smtp_provider_name ??
+                activeProvider.name ??
+                ""
+              );
             if (name) setSMTP(name);
           } else if (providers.length > 0) {
             setSMTP(providers[0].name);
