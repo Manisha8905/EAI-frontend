@@ -966,7 +966,7 @@ export default function ModuleDashboard({
           <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
             {activeTab === "email" ? "Avg Emails / Lead" : "Avg Call Duration"}
           </p>
-          <p className="text-[48px] font-bold leading-none">
+          <p className="text-[36px] font-bold leading-none">
             {isLoading ? "…" : durationDisplay}
           </p>
           <p className="text-[12px] text-white/60 mt-1">
@@ -1035,7 +1035,7 @@ export default function ModuleDashboard({
                   <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#9ca3af" }} />
                   <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
                   <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                    content={<CampaignComparisonTooltip valueLabels={{ calls: "Total Calls", meetings: "Meetings" }} order={["calls", "meetings"]} showTitle={false} />}
                     cursor={{ fill: "#f5f3ff" }}
                   />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
@@ -1172,7 +1172,7 @@ export default function ModuleDashboard({
                     <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#9ca3af" }} />
                     <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: "1px solid #e5e7eb", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} cursor={{ fill: "#f0fdfa" }} />
+                    <Tooltip content={<CampaignComparisonTooltip valueLabels={{ calls: "Total Calls", meetings: "Meetings" }} order={["calls", "meetings"]} showTitle={false} />} cursor={{ fill: "#f0fdfa" }} />
                     <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                     <Bar dataKey="calls"    name="Total Calls" fill="#14b8a6" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="meetings" name="Meetings"    fill="#6366f1" radius={[4, 4, 0, 0]} />

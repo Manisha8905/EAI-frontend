@@ -3863,7 +3863,7 @@ function LeadsPage({ onBack }) {
                   >
                     {wizardCrmImporting
                       ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Importing…</>
-                      : <><Plus className="h-3.5 w-3.5" />Create</>}
+                      : <><Plus className="h-3.5 w-3.5" />Import</>}
                   </button>
                 </div>
               </div>

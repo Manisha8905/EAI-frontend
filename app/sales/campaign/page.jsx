@@ -77,6 +77,7 @@ const CALL_STATUS_STYLE = {
   ERROR:       "bg-red-100 text-red-700 border border-red-200",
 };
 const EMAIL_STATUS_STYLE = {
+  SENT: "bg-blue-50 text-blue-700 border border-blue-200",
   OPENED: "bg-blue-50 text-blue-700 border border-blue-200",
   CLICKED: "bg-teal-50 text-teal-700 border border-teal-200",
   REPLIED: "bg-green-50 text-green-700 border border-green-200",
@@ -4033,7 +4034,7 @@ export default function CampaignPage() {
         const taskCount = Number(row.total_tasks ?? row.follow_up_tasks?.length ?? 0) || 0;
         return sum + taskCount;
       }, 0);
-      const emailStatuses = ["All Status", "SENT", "FAILED", "SKIPPED", "REPLIED" ,"DELIVERED"];
+      const emailStatuses = ["All Status", "SENT", "FAILED", "SKIPPED", "REPLIED"];
       const emailRows = emailHistoryData.filter((r) => {
         // Search filter: match if name or company contains search term (or search is empty)
         const nameMatch = (r.name ?? "").toLowerCase().includes(emailSearch.toLowerCase());
@@ -4050,7 +4051,8 @@ export default function CampaignPage() {
         } else if (emailStatus === "SKIPPED") {
           ss = !!r.skippable || !!r.skip_reason;
         } else if (emailStatus === "SENT") {
-          ss = r.status === "SENT" && !r.skippable && !r.skip_reason;
+          const statusUpper = String(r.status ?? "").toUpperCase();
+          ss = ["SENT", "REPLIED"].includes(statusUpper) && !r.skippable && !r.skip_reason;
         } else if (emailStatus === "FAILED") {
           ss = r.status === "FAILED" && !r.skippable && !r.skip_reason;
         } else {
@@ -4340,71 +4342,93 @@ export default function CampaignPage() {
           <section className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* SMTP Analytics Bar Chart */}
             {isSmtpCampaign && (
-            <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5 overflow-hidden">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-[15px] font-[700] text-gray-900">SMTP Analytics</h3>
                   <p className="text-[12px] text-gray-400 mt-0.5">Opened · Clicked · Bounced breakdown</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {[{label:"Opened",color:"#f59e0b"},{label:"Clicked",color:"#10b981"},{label:"Bounced",color:"#ef4444"}].map((l) => (
-                    <span key={l.label} className="flex items-center gap-1 text-[10px] font-[600] text-gray-500">
-                      <span className="w-2 h-2 rounded-full inline-block" style={{background:l.color}} />
+                    <span key={l.label} className="flex items-center gap-1.5 text-[11px] font-[600] text-gray-500">
+                      <span className="w-2.5 h-2.5 rounded-full inline-block" style={{background:l.color}} />
                       {l.label}
                     </span>
                   ))}
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart
-                  data={[
-                    { stage: "Opened",  value: smtpTotals.opened,  fill: "#f59e0b" },
-                    { stage: "Clicked", value: smtpTotals.clicked, fill: "#10b981" },
-                    { stage: "Bounced", value: smtpTotals.bounced, fill: "#ef4444" },
-                  ]}
-                  barSize={64}
-                  margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="smtpG0" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/><stop offset="100%" stopColor="#f59e0b" stopOpacity={0.5}/></linearGradient>
-                    <linearGradient id="smtpG1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={1}/><stop offset="100%" stopColor="#10b981" stopOpacity={0.5}/></linearGradient>
-                    <linearGradient id="smtpG2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" stopOpacity={1}/><stop offset="100%" stopColor="#ef4444" stopOpacity={0.5}/></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                  <XAxis dataKey="stage" tick={{ fontSize: 12, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    cursor={{ fill: "#f8fafc", radius: 6 }}
-                    contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }}
-                  />
-                  <Bar dataKey="value" name="Count" radius={[8, 8, 0, 0]}>
-                    {["url(#smtpG0)","url(#smtpG1)","url(#smtpG2)"].map((fill, i) => (
-                      <Cell key={i} fill={fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {(() => {
+                const smtpChartData = [
+                  { stage: "Opened",  value: smtpTotals.opened  },
+                  { stage: "Clicked", value: smtpTotals.clicked },
+                  { stage: "Bounced", value: smtpTotals.bounced },
+                ];
+                const smtpColors = ["#f59e0b", "#10b981", "#ef4444"];
+                const allZero = smtpChartData.every((d) => !d.value);
+
+                if (allZero) {
+                  return (
+                    <div className="flex flex-col items-center justify-center h-[180px] text-gray-400">
+                      <svg className="h-10 w-10 mb-2 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                      </svg>
+                      <p className="text-[13px] font-[500]">No SMTP data yet</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart
+                      data={smtpChartData}
+                      barSize={48}
+                      margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+                    >
+                      <defs>
+                        {smtpColors.map((c, i) => (
+                          <linearGradient key={i} id={`smtpG${i}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={c} stopOpacity={1}/>
+                            <stop offset="100%" stopColor={c} stopOpacity={0.45}/>
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="stage" tick={{ fontSize: 12, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ fill: "#f8fafc", radius: 6 }}
+                        contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", fontSize: 12 }}
+                      />
+                      <Bar dataKey="value" name="Count" radius={[8, 8, 0, 0]}>
+                        {smtpColors.map((_, i) => (
+                          <Cell key={i} fill={`url(#smtpG${i})`} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
             </div>
             )}
 
             {/* Email Status Split */}
-            <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5 flex flex-col ${isSmtpCampaign ? "" : "md:col-span-3"}`}>
+            <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5 flex flex-col overflow-hidden ${isSmtpCampaign ? "" : "md:col-span-3"}`}>
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <h3 className="text-[15px] font-[700] text-gray-900">Status Split</h3>
                   <p className="text-[12px] text-gray-400 mt-0.5">Distribution by outcome</p>
                 </div>
               </div>
-              <div className="flex-1 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] items-center gap-3 md:gap-4">
-                <div className="relative mx-auto">
-                  <ResponsiveContainer width={210} height={210}>
+              <div className="flex-1 flex flex-col items-center gap-3">
+                <div className="relative w-[180px] h-[180px] shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={statusDonut}
                         cx="50%"
                         cy="50%"
-                        innerRadius={52}
-                        outerRadius={90}
+                        innerRadius={45}
+                        outerRadius={80}
                         dataKey="value"
                         paddingAngle={0}
                         labelLine={false}
@@ -4418,19 +4442,19 @@ export default function CampaignPage() {
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center">
-                      <p className="text-[26px] font-[800] text-gray-900 leading-none">{cardTotalLeads}</p>
-                      <p className="text-[10px] font-[700] text-gray-400 uppercase tracking-wide mt-0.5">Total Leads</p>
+                      <p className="text-[22px] font-[800] text-gray-900 leading-none">{cardTotalLeads}</p>
+                      <p className="text-[9px] font-[700] text-gray-400 uppercase tracking-wide mt-0.5">Total Leads</p>
                     </div>
                   </div>
                 </div>
                 <div className="w-full space-y-1.5">
                   {statusDonut.map((s) => (
                     <div key={s.name} className="flex items-center justify-between rounded-lg px-2.5 py-1.5 bg-gray-50/70">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span className="w-3 h-3 rounded-full shrink-0" style={{ background: s.color }} />
-                        <span className="text-[12px] text-gray-700 font-[600]">{s.name}</span>
+                        <span className="text-[12px] text-gray-700 font-[600] truncate">{s.name}</span>
                       </div>
-                      <span className="text-[13px] font-[800] text-gray-900">{s.value}</span>
+                      <span className="text-[13px] font-[800] text-gray-900 shrink-0 ml-2">{s.value}</span>
                     </div>
                   ))}
                 </div>
@@ -6037,279 +6061,203 @@ export default function CampaignPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filtered.map((c) => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {filtered.map((c) => {
+            // ── Channel activity data (computed once per card) ──
+            const countByKey = {
+              CALL:     c.called      ?? 0,
+              EMAIL:    c.emailsSent  ?? 0,
+              LINKEDIN: c.meetings    ?? 0,
+              WHATSAPP: 0,
+            };
+            const allChannels = [
+              { label: "Call",     key: "CALL",     fill: "#6366f1", icon: <Phone className="h-3.5 w-3.5" /> },
+              { label: "Email",    key: "EMAIL",    fill: "#0ea5e9", icon: <Mail className="h-3.5 w-3.5" /> },
+              { label: "LinkedIn", key: "LINKEDIN", fill: "#0284c7", icon: <Linkedin className="h-3.5 w-3.5" /> },
+              { label: "WhatsApp", key: "WHATSAPP", fill: "#22c55e", icon: <MessageCircle className="h-3.5 w-3.5" /> },
+            ];
+            const order = c.channelOrder ?? [];
+            const channels = order.length > 0
+              ? allChannels.filter((ch) => order.includes(ch.key))
+              : allChannels;
+            const stepStatus = {};
+            (c.channelSteps ?? []).forEach((s) => { stepStatus[s.channelType] = s.status; });
+            const total = Math.max(c.totalLeads, 1);
+            const chStepLabel = (st) => {
+              if (st === "COMPLETED")   return { text: "Done",    cls: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+              if (st === "IN_PROGRESS") return { text: "Running", cls: "text-indigo-700 bg-indigo-50 border-indigo-200" };
+              if (st === "FAILED")      return { text: "Failed",  cls: "text-red-600 bg-red-50 border-red-200" };
+              return null;
+            };
+
+            return (
             <div
               key={c.id}
-              className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5"
+              className="group bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-gray-300/80 transition-all duration-200 overflow-hidden"
             >
-              {/* Card Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-[700] border ${statusBadge(c.status)}`}
+              {/* ── Top accent bar ── */}
+              <div className={`h-1 w-full ${
+                c.status === "ACTIVE" ? "bg-gradient-to-r from-emerald-400 to-green-500"
+                : c.status === "PAUSED" ? "bg-gradient-to-r from-amber-400 to-orange-400"
+                : c.status === "COMPLETED" ? "bg-gradient-to-r from-blue-400 to-indigo-500"
+                : c.status === "RUNNING" ? "bg-gradient-to-r from-violet-400 to-purple-500"
+                : "bg-gray-200"
+              }`} />
+
+              <div className="p-5">
+                {/* ── Card Header ── */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-[700] uppercase tracking-wide border ${statusBadge(c.status)}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusDot(c.status)}`} />
+                        {c.status}
+                      </span>
+                      {c.campaignType && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-[10px] font-[600] text-gray-500 uppercase tracking-wide">
+                          {c.campaignType}
+                        </span>
+                      )}
+                      {c.communicationType && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-[10px] font-[600] text-indigo-600 uppercase tracking-wide">
+                          {c.communicationType}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-[16px] font-[700] text-gray-900 leading-snug truncate">{c.name}</h3>
+                    <p className="text-[12px] text-gray-400 mt-1 truncate">
+                      Agent: <span className="font-[600] text-gray-600">{c.agentName}</span>
+                      {c.fromEmail && <> · <span className="text-indigo-500">{c.fromEmail}</span></>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-0.5 ml-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      disabled={loadingEdit}
+                      onClick={(e) => { e.stopPropagation(); handleEdit(c.id); }}
+                      title="Edit campaign"
+                      className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${statusDot(c.status)}`}
-                      />
-                      {c.status}
-                    </span>
-                    {c.campaignType && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-[600] text-gray-500">
-                        {c.campaignType}
-                      </span>
-                    )}
-                    {c.communicationType && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 text-[10px] font-[600] text-indigo-600">
-                        {c.communicationType}
-                      </span>
-                    )}
+                      {loadingEdit ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm({ id: c.id, name: c.name }); }}
+                      title="Delete campaign"
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  <h3 className="text-[15px] font-[700] text-[#0a0a0a] leading-snug">
-                    {c.name}
-                  </h3>
-                  <p className="text-[12px] text-gray-400 mt-0.5">
-                    Agent:{" "}
-                    <span className="font-[600] text-gray-600">
-                      {c.agentName}
-                    </span>
-                    {c.fromEmail && (
-                      <>
-                        {" "}
-                        · <span className="text-indigo-500">{c.fromEmail}</span>
-                      </>
-                    )}
-                  </p>
                 </div>
-                {/* Edit / Delete icon buttons */}
-                <div className="flex items-center gap-1 ml-2 shrink-0">
-                  <button
-                    type="button"
-                    disabled={loadingEdit}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(c.id);
-                    }}
-                    title="Edit campaign"
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loadingEdit ? (
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Pencil className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowDeleteConfirm({ id: c.id, name: c.name });
-                    }}
-                    title="Delete campaign"
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+
+                {/* ── Stats Row ── */}
+                <div className="grid grid-cols-5 gap-1 mb-4 bg-gray-50/80 rounded-xl p-3">
+                  {[
+                    { label: "Leads",     value: c.totalLeads.toLocaleString(), color: "text-gray-900" },
+                    { label: "Completed", value: c.completed.toLocaleString(),  color: "text-emerald-600" },
+                    { label: "Meetings",  value: c.meetings.toLocaleString(),   color: "text-blue-600" },
+                    { label: "Tasks",     value: (c.total_tasks_count ?? 0).toLocaleString(), color: "text-violet-600" },
+                    { label: "Conv.",     value: `${c.convRate}%`,              color: "text-indigo-600" },
+                  ].map(({ label, value, color }, idx) => (
+                    <div key={label} className={`text-center ${idx < 4 ? "border-r border-gray-200" : ""}`}>
+                      <p className={`text-[16px] font-[800] leading-none ${color}`}>{value}</p>
+                      <p className="text-[10px] font-[500] text-gray-400 mt-1">{label}</p>
+                    </div>
+                  ))}
                 </div>
-              </div>
 
-              {/* Stats Row */}
-              <div className="grid grid-cols-5 gap-2 mb-4">
-                {[
-                  {
-                    label: "TOTAL LEADS",
-                    value: c.totalLeads.toLocaleString(),
-                    color: "text-gray-800",
-                  },
-                  {
-                    label: "COMPLETED",
-                    value: c.completed.toLocaleString(),
-                    color: "text-emerald-600",
-                  },
-                  {
-                    label: "MEETINGS",
-                    value: c.meetings.toLocaleString(),
-                    color: "text-blue-600",
-                  },
-                  {
-                    label: "TOTAL TASKS",
-                    value: (c.total_tasks_count ?? 0).toLocaleString(),
-                    color: "text-green-600",
-                  },
-                  {
-                    label: "CONV. RATE",
-                    value: `${c.convRate}%`,
-                    color: "text-violet-600",
-                  },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="text-center">
-                    <p className={`text-[15px] font-[800] ${color}`}>{value}</p>
-                    <p className="text-[9px] font-[600] text-gray-400 tracking-wide mt-0.5">
-                      {label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Channel activity mini-graph */}
-              {(() => {
-                // Per-channel counts from API
-                const countByKey = {
-                  CALL:     c.called      ?? 0,
-                  EMAIL:    c.emailsSent  ?? 0,
-                  LINKEDIN: c.meetings    ?? 0,
-                  WHATSAPP: 0,
-                };
-                const allChannels = [
-                  { label: "Call",     key: "CALL",     fill: "#6366f1", icon: <Phone className="h-3 w-3" /> },
-                  { label: "Email",    key: "EMAIL",    fill: "#0ea5e9", icon: <Mail className="h-3 w-3" /> },
-                  { label: "LinkedIn", key: "LINKEDIN", fill: "#0284c7", icon: <Linkedin className="h-3 w-3" /> },
-                  { label: "WhatsApp", key: "WHATSAPP", fill: "#22c55e", icon: <MessageCircle className="h-3 w-3" /> },
-                ];
-                // Only show channels in this campaign's channel_order
-                const order = c.channelOrder ?? [];
-                const channels =
-                  order.length > 0
-                    ? allChannels.filter((ch) => order.includes(ch.key))
-                    : allChannels;
-                // Build a lookup: channelType → step status
-                const stepStatus = {};
-                (c.channelSteps ?? []).forEach((s) => {
-                  stepStatus[s.channelType] = s.status;
-                });
-                const total = Math.max(c.totalLeads, 1);
-                // Status badge helpers
-                const statusLabel = (st) => {
-                  if (st === "COMPLETED")   return { text: "Done",    cls: "text-green-600 bg-green-50" };
-                  if (st === "IN_PROGRESS") return { text: "Running", cls: "text-indigo-600 bg-indigo-50" };
-                  if (st === "FAILED")      return { text: "Failed",  cls: "text-red-500 bg-red-50" };
-                  return                          null;
-                };
-                return (
-                  <div className="mb-4 bg-gray-50 rounded-xl px-3 py-2.5">
-                    <p className="text-[9px] font-[700] text-gray-400 uppercase tracking-widest mb-2">
-                      Channel Activity
-                    </p>
-                    <div className="space-y-2">
-                      {channels.map((ch) => {
-                        const rawCount = countByKey[ch.key] ?? 0;
-                        // When campaign is fully completed, show full count to match the 100% bar
-                        const count = (c.status === "COMPLETED" && rawCount === 0) ? c.totalLeads : rawCount;
-                        const pct   = Math.min((count / total) * 100, 100);
-                        const st    = stepStatus[ch.key];
-                        const badge = statusLabel(st);
-                        return (
-                          <div key={ch.label}>
-                            <div className="flex items-center justify-between mb-0.5">
-                              <div className="flex items-center gap-1" style={{ color: ch.fill }}>
-                                {ch.icon}
-                                <span className="text-[10px] font-[600]">{ch.label}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {badge && (
-                                  <span className={`text-[9px] font-[700] px-1.5 py-0.5 rounded-full ${badge.cls}`}>
-                                    {badge.text}
-                                  </span>
-                                )}
-                                <span className="text-[10px] font-[700] text-gray-600">
-                                  {count}/{c.totalLeads}
+                {/* ── Channel Activity ── */}
+                <div className="space-y-2.5 mb-4">
+                  {channels.map((ch) => {
+                    const rawCount = countByKey[ch.key] ?? 0;
+                    const count = (c.status === "COMPLETED" && rawCount === 0) ? c.totalLeads : rawCount;
+                    const pct   = Math.min((count / total) * 100, 100);
+                    const st    = stepStatus[ch.key];
+                    const badge = chStepLabel(st);
+                    return (
+                      <div key={ch.label} className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-50 shrink-0" style={{ color: ch.fill }}>
+                          {ch.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] font-[600] text-gray-600">{ch.label}</span>
+                            <div className="flex items-center gap-2">
+                              {badge && (
+                                <span className={`text-[9px] font-[700] px-1.5 py-0.5 rounded-full border ${badge.cls}`}>
+                                  {badge.text}
                                 </span>
-                              </div>
-                            </div>
-                            <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-700`}
-                                style={{
-                                  width: c.status === "COMPLETED" ? "100%" : (pct === 0 ? "5%" : `${pct}%`),
-                                  background: ch.fill,
-                                  opacity: c.status === "COMPLETED" ? 1 : (pct === 0 ? 0.35 : 1),
-                                }}
-                              />
+                              )}
+                              <span className="text-[11px] font-[700] text-gray-500 tabular-nums">
+                                {count}<span className="text-gray-300">/{c.totalLeads}</span>
+                              </span>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
-                  <Calendar className="h-3.5 w-3.5" />
-                  {formatDate(c.startDate)}
-                  {/* {(c.completionPct > 0 || c.status === "COMPLETED") && (
-                    <span className="ml-1 text-violet-500 font-[600]">
-                      {c.status === "COMPLETED" && c.completionPct === 0 ? 100 : Math.round(c.completionPct)}% done
-                    </span>
-                  )} */}
+                          <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: c.status === "COMPLETED" ? "100%" : (pct === 0 ? "4%" : `${pct}%`),
+                                background: `linear-gradient(90deg, ${ch.fill}, ${ch.fill}dd)`,
+                                opacity: c.status === "COMPLETED" ? 1 : (pct === 0 ? 0.25 : 1),
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* Pause / Resume / Activate button based on status */}
-                  {c.status === "ACTIVE" ? (
+
+                {/* ── Footer ── */}
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {formatDate(c.startDate)}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {c.status === "ACTIVE" ? (
+                      <button
+                        onClick={() => { setTogglingId(c.id); dispatch(pauseCampaign(c.id, () => setTogglingId(null))); }}
+                        disabled={togglingId === c.id}
+                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                      >
+                        {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
+                        {togglingId === c.id ? "..." : "Pause"}
+                      </button>
+                    ) : c.status === "PAUSED" ? (
+                      <button
+                        onClick={() => { setTogglingId(c.id); dispatch(resumeCampaign(c.id, () => setTogglingId(null))); }}
+                        disabled={togglingId === c.id}
+                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                      >
+                        {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                        {togglingId === c.id ? "..." : "Resume"}
+                      </button>
+                    ) : c.status !== "COMPLETED" ? (
+                      <button
+                        onClick={() => { setTogglingId(c.id); dispatch(toggleActivateCampaign(c.id, c.status, () => setTogglingId(null))); }}
+                        disabled={togglingId === c.id}
+                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
+                      >
+                        {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                        {togglingId === c.id ? "..." : "Activate"}
+                      </button>
+                    ) : null}
                     <button
-                      onClick={() => {
-                        setTogglingId(c.id);
-                        dispatch(pauseCampaign(c.id, () => setTogglingId(null)));
-                      }}
-                      disabled={togglingId === c.id}
-                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                      onClick={() => { openCampaignDetails(c, "call"); }}
+                      className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
                     >
-                      {togglingId === c.id ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Pause className="h-3.5 w-3.5" />
-                      )}
-                      {togglingId === c.id ? "..." : "Pause"}
+                      <Eye className="h-3.5 w-3.5" />
+                      View Details
                     </button>
-                  ) : c.status === "PAUSED" ? (
-                    <button
-                      onClick={() => {
-                        setTogglingId(c.id);
-                        dispatch(resumeCampaign(c.id, () => setTogglingId(null)));
-                      }}
-                      disabled={togglingId === c.id}
-                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
-                    >
-                      {togglingId === c.id ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Play className="h-3.5 w-3.5" />
-                      )}
-                      {togglingId === c.id ? "..." : "Resume"}
-                    </button>
-                  ) : c.status !== "COMPLETED" ? (
-                    <button
-                      onClick={() => {
-                        setTogglingId(c.id);
-                        dispatch(toggleActivateCampaign(c.id, c.status, () => setTogglingId(null)));
-                      }}
-                      disabled={togglingId === c.id}
-                      className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
-                    >
-                      {togglingId === c.id ? (
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Play className="h-3.5 w-3.5" />
-                      )}
-                      {togglingId === c.id ? "..." : "Activate"}
-                    </button>
-                  ) : null}
-                  <button
-                    onClick={() => {
-                      openCampaignDetails(c, "call");
-                    }}
-                    className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                    View Details
-                  </button>
+                  </div>
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
