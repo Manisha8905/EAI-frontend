@@ -743,8 +743,27 @@ function AgentsPage({ onBack }) {
     }
   };
 
-  const del = (id) => setAgents((p) => p.filter((a) => a.id !== id));
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingAgentId, setDeletingAgentId] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
+
+  const deleteAgent = async (agent) => {
+    if (!agent?.id) return;
+    setDeletingAgentId(agent.id);
+    setDeleteError("");
+    try {
+      await axiosInstance.delete(`/delete-agent/${encodeURIComponent(agent.id)}`);
+      toast.success(`Agent "${agent.name}" deleted successfully.`);
+      await fetchAgents();
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.response?.data?.detail || "Failed to delete agent.";
+      setDeleteError(msg);
+      toast.error(msg);
+    } finally {
+      setDeletingAgentId(null);
+      setDeleteTarget(null);
+    }
+  };
 
   const savePC = async () => {
     setPcSaving(true);
@@ -945,8 +964,12 @@ function AgentsPage({ onBack }) {
         <DeleteConfirmModal
           label={deleteTarget.name}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => { del(deleteTarget.id); setDeleteTarget(null); }}
+          onConfirm={() => deleteAgent(deleteTarget)}
+          loading={deletingAgentId === deleteTarget.id}
         />
+      )}
+      {deleteError && (
+        <p className="mt-2 text-[12px] text-red-500 font-[500]">{deleteError}</p>
       )}
     </div>
   );

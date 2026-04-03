@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useDispatch, useSelector } from "react-redux";
 import {
   listCampaigns,
@@ -133,8 +134,18 @@ const Field = ({ label, required, children }) => (
   </div>
 );
 
+const CAMPAIGN_ACTIVITY_TABS = new Set(["ALL", "CALL", "EMAIL", "LINKEDIN", "WHATSAPP"]);
+
+const normalizeActivityTab = (tabValue) => {
+  const normalized = String(tabValue ?? "").trim().toUpperCase();
+  return CAMPAIGN_ACTIVITY_TABS.has(normalized) ? normalized : null;
+};
+
 export default function CampaignPage() {
   const dispatch = useDispatch();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   /* ── Redux state ── */
   const {
@@ -193,7 +204,7 @@ export default function CampaignPage() {
     campaign_parallel_calls: 1,
     list_id: "",
     // Email fields
-    smtp_provider_name: "default",
+    smtp_provider_name: "",
     template_id: "",
     from_name: "",
     from_email: "",
@@ -282,6 +293,50 @@ export default function CampaignPage() {
   const [emailCardAnalyticsLoading, setEmailCardAnalyticsLoading] = useState(false);
   const [emailDeliverabilityDashboard, setEmailDeliverabilityDashboard] = useState(null);
   const [emailDeliverabilityLoading, setEmailDeliverabilityLoading] = useState(false);
+
+  const updateCampaignRoute = (campaign, tabKey = null) => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    if (campaign?.id != null) {
+      nextParams.set("campaign", String(campaign.id));
+    } else {
+      nextParams.delete("campaign");
+    }
+
+    const normalizedTab = normalizeActivityTab(tabKey);
+    if (normalizedTab) {
+      nextParams.set("tab", normalizedTab.toLowerCase());
+    } else {
+      nextParams.delete("tab");
+    }
+
+    const nextQuery = nextParams.toString();
+    router.push(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  };
+
+  const openCampaignDetails = (campaign, tabKey = null) => {
+    setSelectedCampaign(campaign ?? null);
+    setActiveTab(normalizeActivityTab(tabKey));
+    updateCampaignRoute(campaign, tabKey);
+  };
+
+  const openCampaignTab = (tabKey) => {
+    if (!selectedCampaign) return;
+    const normalizedTab = normalizeActivityTab(tabKey);
+    setActiveTab(normalizedTab);
+    updateCampaignRoute(selectedCampaign, normalizedTab);
+  };
+
+  const backToCampaignActivities = () => {
+    if (!selectedCampaign) return;
+    setActiveTab(null);
+    updateCampaignRoute(selectedCampaign, null);
+  };
+
+  const backToCampaignList = () => {
+    setSelectedCampaign(null);
+    setActiveTab(null);
+    updateCampaignRoute(null, null);
+  };
 
   const getDeliverabilityCounts = (payload) => {
     const pickNum = (...vals) => {
@@ -606,7 +661,7 @@ export default function CampaignPage() {
         logged_in_user_email: c.logged_in_user_email ?? "",
         campaign_parallel_calls: c.campaign_parallel_calls ?? 1,
         list_id: c.list_id ?? "",
-        smtp_provider_name: c.smtp_provider_name ?? "default",
+        smtp_provider_name: c.smtp_provider_name ?? "",
         template_id: c.template_id ?? "",
         from_name: c.from_name ?? "",
         from_email: c.from_email ?? "",
@@ -743,18 +798,33 @@ export default function CampaignPage() {
       .catch(() => {});
   }, [showCreate]);
 
+  // Email fields are intentionally not pre-filled from localStorage so placeholder-only behavior is preserved.
   useEffect(() => {
-    if (!showCreate || editingCampaignId) return;
-    const savedEmail =
-      typeof window !== "undefined" ? localStorage.getItem("userEmail") || "" : "";
-    if (!savedEmail) return;
+    const routeCampaignId = searchParams.get("campaign");
+    const routeTab = normalizeActivityTab(searchParams.get("tab"));
 
-    setForm((prev) => ({
-      ...prev,
-      from_email: prev.from_email || savedEmail,
-      reply_to_email: prev.reply_to_email || savedEmail,
-    }));
-  }, [showCreate, editingCampaignId]);
+    if (!routeCampaignId) {
+      if (selectedCampaign !== null) setSelectedCampaign(null);
+      if (activeTab !== null) setActiveTab(null);
+      return;
+    }
+
+    const matchedCampaign = (campaigns ?? []).find(
+      (item) => String(item.id) === String(routeCampaignId),
+    );
+
+    if (!matchedCampaign) return;
+
+    const allowedChannels = new Set(matchedCampaign.channelOrder ?? []);
+    const safeRouteTab = routeTab === "ALL" || allowedChannels.has(routeTab) ? routeTab : null;
+
+    if (!selectedCampaign || String(selectedCampaign.id) !== String(matchedCampaign.id)) {
+      setSelectedCampaign(matchedCampaign);
+    }
+    if (activeTab !== safeRouteTab) {
+      setActiveTab(safeRouteTab);
+    }
+  }, [searchParams, campaigns, selectedCampaign, activeTab]);
 
   /* ── Fetch history data when a campaign activity tab is opened ── */
   useEffect(() => {
@@ -1956,8 +2026,15 @@ export default function CampaignPage() {
                         onChange={handleFormChange}
                         className={selectCls}
                       >
-                        {[""].map((o) => (
-                          <option key={o}>{o}</option>
+                        <option value="">— Select LLM model —</option>
+                        {[
+                          { label: "gpt-4o", value: "gpt-4o" },
+                          { label: "gpt-4-turbo", value: "gpt-4-turbo" },
+                          { label: "gpt-3.5-turbo", value: "gpt-3.5-turbo" },
+                        ].map((model) => (
+                          <option key={model.value} value={model.value}>
+                            {model.label}
+                          </option>
                         ))}
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -2663,7 +2740,7 @@ export default function CampaignPage() {
             <div className="mb-5">
               <button
                 type="button"
-                onClick={() => setActiveTab(null)}
+                onClick={backToCampaignActivities}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
               >
                 <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
@@ -3446,7 +3523,7 @@ export default function CampaignPage() {
           <div className="mb-5">
             <button
               type="button"
-              onClick={() => setActiveTab(null)}
+              onClick={backToCampaignActivities}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
             >
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
@@ -4156,7 +4233,7 @@ export default function CampaignPage() {
           <div className="mb-5">
             <button
               type="button"
-              onClick={() => setActiveTab(null)}
+              onClick={backToCampaignActivities}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
             >
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
@@ -4961,7 +5038,7 @@ export default function CampaignPage() {
           <div className="mb-5">
             <button
               type="button"
-              onClick={() => setActiveTab(null)}
+              onClick={backToCampaignActivities}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
             >
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
@@ -5331,7 +5408,7 @@ export default function CampaignPage() {
           <div className="mb-5">
             <button
               type="button"
-              onClick={() => setActiveTab(null)}
+              onClick={backToCampaignActivities}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
             >
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
@@ -5689,10 +5766,7 @@ export default function CampaignPage() {
         <div className="mb-4">
           <button
             type="button"
-            onClick={() => {
-              setSelectedCampaign(null);
-              setActiveTab(null);
-            }}
+            onClick={backToCampaignList}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
           >
             <ArrowLeft className="h-4 w-4" /> Back to Campaigns
@@ -5783,7 +5857,7 @@ export default function CampaignPage() {
             <button
               key={key}
               type="button"
-              onClick={() => setActiveTab(key)}
+              onClick={() => openCampaignTab(key)}
               className="w-full bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex items-center justify-between hover:shadow-md hover:border-indigo-200 transition-all text-left group"
             >
               <div className="flex items-center gap-4">
@@ -6225,8 +6299,7 @@ export default function CampaignPage() {
                   ) : null}
                   <button
                     onClick={() => {
-                      setSelectedCampaign(c);
-                      setActiveTab(c.channelOrder?.length === 1 ? c.channelOrder[0] : null);
+                      openCampaignDetails(c, "call");
                     }}
                     className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"
                   >
