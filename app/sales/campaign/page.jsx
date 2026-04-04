@@ -142,6 +142,29 @@ const normalizeActivityTab = (tabValue) => {
   return CAMPAIGN_ACTIVITY_TABS.has(normalized) ? normalized : null;
 };
 
+const isPreviewEligibleCampaign = (campaign) => {
+  const order = Array.isArray(campaign?.channelOrder)
+    ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
+    : [];
+  const commType = String(campaign?.communicationType ?? campaign?.communication_type ?? "").toUpperCase();
+
+  if (order.length === 1) {
+    return order[0] === "EMAIL";
+  }
+  if (order.length > 1) return false;
+  return commType === "EMAIL";
+};
+
+const getPreviewChannelKey = (campaign) => {
+  const order = Array.isArray(campaign?.channelOrder)
+    ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
+    : [];
+  if (order.length === 1 && order[0] === "EMAIL") {
+    return order[0];
+  }
+  return "EMAIL";
+};
+
 export default function CampaignPage() {
   const dispatch = useDispatch();
   const router = useRouter();
@@ -176,6 +199,7 @@ export default function CampaignPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [previewCompletedCampaignIds, setPreviewCompletedCampaignIds] = useState(new Set());
 
   /* ── Detail + tab state ── */
   const [selectedCampaign, setSelectedCampaign] = useState(null);
@@ -336,6 +360,13 @@ export default function CampaignPage() {
     setSelectedCampaign(null);
     setActiveTab(null);
     updateCampaignRoute(null, null);
+  };
+
+  const openCampaignPreview = (campaignId, channelKey) => {
+    const nextParams = new URLSearchParams();
+    nextParams.set("campaignId", String(campaignId));
+    nextParams.set("channel", String(channelKey ?? "EMAIL").toUpperCase());
+    router.push(`/sales/campaign/preview?${nextParams.toString()}`);
   };
 
   const getDeliverabilityCounts = (payload) => {
@@ -825,6 +856,22 @@ export default function CampaignPage() {
       setActiveTab(safeRouteTab);
     }
   }, [searchParams, campaigns, selectedCampaign, activeTab]);
+
+  useEffect(() => {
+    const savedPreviewCampaignId = searchParams.get("previewSavedCampaign");
+    if (!savedPreviewCampaignId) return;
+
+    setPreviewCompletedCampaignIds((prev) => {
+      const next = new Set(prev);
+      next.add(String(savedPreviewCampaignId));
+      return next;
+    });
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete("previewSavedCampaign");
+    const nextQuery = nextParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   /* ── Fetch history data when a campaign activity tab is opened ── */
   useEffect(() => {
@@ -6120,7 +6167,16 @@ export default function CampaignPage() {
             return (
             <div
               key={c.id}
-              className="group bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-gray-300/80 transition-all duration-200 overflow-hidden"
+              role="button"
+              tabIndex={0}
+              onClick={() => openCampaignDetails(c, channels[0]?.key || "CALL")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openCampaignDetails(c, channels[0]?.key || "CALL");
+                }
+              }}
+              className="group bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-gray-300/80 transition-all duration-200 overflow-hidden cursor-pointer"
             >
               {/* ── Top accent bar ── */}
               <div className={`h-1 w-full ${
@@ -6272,41 +6328,145 @@ export default function CampaignPage() {
                     {formatDate(c.startDate)}
                   </div>
                   <div className="flex items-center gap-2">
-                    {c.status === "ACTIVE" ? (
-                      <button
-                        onClick={() => { setTogglingId(c.id); dispatch(pauseCampaign(c.id, () => setTogglingId(null))); }}
-                        disabled={togglingId === c.id}
-                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
-                      >
-                        {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
-                        {togglingId === c.id ? "..." : "Pause"}
-                      </button>
-                    ) : c.status === "PAUSED" ? (
-                      <button
-                        onClick={() => { setTogglingId(c.id); dispatch(resumeCampaign(c.id, () => setTogglingId(null))); }}
-                        disabled={togglingId === c.id}
-                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
-                      >
-                        {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                        {togglingId === c.id ? "..." : "Resume"}
-                      </button>
-                    ) : c.status !== "COMPLETED" ? (
-                      <button
-                        onClick={() => { setTogglingId(c.id); dispatch(toggleActivateCampaign(c.id, c.status, () => setTogglingId(null))); }}
-                        disabled={togglingId === c.id}
-                        className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
-                      >
-                        {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                        {togglingId === c.id ? "..." : "Activate"}
-                      </button>
-                    ) : null}
-                    <button
-                      onClick={() => { openCampaignDetails(c, channels[0]?.key || "CALL"); }}
-                      className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      View Activity
-                    </button>
+                    {(() => {
+                      const eligibleForPreviewFlow = isPreviewEligibleCampaign(c);
+                      const previewChannel = getPreviewChannelKey(c);
+                      const hasCompletedPreview = previewCompletedCampaignIds.has(String(c.id));
+
+                      if (!eligibleForPreviewFlow) {
+                        return (
+                          <>
+                            {c.status === "ACTIVE" ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTogglingId(c.id);
+                                  dispatch(pauseCampaign(c.id, () => setTogglingId(null)));
+                                }}
+                                disabled={togglingId === c.id}
+                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                              >
+                                {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
+                                {togglingId === c.id ? "..." : "Pause"}
+                              </button>
+                            ) : c.status === "PAUSED" ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTogglingId(c.id);
+                                  dispatch(resumeCampaign(c.id, () => setTogglingId(null)));
+                                }}
+                                disabled={togglingId === c.id}
+                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                              >
+                                {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                                {togglingId === c.id ? "..." : "Resume"}
+                              </button>
+                            ) : c.status !== "COMPLETED" ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTogglingId(c.id);
+                                  dispatch(toggleActivateCampaign(c.id, c.status, () => setTogglingId(null)));
+                                }}
+                                disabled={togglingId === c.id}
+                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
+                              >
+                                {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                                {togglingId === c.id ? "..." : "Activate"}
+                              </button>
+                            ) : null}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCampaignDetails(c, channels[0]?.key || "CALL");
+                              }}
+                              className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View Activity
+                            </button>
+                          </>
+                        );
+                      }
+
+                      return (
+                        <>
+                          {c.status === "ACTIVE" ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTogglingId(c.id);
+                                dispatch(
+                                  pauseCampaign(c.id, () => {
+                                    setTogglingId(null);
+                                    setPreviewCompletedCampaignIds((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(String(c.id));
+                                      return next;
+                                    });
+                                  }),
+                                );
+                              }}
+                              disabled={togglingId === c.id}
+                              className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                            >
+                              {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
+                              {togglingId === c.id ? "..." : "Pause"}
+                            </button>
+                          ) : c.status !== "COMPLETED" ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTogglingId(c.id);
+                                const afterActivate = () => {
+                                  setTogglingId(null);
+                                  setPreviewCompletedCampaignIds((prev) => {
+                                    const next = new Set(prev);
+                                    next.delete(String(c.id));
+                                    return next;
+                                  });
+                                };
+                                if (c.status === "PAUSED") {
+                                  dispatch(resumeCampaign(c.id, afterActivate));
+                                } else {
+                                  dispatch(toggleActivateCampaign(c.id, c.status, afterActivate));
+                                }
+                              }}
+                              disabled={togglingId === c.id}
+                              className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
+                            >
+                              {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                              {togglingId === c.id ? "..." : "Activate"}
+                            </button>
+                          ) : null}
+
+                          {c.status === "ACTIVE" && !hasCompletedPreview ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCampaignPreview(c.id, previewChannel);
+                              }}
+                              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-[12px] font-[600] text-white hover:bg-blue-700 shadow-sm transition"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Preview
+                            </button>
+                          ) : hasCompletedPreview || c.status === "COMPLETED" ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCampaignDetails(c, previewChannel);
+                              }}
+                              className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View Activity
+                            </button>
+                          ) : null}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
