@@ -186,17 +186,17 @@ const SALES_SECTIONS = [
       { href: "/scraping/results", label: "Results", icon: ScraperIcon },
     ],
   },
-  {
-    key: "analytics",
-    label: "Sales Analytics",
-    subtitle: "Performance analytics",
-    icon: AnalyticsIcon,
-    activeRoutes: ["/analytics"],
-    links: [
-      { href: "/analytics/overview", label: "Overview", icon: AnalyticsIcon },
-      { href: "/analytics/forecasts", label: "Forecasts", icon: AnalyticsIcon },
-    ],
-  },
+  // {
+  //   key: "analytics",
+  //   label: "Sales Analytics",
+  //   subtitle: "Performance analytics",
+  //   icon: AnalyticsIcon,
+  //   activeRoutes: ["/analytics"],
+  //   links: [
+  //     { href: "/analytics/overview", label: "Overview", icon: AnalyticsIcon },
+  //     { href: "/analytics/forecasts", label: "Forecasts", icon: AnalyticsIcon },
+  //   ],
+  // },
 ];
 
 const SUPPORT_SECTIONS = [

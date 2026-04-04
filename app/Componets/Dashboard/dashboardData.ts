@@ -7,7 +7,7 @@ export type DashboardRole =
   | "Marketing"
   | "Legal";
 
-export type MainSection = "Outbound Calls" | "Inbound Calls" | "Email Campaign";
+export type MainSection = "Outbound Calls" | "Inbound Calls" | "Email Campaign" | "LinkedIn Campaign" | "WhatsApp Campaign";
 
 export type CardTone = "blue" | "green" | "violet" | "teal";
 
@@ -42,7 +42,7 @@ export const roles: DashboardRole[] = [
   "Legal",
 ];
 
-export const mainSections: MainSection[] = ["Outbound Calls", "Inbound Calls", "Email Campaign"];
+export const mainSections: MainSection[] = ["Outbound Calls", "Inbound Calls", "Email Campaign", "LinkedIn Campaign", "WhatsApp Campaign"];
 
 const salesOutbound: DashboardScenario = {
   cards: [
@@ -102,56 +102,76 @@ function mutateScenario(base: DashboardScenario, roleShift: number, sectionShift
         ? base.leftChartTitle
         : sectionShift === 1
           ? "Inbound Volume by Region"
-          : "Email Replies by Region",
+          : sectionShift === 2
+            ? "Email Replies by Region"
+            : sectionShift === 3
+              ? "LinkedIn Connections by Region"
+              : "WhatsApp Messages by Region",
     rightChartTitle:
       sectionShift === 0
         ? base.rightChartTitle
         : sectionShift === 1
           ? "Inbound Conversion Trend"
-          : "Email Campaign Trend",
+          : sectionShift === 2
+            ? "Email Campaign Trend"
+            : sectionShift === 3
+              ? "LinkedIn Campaign Trend"
+              : "WhatsApp Campaign Trend",
     cards: base.cards.map((card, index) => {
+      let newCard = { ...card };
+
+      // Change titles based on section
+      if (sectionShift === 1) { // Inbound Calls
+        if (index === 1) newCard.title = "Answer Rate";
+        if (index === 2) newCard.title = "Avg Talk Duration";
+        if (index === 3) newCard.title = "Callbacks Scheduled";
+      } else if (sectionShift === 2) { // Email Campaign
+        if (index === 0) newCard.title = "Emails Sent";
+        if (index === 1) newCard.title = "Open Rate";
+        if (index === 2) newCard.title = "Avg Response Time";
+        if (index === 3) newCard.title = "Replies Received";
+      } else if (sectionShift === 3) { // LinkedIn Campaign
+        if (index === 0) newCard.title = "Connections Sent";
+        if (index === 1) newCard.title = "Connection Rate";
+        if (index === 2) newCard.title = "Avg Response Time";
+        if (index === 3) newCard.title = "Messages Exchanged";
+      } else if (sectionShift === 4) { // WhatsApp Campaign
+        if (index === 0) newCard.title = "Messages Sent";
+        if (index === 1) newCard.title = "Response Rate";
+        if (index === 2) newCard.title = "Avg Response Time";
+        if (index === 3) newCard.title = "Conversations Started";
+      }
+
       if (index === 0 && card.footer) {
         const day = 40 + aggregateShift * 2;
         const week = 280 + aggregateShift * 9;
         const month = 1100 + aggregateShift * 24;
 
-        return {
-          ...card,
-          value: String(month),
-          footer: [
-            { label: String(day), sublabel: "Today" },
-            { label: String(week), sublabel: "Week" },
-            { label: String(month), sublabel: "Month" },
-          ],
-        };
+        newCard.value = String(month);
+        newCard.footer = [
+          { label: String(day), sublabel: "Today" },
+          { label: String(week), sublabel: "Week" },
+          { label: String(month), sublabel: "Month" },
+        ];
       }
 
       if (index === 1) {
         const success = Math.max(62, Math.min(92, 75 + aggregateShift));
-        return {
-          ...card,
-          value: `${success.toFixed(1)}%`,
-          progress: success,
-        };
+        newCard.value = `${success.toFixed(1)}%`;
+        newCard.progress = success;
       }
 
       if (index === 2) {
         const minute = Math.max(2, 4 + Math.floor(aggregateShift / 3));
         const second = Math.max(10, 32 + aggregateShift);
-        return {
-          ...card,
-          value: `${minute}:${String(second).padStart(2, "0")}`,
-        };
+        newCard.value = `${minute}:${String(second).padStart(2, "0")}`;
       }
 
       if (index === 3) {
-        return {
-          ...card,
-          value: String(Math.max(4, 10 + aggregateShift)),
-        };
+        newCard.value = String(Math.max(4, 10 + aggregateShift));
       }
 
-      return card;
+      return newCard;
     }),
   };
 }

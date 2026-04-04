@@ -2079,6 +2079,7 @@ const SMTP_PROVIDER_LIST = [
 const SMTP_FIELDS = {
   mailgun: [
     { key: "MAILGUN_API_KEY",    label: "API Key",     placeholder: "key-xxxxxxxxxxxx",            type: "password", icon: "key",    required: true },
+    { key: "MAILGUN_WEBHOOK_SIGNING_KEY", label: "Webhook Signing Key", placeholder: "your-webhook-signing-key", type: "password", icon: "shield", required: true },
     { key: "MAILGUN_DOMAIN",     label: "Domain",      placeholder: "mg.yourdomain.com",           type: "text",     icon: "globe",  required: true },
     { key: "MAILGUN_FROM_EMAIL", label: "From Email",  placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
     { key: "MAILGUN_FROM_NAME",  label: "From Name",   placeholder: "Your Company",                type: "text",     icon: null,     required: false },

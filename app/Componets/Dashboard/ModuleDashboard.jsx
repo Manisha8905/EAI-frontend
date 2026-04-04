@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
-import { fetchOutboundCalls, fetchInboundCalls, fetchEmailCampaigns } from "../../Redux/actions/authActions";
+import { fetchOutboundCalls, fetchInboundCalls, fetchEmailCampaigns, fetchLinkedinCampaigns } from "../../Redux/actions/authActions";
 import axiosInstance from "../../Redux/axiosInstance";
 import {
   ArrowUpRight,
@@ -92,17 +92,61 @@ const tabData = {
     },
     donut: { title: "Email Open Rate", resolved: 45, label: "Opened" },
   },
+  linkedin: {
+    calls:     { today: 78,  week: 520, month: 2140, trend: "+12%" },
+    meetings:  { today: 24,  week: 142, month: 610,  trend: "+11%" },
+    tasks:     { today: 92,  week: 560, month: 2290, trend: "+14%" },
+    duration:  "2.8",
+    barChart: {
+      title: "LinkedIn Outreach by Day",
+      label: "Connections",
+      data: [
+        { x: "Mon", v: 210 },
+        { x: "Tue", v: 240 },
+        { x: "Wed", v: 280 },
+        { x: "Thu", v: 300 },
+        { x: "Fri", v: 320 },
+        { x: "Sat", v: 120 },
+        { x: "Sun", v: 85  },
+      ],
+    },
+    donut: { title: "Connection Rate", resolved: 56, label: "Accepted" },
+  },
+  whatsapp: {
+    calls:     { today: 112, week: 820, month: 3240, trend: "+18%" },
+    meetings:  { today: 42,  week: 288, month: 1140, trend: "+16%" },
+    tasks:     { today: 134, week: 490, month: 1950, trend: "+13%" },
+    duration:  "1.7",
+    barChart: {
+      title: "WhatsApp Messages by Day",
+      label: "Messages",
+      data: [
+        { x: "Mon", v: 240 },
+        { x: "Tue", v: 310 },
+        { x: "Wed", v: 290 },
+        { x: "Thu", v: 330 },
+        { x: "Fri", v: 370 },
+        { x: "Sat", v: 150 },
+        { x: "Sun", v: 98  },
+      ],
+    },
+    donut: { title: "Response Rate", resolved: 62, label: "Replies" },
+  },
 };
 
 const tabs = [
   { key: "outbound", label: "Outbound Calls" },
   { key: "inbound",  label: "Inbound Calls"  },
   { key: "email",    label: "Email Campaign"  },
+  { key: "linkedin", label: "LinkedIn Campaign" },
+  { key: "whatsapp", label: "WhatsApp Campaign" },
 ];
 
 function normalizeTab(initialTab) {
   if (initialTab === "inbound" || initialTab === "Inbound Calls")   return "inbound";
   if (initialTab === "email"   || initialTab === "Email Campaign")  return "email";
+  if (initialTab === "linkedin" || initialTab === "LinkedIn Campaign") return "linkedin";
+  if (initialTab === "whatsapp" || initialTab === "WhatsApp Campaign") return "whatsapp";
   return "outbound";
 }
 
@@ -520,7 +564,7 @@ export default function ModuleDashboard({
   initialTab  = "Outbound Calls",
 }) {
   const dispatch = useDispatch();
-  const { outboundData, outboundLoading, inboundData, inboundLoading, emailData, emailLoading } = useSelector((state) => state.admin);
+  const { outboundData, outboundLoading, inboundData, inboundLoading, emailData, emailLoading, linkedinData, linkedinLoading } = useSelector((state) => state.admin);
 
   const router = useRouter();
 
@@ -565,6 +609,9 @@ export default function ModuleDashboard({
       dispatch(fetchEmailCampaigns(activeFilter));
       fetchEmailDeliverabilityDashboard();
     }
+    if (activeTab === "linkedin") {
+      dispatch(fetchLinkedinCampaigns(activeFilter));
+    }
   }, [activeTab, activeFilter, dispatch, router]);
 
   const d = tabData[activeTab];
@@ -578,6 +625,10 @@ export default function ModuleDashboard({
 
   const emailSm = (activeTab === "email" && emailData?.summary_metrics)
     ? emailData.summary_metrics
+    : null;
+
+  const linkedinSm = (activeTab === "linkedin" && linkedinData?.summary_metrics)
+    ? linkedinData.summary_metrics
     : null;
 
   const apiTotalCalls =
@@ -863,6 +914,9 @@ export default function ModuleDashboard({
       dispatch(fetchEmailCampaigns(activeFilter));
       fetchEmailDeliverabilityDashboard();
     }
+    if (activeTab === "linkedin") {
+      dispatch(fetchLinkedinCampaigns(activeFilter));
+    }
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
@@ -921,39 +975,61 @@ export default function ModuleDashboard({
         <KpiCard
           gradient="border bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-indigo-400/25"
-          icon={activeTab === "email" ? Users : Phone}
+          icon={activeTab === "email" || activeTab === "linkedin" ? Users : Phone}
           trend={calls.trend}
-          title={activeTab === "email" ? "Total Leads" : "Calls Processed"}
+          title={
+            activeTab === "email"
+              ? "Total Leads"
+              : activeTab === "linkedin"
+                ? "Connections Sent"
+                : activeTab === "whatsapp"
+                  ? "Messages Sent"
+                  : "Calls Processed"
+          }
           today={isLoading ? "…" : calls.today}
           week={isLoading ? "…" : calls.week}
           month={isLoading ? "…" : calls.month}
         />
 
-        {/* Meetings Scheduled */}
+        {/* Meetings / Responses */}
         <KpiCard
           gradient="border bg-gradient-to-br from-green-500 to-green-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-teal-400/25"
           icon={Calendar}
           trend={meetings.trend}
-          title="Meetings Scheduled"
+          title={
+            activeTab === "linkedin"
+              ? "Connections Accepted"
+              : activeTab === "whatsapp"
+                ? "Replies Received"
+                : "Meetings Scheduled"
+          }
           today={isLoading ? "…" : meetings.today}
           week={isLoading ? "…" : meetings.week}
           month={isLoading ? "…" : meetings.month}
         />
 
-        {/* Card 3: Tasks Created / Leads Engaged */}
+        {/* Card 3: Tasks / Engagement */}
         <KpiCard
           gradient="border bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-purple-400/25"
           icon={CheckSquare}
           trend={tasks.trend}
-          title={activeTab === "email" ? "Leads Engaged" : "Tasks Created"}
+          title={
+            activeTab === "email"
+              ? "Leads Engaged"
+              : activeTab === "linkedin"
+                ? "Messages Exchanged"
+                : activeTab === "whatsapp"
+                  ? "Chats Started"
+                  : "Tasks Created"
+          }
           today={isLoading ? "…" : tasks.today}
           week={isLoading ? "…" : tasks.week}
           month={isLoading ? "…" : tasks.month}
         />
 
-        {/* Card 4: Avg Call Duration / Avg Emails per Lead */}
+        {/* Card 4: Avg time / Avg emails */}
         <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-5 text-white">
           <div className="flex items-center justify-between mb-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
@@ -964,13 +1040,15 @@ export default function ModuleDashboard({
             </span>
           </div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
-            {activeTab === "email" ? "Avg Emails / Lead" : "Avg Call Duration"}
+            {activeTab === "email"
+              ? "Avg Emails / Lead"
+              : "Avg Response Time"}
           </p>
           <p className="text-[36px] font-bold leading-none">
             {isLoading ? "…" : durationDisplay}
           </p>
           <p className="text-[12px] text-white/60 mt-1">
-            {activeTab === "email" ? "Emails per lead" : "per call"}
+            {activeTab === "email" ? "Emails per lead" : "per response"}
           </p>
         </article>
       </section>
@@ -1105,6 +1183,97 @@ export default function ModuleDashboard({
             <ReasonsChart data={outboundReasons ?? []} />
           </ChartCard>
 
+        </section>
+      ) : (activeTab === "linkedin" || activeTab === "whatsapp") ? (
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <ChartCard
+            title={barChartTitle}
+            subtitle={d.barChart.title}
+            badge={`${d.calls.month} total`}
+          >
+            <div className="h-[240px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={barChartData} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                  <defs>
+                    <linearGradient id="multiAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" stopOpacity={0.35} />
+                      <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="x" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} dy={4} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                  <Tooltip content={<AreaTooltip />} cursor={{ stroke: "#e0e7ff", strokeWidth: 1, strokeDasharray: "4 2" }} />
+                  <Area
+                    type="monotone"
+                    dataKey="v"
+                    stroke="#2563eb"
+                    strokeWidth={2.5}
+                    fill="url(#multiAreaGrad)"
+                    dot={{ fill: "#fff", r: 4, strokeWidth: 2, stroke: "#2563eb" }}
+                    activeDot={{ r: 6, fill: "#2563eb", stroke: "#c7d2fe", strokeWidth: 3 }}
+                    name={barChartLabel}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+
+          <ChartCard
+            title={d.donut.title}
+            subtitle={`${d.barChart.label} rate`}
+            badge={`${d.donut.resolved}%`}
+          >
+            <div className="flex h-[240px] w-full items-center justify-center">
+              <DonutChart resolved={d.donut.resolved} label={d.donut.label} />
+            </div>
+          </ChartCard>
+
+          <ChartCard
+            title="Activity Breakdown"
+            subtitle="Daily performance overview"
+          >
+            <div className="h-[260px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barChartData} barGap={6} barSize={16} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="x" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                  <Tooltip formatter={(value) => [`${value}`, barChartLabel]} />
+                  <Bar dataKey="v" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+
+          <ChartCard
+            title="Response Funnel"
+            subtitle="Accepted vs not accepted"
+          >
+            <div className="h-[240px] w-full flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: d.donut.label, value: d.donut.resolved },
+                      { name: "No response", value: 100 - d.donut.resolved },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    dataKey="value"
+                    strokeWidth={0}
+                  >
+                    <Cell fill="#22c55e" />
+                    <Cell fill="#e2e8f0" />
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [`${value}%`, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
         </section>
       ) : activeTab === "inbound" && inboundData ? (
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">

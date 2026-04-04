@@ -283,7 +283,6 @@ export default function CampaignPage() {
       setEmailSendingService(localStorage.getItem("emailSendingService") || "SMTP");
     }
   }, []);
-
   /* ── Settings Panel ── */
   const [showSettings, setShowSettings] = useState(false);
 
@@ -855,9 +854,7 @@ export default function CampaignPage() {
         setEmailCardAnalytics(null);
         setEmailCardAnalyticsLoading(true);
         axiosInstance
-          .get("/api/analytics/dashboard", {
-            params: { campaign_id: selectedCampaign.id },
-          })
+          .get(`/api/bulk-email/campaigns/${selectedCampaign.id}/analytics`)
           .then((res) => setEmailCardAnalytics(res.data))
           .catch(() => {})
           .finally(() => setEmailCardAnalyticsLoading(false));
@@ -4115,6 +4112,9 @@ export default function CampaignPage() {
       const analyticsCampaign = (() => {
         const d = emailCardAnalytics;
         if (!d) return null;
+        if (!Array.isArray(d) && (d?.campaign_id != null || d?.id != null)) {
+          return d;
+        }
         const rows = Array.isArray(d?.campaigns)
           ? d.campaigns
           : Array.isArray(d?.data?.campaigns)
@@ -4168,9 +4168,26 @@ export default function CampaignPage() {
         ),
         bounced: smtpMetricValue(
           analyticsCampaign?.bounced,
+          analyticsCampaign?.bounce_count,
           smtpSummary?.total_bounced,
           smtpSummary?.bounced,
           ehBounced,
+        ),
+        complained: smtpMetricValue(
+          analyticsCampaign?.complained,
+          analyticsCampaign?.complaint_count,
+          analyticsCampaign?.spam_complaints,
+          smtpSummary?.complained,
+          smtpSummary?.complaint_count,
+          smtpSummary?.spam_complaints,
+        ),
+        unsubscribed: smtpMetricValue(
+          analyticsCampaign?.unsubscribed,
+          analyticsCampaign?.unsubscribe_count,
+          analyticsCampaign?.opt_outs,
+          smtpSummary?.unsubscribed,
+          smtpSummary?.unsubscribe_count,
+          smtpSummary?.opt_outs,
         ),
         spam: smtpMetricValue(
           analyticsCampaign?.spam,
@@ -4359,11 +4376,19 @@ export default function CampaignPage() {
               </div>
               {(() => {
                 const smtpChartData = [
-                  { stage: "Opened",  value: smtpTotals.opened  },
-                  { stage: "Clicked", value: smtpTotals.clicked },
-                  { stage: "Bounced", value: smtpTotals.bounced },
+                  { stage: "Opened",       value: smtpTotals.opened },
+                  { stage: "Clicked",      value: smtpTotals.clicked },
+                  { stage: "Bounced",      value: smtpTotals.bounced },
+                  { stage: "Complained",   value: smtpTotals.complained },
+                  { stage: "Unsubscribed", value: smtpTotals.unsubscribed },
                 ];
-                const smtpColors = ["#f59e0b", "#10b981", "#ef4444"];
+                const smtpColors = [
+                  "#f59e0b",
+                  "#10b981",
+                  "#ef4444",
+                  "#f43f5e",
+                  "#6366f1",
+                ];
                 const allZero = smtpChartData.every((d) => !d.value);
 
                 if (allZero) {
@@ -4381,7 +4406,7 @@ export default function CampaignPage() {
                   <ResponsiveContainer width="100%" height={180}>
                     <BarChart
                       data={smtpChartData}
-                      barSize={48}
+                      barSize={38}
                       margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
                     >
                       <defs>
@@ -6067,8 +6092,8 @@ export default function CampaignPage() {
             const countByKey = {
               CALL:     c.called      ?? 0,
               EMAIL:    c.emailsSent  ?? 0,
-              LINKEDIN: c.meetings    ?? 0,
-              WHATSAPP: 0,
+              LINKEDIN: c.linkedinSent ?? 0,
+              WHATSAPP: c.whatsappSent ?? 0,
             };
             const allChannels = [
               { label: "Call",     key: "CALL",     fill: "#6366f1", icon: <Phone className="h-3.5 w-3.5" /> },
@@ -6080,6 +6105,8 @@ export default function CampaignPage() {
             const channels = order.length > 0
               ? allChannels.filter((ch) => order.includes(ch.key))
               : allChannels;
+            const selectedCampaignMatches = selectedCampaign?.id === c.id;
+            const activeCampaignTab = selectedCampaignMatches ? activeTab : null;
             const stepStatus = {};
             (c.channelSteps ?? []).forEach((s) => { stepStatus[s.channelType] = s.status; });
             const total = Math.max(c.totalLeads, 1);
@@ -6167,6 +6194,34 @@ export default function CampaignPage() {
                   ))}
                 </div>
 
+                {/* ── Channel Tabs ── */}
+                <div className="mb-4">
+                  <div className="flex flex-wrap gap-2">
+                    {channels.map((ch) => {
+                      const isActive = activeCampaignTab === ch.key;
+                      return (
+                        <button
+                          key={ch.key}
+                          type="button"
+                          onClick={() => openCampaignDetails(c, ch.key)}
+                          className={`rounded-full border px-3 py-1.5 text-[12px] font-[600] transition ${
+                            isActive
+                              ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
+                              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 text-[11px]" style={{ color: ch.fill }}>
+                              {ch.icon}
+                            </span>
+                            {ch.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* ── Channel Activity ── */}
                 <div className="space-y-2.5 mb-4">
                   {channels.map((ch) => {
@@ -6246,11 +6301,11 @@ export default function CampaignPage() {
                       </button>
                     ) : null}
                     <button
-                      onClick={() => { openCampaignDetails(c, "call"); }}
+                      onClick={() => { openCampaignDetails(c, channels[0]?.key || "CALL"); }}
                       className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
                     >
                       <Eye className="h-3.5 w-3.5" />
-                      View Details
+                      View Activity
                     </button>
                   </div>
                 </div>

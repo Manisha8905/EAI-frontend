@@ -31,6 +31,10 @@ import {
   EMAIL_CAMPAIGNS_SUCCESS,
   EMAIL_CAMPAIGNS_FAILURE,
 
+  LINKEDIN_CAMPAIGNS_REQUEST,
+  LINKEDIN_CAMPAIGNS_SUCCESS,
+  LINKEDIN_CAMPAIGNS_FAILURE,
+
   CAMPAIGN_LIST_REQUEST,
   CAMPAIGN_LIST_SUCCESS,
   CAMPAIGN_LIST_FAILURE,
@@ -81,7 +85,11 @@ const initialState = {
   emailData: null,
   emailLoading: false,
   emailError: null,
-  // 📋 Campaign List
+  // � LinkedIn Campaigns
+  linkedinData: null,
+  linkedinLoading: false,
+  linkedinError: null,
+  // �📋 Campaign List
   campaigns: [],
   campaignTotal: 0,
   campaignLoading: false,
@@ -253,7 +261,29 @@ const adminReducers = (state = initialState, action) => {
         emailError: action.payload,
       };
 
-    // 📋 Campaign List
+    // � LinkedIn Campaigns
+    case LINKEDIN_CAMPAIGNS_REQUEST:
+      return {
+        ...state,
+        linkedinLoading: true,
+        linkedinError: null,
+      };
+
+    case LINKEDIN_CAMPAIGNS_SUCCESS:
+      return {
+        ...state,
+        linkedinLoading: false,
+        linkedinData: action.payload,
+      };
+
+    case LINKEDIN_CAMPAIGNS_FAILURE:
+      return {
+        ...state,
+        linkedinLoading: false,
+        linkedinError: action.payload,
+      };
+
+    // �📋 Campaign List
     case CAMPAIGN_LIST_REQUEST:
       return { ...state, campaignLoading: true, campaignError: null };
     case CAMPAIGN_LIST_SUCCESS:

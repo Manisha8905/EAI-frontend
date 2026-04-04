@@ -28,6 +28,9 @@ import {
   EMAIL_CAMPAIGNS_REQUEST,
   EMAIL_CAMPAIGNS_SUCCESS,
   EMAIL_CAMPAIGNS_FAILURE,
+  LINKEDIN_CAMPAIGNS_REQUEST,
+  LINKEDIN_CAMPAIGNS_SUCCESS,
+  LINKEDIN_CAMPAIGNS_FAILURE,
   CAMPAIGN_LIST_REQUEST,
   CAMPAIGN_LIST_SUCCESS,
   CAMPAIGN_LIST_FAILURE,
@@ -348,7 +351,32 @@ export const fetchEmailCampaigns = (filter = "this_year") => async (dispatch) =>
   }
 };
 
-// 📋 Campaign List
+// � LinkedIn Campaigns Metrics
+// filter: "this_year" | "this_quarter" | "this_month" | "this_week" | "today"
+export const fetchLinkedinCampaigns = (filter = "this_year") => async (dispatch) => {
+  dispatch({ type: LINKEDIN_CAMPAIGNS_REQUEST });
+
+  try {
+    const response = await axiosInstance.get(`/api/admin/linkedin/metrics`, {
+      data: { filter },
+      headers: { "Content-Type": "application/json" }
+    });
+
+    dispatch({
+      type: LINKEDIN_CAMPAIGNS_SUCCESS,
+      payload: response.data,
+    });
+  } catch (error) {
+    dispatch({
+      type: LINKEDIN_CAMPAIGNS_FAILURE,
+      payload: error.response?.data?.message || "Failed to fetch LinkedIn campaigns",
+    });
+
+    toast.error(error.response?.data?.message || "Failed to fetch LinkedIn campaigns");
+  }
+};
+
+// �📋 Campaign List
 // params: { page, page_size, status, communication_type }  — all optional
 export const listCampaigns = (params = {}) => async (dispatch) => {
   dispatch({ type: CAMPAIGN_LIST_REQUEST });
@@ -772,11 +800,13 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
 
 // 💼 LinkedIn History  —  GET /api/admin/linkedin/conversations?campaign_id=<id>
 export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
+  console.log('fetchLinkedinHistory called with campaignId:', campaignId);
   dispatch({ type: LINKEDIN_HISTORY_REQUEST });
   try {
     const res = await axiosInstance.get("/api/admin/linkedin/conversations", {
       params: { campaign_id: campaignId },
     });
+    console.log('LinkedIn API response:', res);
     const raw = extractArray(res.data);
     const normalized = raw.map((r) => ({
       name:               r.lead_name           ?? r.name              ?? r.contact_name  ?? "—",
@@ -792,6 +822,7 @@ export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
     dispatch({ type: LINKEDIN_HISTORY_SUCCESS, payload: normalized });
     toast.success(`LinkedIn history loaded (${normalized.length} records)`);
   } catch (err) {
+    console.error('LinkedIn API error:', err.response);
     dispatch({ type: LINKEDIN_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load LinkedIn history." });
     toast.error(err?.response?.data?.message || "Failed to load LinkedIn history.");
   }
