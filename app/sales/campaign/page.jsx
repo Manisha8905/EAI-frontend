@@ -199,7 +199,13 @@ export default function CampaignPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
-  const [previewCompletedCampaignIds, setPreviewCompletedCampaignIds] = useState(new Set());
+  const [previewCompletedCampaignIds, setPreviewCompletedCampaignIds] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("previewCompletedCampaignIds");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    }
+    return new Set();
+  });
 
   /* ── Detail + tab state ── */
   const [selectedCampaign, setSelectedCampaign] = useState(null);
@@ -872,6 +878,11 @@ export default function CampaignPage() {
     const nextQuery = nextParams.toString();
     router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
   }, [searchParams, router, pathname]);
+
+  // Persist preview completed campaign IDs to sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem("previewCompletedCampaignIds", JSON.stringify(Array.from(previewCompletedCampaignIds)));
+  }, [previewCompletedCampaignIds]);
 
   /* ── Fetch history data when a campaign activity tab is opened ── */
   useEffect(() => {
