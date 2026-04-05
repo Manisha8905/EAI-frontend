@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, RefreshCw, Save, Users } from "lucide-react";
+import { ArrowLeft, CheckCircle2, RefreshCw, Send, Users, X } from "lucide-react";
 import { toast } from "react-toastify";
 import axiosInstance from "../../../Redux/axiosInstance";
 
 const toRows = (payload) => {
   if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.email_drafts)) return payload.email_drafts;
+  if (Array.isArray(payload?.emailDrafts)) return payload.emailDrafts;
+  if (Array.isArray(payload?.drafts)) return payload.drafts;
   if (Array.isArray(payload?.leads)) return payload.leads;
   if (Array.isArray(payload?.items)) return payload.items;
   if (Array.isArray(payload?.data)) return payload.data;
@@ -18,42 +21,134 @@ const toRows = (payload) => {
 const resolveLeadId = (lead) => {
   const leadData = lead?.lead_data ?? {};
   return (
+    lead?.list_lead_id ??
     lead?.lead_id ??
     lead?.id ??
-    lead?.list_lead_id ??
     lead?._id ??
     leadData?.lead_id ??
+    leadData?.list_lead_id ??
     leadData?.id ??
     lead?.leadId ??
+    lead?.lead?.lead_id ??
+    lead?.lead?.id ??
+    lead?.lead?.list_lead_id ??
     null
   );
+};
+
+const getPreviewText = (lead) => {
+  const leadData = lead?.lead_data ?? {};
+  const draft = lead?.email_draft ?? lead?.draft ?? {};
+
+  const subject =
+    lead?.subject ??
+    lead?.email_subject ??
+    draft?.subject ??
+    draft?.email_subject ??
+    leadData?.subject ??
+    "";
+
+  const body =
+    lead?.body ??
+    lead?.email_body ??
+    lead?.body_html ??
+    lead?.draft_body ??
+    draft?.body ??
+    draft?.email_body ??
+    draft?.body_html ??
+    draft?.content ??
+    leadData?.body ??
+    leadData?.email_body ??
+    leadData?.body_html ??
+    "";
+
+  const bodyHtml =
+    lead?.body_html ??
+    lead?.html_body ??
+    draft?.body_html ??
+    draft?.html_body ??
+    leadData?.body_html ??
+    leadData?.html_body ??
+    "";
+
+  return {
+    subject: String(subject || "No subject"),
+    body: String(body || "No email preview available."),
+    bodyHtml: String(bodyHtml || ""),
+  };
+};
+
+const stripHtml = (value) => {
+  if (!value) return "";
+  return String(value)
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\n\s*\n\s*\n+/g, "\n\n")
+    .trim();
 };
 
 const normalizeLead = (lead) => {
   const leadData = lead?.lead_data ?? {};
   const id = resolveLeadId(lead);
+  const preview = getPreviewText(lead);
+
   return {
     id: id == null ? null : String(id),
-    name: String(lead?.name ?? lead?.lead_name ?? leadData?.name ?? leadData?.lead_name ?? "—"),
-    email: String(lead?.email_address ?? lead?.email ?? leadData?.email_address ?? leadData?.email ?? "—"),
+    name: String(lead?.name ?? lead?.lead_name ?? leadData?.name ?? leadData?.lead_name ?? lead?.lead?.name ?? "—"),
+    email: String(lead?.email_address ?? lead?.email ?? leadData?.email_address ?? lead?.lead?.email_address ?? "—"),
+    toEmail: String(lead?.to_email ?? leadData?.to_email ?? lead?.recipient_email ?? leadData?.recipient_email ?? "—"),
     company: String(lead?.company ?? leadData?.company ?? lead?.company_name ?? leadData?.company_name ?? "—"),
     phone: String(lead?.contact_number ?? lead?.phone ?? leadData?.contact_number ?? leadData?.phone ?? "—"),
+    previewSubject: preview.subject,
+    previewBody: preview.body,
+    previewBodyHtml: preview.bodyHtml,
   };
 };
 
-const postSelection = async (campaignId, selectedLeadIds) => {
-  const payload = { lead_ids: selectedLeadIds };
+const fetchPreviewLeads = async (campaignId) => {
   const candidates = [
-    `/campaigns/${campaignId}/leads/preview-selection`,
-    `/campaigns/${campaignId}/preview-selection`,
-    `/campaigns/${campaignId}/leads/select`,
+    `/api/campaigns/${campaignId}/email-drafts`,
+    `/campaigns/${campaignId}/email-drafts`,
+    `/campaigns/${campaignId}/leads/review`,
   ];
 
   let lastError = null;
   for (const url of candidates) {
     try {
-      await axiosInstance.post(url, payload);
-      return;
+      const res = await axiosInstance.get(url);
+      return toRows(res.data);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError;
+};
+
+const approveEmailDrafts = async (campaignId, selectedLeadIds, totalLeadCount) => {
+  const isAllSelected = totalLeadCount > 0 && selectedLeadIds.length === totalLeadCount;
+  const payload = {
+    lead_ids: isAllSelected ? [] : selectedLeadIds,
+    approve_all: isAllSelected,
+  };
+
+  const candidates = [
+    `/api/campaigns/${campaignId}/email-drafts/approve`,
+    `/campaigns/${campaignId}/email-drafts/approve`,
+  ];
+
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      const res = await axiosInstance.post(url, payload);
+      return res?.data ?? {};
     } catch (err) {
       lastError = err;
     }
@@ -70,9 +165,12 @@ export default function CampaignPreviewPage() {
   const channel = String(searchParams.get("channel") ?? "EMAIL").toUpperCase();
 
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [Sending, setSending] = useState(false);
   const [leads, setLeads] = useState([]);
   const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
+  const [activePreviewLead, setActivePreviewLead] = useState(null);
+  const [previewApproved, setPreviewApproved] = useState(false);
+  const [previewTab, setPreviewTab] = useState("content");
 
   const validLeads = useMemo(() => leads.filter((l) => !!l.id), [leads]);
   const allSelected = validLeads.length > 0 && validLeads.every((l) => selectedLeadIds.has(l.id));
@@ -83,6 +181,9 @@ export default function CampaignPreviewPage() {
     if (channel === "CALL" || channel === "EMAIL") {
       nextParams.set("tab", channel.toLowerCase());
     }
+    if (previewApproved && campaignId) {
+      nextParams.set("previewSavedCampaign", String(campaignId));
+    }
     const nextQuery = nextParams.toString();
     router.push(nextQuery ? `/sales/campaign?${nextQuery}` : "/sales/campaign");
   };
@@ -91,10 +192,11 @@ export default function CampaignPreviewPage() {
     if (!campaignId) return;
 
     setLoading(true);
-    axiosInstance
-      .get(`/campaigns/${campaignId}/leads/review`)
+    fetchPreviewLeads(campaignId)
       .then((res) => {
-        const rows = toRows(res.data).map(normalizeLead).filter((lead) => !!lead.id);
+        const rows = (Array.isArray(res) ? res : [])
+          .map(normalizeLead)
+          .filter((lead) => !!lead.id);
         setLeads(rows);
       })
       .catch(() => {
@@ -131,24 +233,64 @@ export default function CampaignPreviewPage() {
       return;
     }
 
-    setSaving(true);
+    setSending(true);
     try {
-      await postSelection(campaignId, selected);
-      toast.success("Preview leads saved.");
-      const nextParams = new URLSearchParams();
-      nextParams.set("campaign", String(campaignId));
-      nextParams.set("tab", (channel === "CALL" ? "call" : "email"));
-      nextParams.set("previewSavedCampaign", String(campaignId));
-      router.push(`/sales/campaign?${nextParams.toString()}`);
+      const result = await approveEmailDrafts(campaignId, selected, validLeads.length);
+      const approved = Number(result?.approved ?? 0);
+      const sent = Number(result?.sent ?? 0);
+      const failed = Number(result?.failed ?? 0);
+
+      if (failed > 0) {
+        toast.warn(`Approved: ${approved}, Sent: ${sent}, Failed: ${failed}`);
+      } else {
+        toast.success(`Approved: ${approved}, Sent: ${sent}, Failed: ${failed}`);
+      }
+
+      if (approved > 0 || sent > 0) {
+        setPreviewApproved(true);
+      }
+
+      // Stay on preview page after send. User can use Back button to return.
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to save selected leads.");
     } finally {
-      setSaving(false);
+      setSending(false);
     }
   };
 
+  const openPreviewModal = (lead) => {
+    setActivePreviewLead(lead);
+  };
+
+  const closePreviewModal = () => {
+    setActivePreviewLead(null);
+  };
+
+  // Close modal on ESC key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && activePreviewLead) {
+        closePreviewModal();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [activePreviewLead]);
+
+  const plainContent = useMemo(() => {
+    if (!activePreviewLead) return "";
+    const fromHtml = stripHtml(activePreviewLead.previewBodyHtml);
+    if (fromHtml) return fromHtml;
+    return stripHtml(activePreviewLead.previewBody || "");
+  }, [activePreviewLead]);
+
+  const htmlPreview = useMemo(() => {
+    if (!activePreviewLead) return "";
+    return activePreviewLead.previewBodyHtml || activePreviewLead.previewBody || "";
+  }, [activePreviewLead]);
+
   return (
-    <main className="min-h-screen bg-[#f4f5f7] p-4 md:p-6">
+    <main className={`min-h-screen bg-[#f4f5f7] p-4 md:p-6 transition-all duration-300 ${activePreviewLead ? "" : ""}`}>
       <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
         <button
           type="button"
@@ -160,12 +302,12 @@ export default function CampaignPreviewPage() {
 
         <button
           type="button"
-          disabled={saving || selectedLeadIds.size === 0}
+          disabled={Sending || selectedLeadIds.size === 0}
           onClick={handleSave}
           className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[13px] font-[700] text-white hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {saving ? "Saving..." : `Save (${selectedLeadIds.size})`}
+          {Sending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {Sending ? "Sending..." : `Send (${selectedLeadIds.size})`}
         </button>
       </div>
 
@@ -206,7 +348,7 @@ export default function CampaignPreviewPage() {
             <table className="w-full text-left" style={{ minWidth: "760px" }}>
               <thead>
                 <tr className="bg-[#1e293b]">
-                  {["Select", "Lead Name", "Email", "Company", "Phone"].map((h) => (
+                  {["Select", "Lead Name", "From Email", "Company", "Subject", ""].map((h) => (
                     <th
                       key={h}
                       className="px-3 py-3 text-[11px] font-[600] uppercase tracking-wide text-white"
@@ -233,9 +375,24 @@ export default function CampaignPreviewPage() {
                         />
                       </td>
                       <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">{lead.name}</td>
-                      <td className="px-3 py-3 text-[12px] text-gray-700">{lead.email}</td>
+                      <td className="px-3 py-3 text-[12px] text-gray-700">{lead.toEmail}</td>
                       <td className="px-3 py-3 text-[12px] text-gray-700">{lead.company}</td>
-                      <td className="px-3 py-3 text-[12px] text-gray-700">{lead.phone}</td>
+                      <td className="px-3 py-3 text-[12px] text-gray-700 max-w-[250px]">
+                        <p className="truncate" title={lead.previewSubject}>{lead.previewSubject}</p>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => openPreviewModal(lead)}
+                          className="inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50 transition duration-200 text-gray-600 hover:text-blue-600"
+                          title="Preview email content"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -244,6 +401,60 @@ export default function CampaignPreviewPage() {
           </div>
         )}
       </div>
+
+      {activePreviewLead ? (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          onClick={closePreviewModal}
+          role="dialog"
+          aria-label="Email preview modal"
+        >
+          <div 
+            className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200 px-6 py-5 flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-[18px] font-[700] text-gray-900">Email Preview</h2>
+                <div className="mt-3 space-y-1">
+                  <p className="text-[13px] text-gray-600">
+                    <span className="font-[600] text-gray-800">From:</span> {activePreviewLead.name}
+                  </p>
+                  <p className="text-[13px] text-gray-600 mt-2 pb-1 border-t border-gray-200 pt-2">
+                    <span className="font-[600] text-gray-800">Subject:</span>
+                  </p>
+                  <p className="text-[14px] font-[600] text-gray-900 bg-blue-50/50 rounded-lg px-3 py-2 border border-blue-100">
+                    {activePreviewLead.previewSubject}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  type="button"
+                  onClick={closePreviewModal}
+                  className="flex-shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-300 hover:text-gray-800 transition duration-200"
+                  title="Close (or press ESC)"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                {/* <span className="text-[10px] text-gray-400 px-2">Press ESC to close</span> */}
+              </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <div className="text-[14px] leading-7 text-gray-800 whitespace-pre-wrap break-words font-[400]">
+                  {plainContent || (
+                    <span className="text-gray-400 italic">No text content available.</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

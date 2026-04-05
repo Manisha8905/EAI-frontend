@@ -6393,66 +6393,85 @@ export default function CampaignPage() {
                       return (
                         <>
                           {c.status === "ACTIVE" ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTogglingId(c.id);
-                                dispatch(
-                                  pauseCampaign(c.id, () => {
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTogglingId(c.id);
+                                  dispatch(
+                                    pauseCampaign(c.id, () => {
+                                      setTogglingId(null);
+                                      setPreviewCompletedCampaignIds((prev) => {
+                                        const next = new Set(prev);
+                                        next.delete(String(c.id));
+                                        return next;
+                                      });
+                                    }),
+                                  );
+                                }}
+                                disabled={togglingId === c.id}
+                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                              >
+                                {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
+                                {togglingId === c.id ? "..." : "Pause"}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (hasCompletedPreview) {
+                                    openCampaignDetails(c, previewChannel);
+                                    return;
+                                  }
+                                  openCampaignPreview(c.id, previewChannel);
+                                }}
+                                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[12px] font-[600] text-white shadow-sm transition ${
+                                  hasCompletedPreview
+                                    ? "bg-gray-900 hover:bg-gray-800"
+                                    : "bg-blue-600 hover:bg-blue-700"
+                                }`}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                {hasCompletedPreview ? "View Details" : "Preview"}
+                              </button>
+                            </>
+                          ) : c.status !== "COMPLETED" ? (
+                            <>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTogglingId(c.id);
+                                  const afterActivate = () => {
                                     setTogglingId(null);
                                     setPreviewCompletedCampaignIds((prev) => {
                                       const next = new Set(prev);
                                       next.delete(String(c.id));
                                       return next;
                                     });
-                                  }),
-                                );
-                              }}
-                              disabled={togglingId === c.id}
-                              className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
-                            >
-                              {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
-                              {togglingId === c.id ? "..." : "Pause"}
-                            </button>
-                          ) : c.status !== "COMPLETED" ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTogglingId(c.id);
-                                const afterActivate = () => {
-                                  setTogglingId(null);
-                                  setPreviewCompletedCampaignIds((prev) => {
-                                    const next = new Set(prev);
-                                    next.delete(String(c.id));
-                                    return next;
-                                  });
-                                };
-                                if (c.status === "PAUSED") {
-                                  dispatch(resumeCampaign(c.id, afterActivate));
-                                } else {
-                                  dispatch(toggleActivateCampaign(c.id, c.status, afterActivate));
-                                }
-                              }}
-                              disabled={togglingId === c.id}
-                              className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
-                            >
-                              {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                              {togglingId === c.id ? "..." : "Activate"}
-                            </button>
-                          ) : null}
-
-                          {c.status === "ACTIVE" && !hasCompletedPreview ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openCampaignPreview(c.id, previewChannel);
-                              }}
-                              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-[12px] font-[600] text-white hover:bg-blue-700 shadow-sm transition"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              Preview
-                            </button>
-                          ) : hasCompletedPreview || c.status === "COMPLETED" ? (
+                                  };
+                                  if (c.status === "PAUSED") {
+                                    dispatch(resumeCampaign(c.id, afterActivate));
+                                  } else {
+                                    dispatch(toggleActivateCampaign(c.id, c.status, afterActivate));
+                                  }
+                                }}
+                                disabled={togglingId === c.id}
+                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
+                              >
+                                {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                                {togglingId === c.id ? "..." : c.status === "PAUSED" ? "Resume" : "Activate"}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openCampaignDetails(c, previewChannel);
+                                }}
+                                className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                View Details
+                              </button>
+                            </>
+                          ) : (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -6461,9 +6480,9 @@ export default function CampaignPage() {
                               className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
                             >
                               <Eye className="h-3.5 w-3.5" />
-                              View Activity
+                              View Details
                             </button>
-                          ) : null}
+                          )}
                         </>
                       );
                     })()}
