@@ -178,9 +178,6 @@ export default function CampaignPreviewPage() {
   const goBackToCampaign = () => {
     const nextParams = new URLSearchParams();
     if (campaignId) nextParams.set("campaign", String(campaignId));
-    if (channel === "CALL" || channel === "EMAIL") {
-      nextParams.set("tab", channel.toLowerCase());
-    }
     if (previewApproved && campaignId) {
       nextParams.set("previewSavedCampaign", String(campaignId));
     }

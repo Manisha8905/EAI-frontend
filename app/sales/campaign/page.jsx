@@ -6180,11 +6180,11 @@ export default function CampaignPage() {
               key={c.id}
               role="button"
               tabIndex={0}
-              onClick={() => openCampaignDetails(c, channels[0]?.key || "CALL")}
+              onClick={() => openCampaignDetails(c, null)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  openCampaignDetails(c, channels[0]?.key || "CALL");
+                  openCampaignDetails(c, null);
                 }
               }}
               className="group bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-gray-300/80 transition-all duration-200 overflow-hidden cursor-pointer"
@@ -6390,7 +6390,7 @@ export default function CampaignPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openCampaignDetails(c, channels[0]?.key || "CALL");
+                                openCampaignDetails(c, null);
                               }}
                               className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
                             >
@@ -6474,7 +6474,7 @@ export default function CampaignPage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openCampaignDetails(c, previewChannel);
+                                  openCampaignDetails(c, null);
                                 }}
                                 className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
                               >
@@ -6486,7 +6486,7 @@ export default function CampaignPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openCampaignDetails(c, previewChannel);
+                                openCampaignDetails(c, null);
                               }}
                               className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
                             >
