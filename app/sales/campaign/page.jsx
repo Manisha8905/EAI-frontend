@@ -636,12 +636,13 @@ export default function CampaignPage() {
         }),
       );
     } else {
-      await dispatch(
+      const createResult = await dispatch(
         createCampaign(payload, form.agent_id || undefined, () => {
           setShowCreate(false);
           setForm(blankForm);
         }),
       );
+      if (!createResult?.success) return;
     }
     } catch (err) {
       console.error("[handleCreate] unexpected error:", err);
@@ -745,7 +746,7 @@ export default function CampaignPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, commFilter, page]);
 
-  /* ── Fetch lead lists, email templates & agents when create form opens ── */
+  // After successful create, poll list briefly so async lead generation updates card counts.
   useEffect(() => {
     if (!showCreate) return;
     // Fetch agents from backend so we always use real agent_id
@@ -6178,16 +6179,7 @@ export default function CampaignPage() {
             return (
             <div
               key={c.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => openCampaignDetails(c, null)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openCampaignDetails(c, null);
-                }
-              }}
-              className="group bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-gray-300/80 transition-all duration-200 overflow-hidden cursor-pointer"
+              className="group bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-gray-300/80 transition-all duration-200 overflow-hidden"
             >
               {/* ── Top accent bar ── */}
               <div className={`h-1 w-full ${

@@ -237,14 +237,13 @@ export default function CampaignPreviewPage() {
       const sent = Number(result?.sent ?? 0);
       const failed = Number(result?.failed ?? 0);
 
+      // Any successful approve request (2xx) should mark preview as completed.
+      setPreviewApproved(true);
+
       if (failed > 0) {
         toast.warn(`Approved: ${approved}, Sent: ${sent}, Failed: ${failed}`);
       } else {
         toast.success(`Approved: ${approved}, Sent: ${sent}, Failed: ${failed}`);
-      }
-
-      if (approved > 0 || sent > 0) {
-        setPreviewApproved(true);
       }
 
       // Stay on preview page after send. User can use Back button to return.
@@ -442,11 +441,20 @@ export default function CampaignPreviewPage() {
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <div className="text-[14px] leading-7 text-gray-800 whitespace-pre-wrap break-words font-[400]">
-                  {plainContent || (
-                    <span className="text-gray-400 italic">No text content available.</span>
-                  )}
-                </div>
+                {htmlPreview ? (
+                  <iframe
+                    srcDoc={htmlPreview}
+                    sandbox="allow-same-origin"
+                    title={`Email preview ${activePreviewLead.id}`}
+                    className="w-full h-[65vh] min-h-[480px] rounded-lg border border-slate-200"
+                  />
+                ) : (
+                  <div className="text-[14px] leading-7 text-gray-800 whitespace-pre-wrap break-words font-[400]">
+                    {plainContent || (
+                      <span className="text-gray-400 italic">No text content available.</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

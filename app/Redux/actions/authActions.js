@@ -34,6 +34,7 @@ import {
   CAMPAIGN_LIST_REQUEST,
   CAMPAIGN_LIST_SUCCESS,
   CAMPAIGN_LIST_FAILURE,
+  CAMPAIGN_PATCH_SUCCESS,
   ACTIVATE_CAMPAIGN_SUCCESS,
   CALL_HISTORY_REQUEST,
   CALL_HISTORY_SUCCESS,
@@ -494,17 +495,150 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
   }
 };
 
-// 📋 Create Campaign
+const toNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseChannelOrder = (campaign) => {
+  const raw = campaign?.channel_order;
+
+  if (Array.isArray(raw)) {
+    return raw
+      .map((value) => String(value ?? "").trim().toUpperCase())
+      .filter(Boolean);
+  }
+
+  if (raw && typeof raw === "object") {
+    return Object.keys(raw)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((key) => String(raw[key] ?? "").trim().toUpperCase())
+      .filter(Boolean);
+  }
+
+  if (typeof raw === "string" && raw.trim()) {
+    return raw
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter(Boolean);
+  }
+
+  const communicationType = String(campaign?.communication_type ?? "").trim().toUpperCase();
+  return communicationType ? [communicationType] : [];
+};
+
+const normalizeCampaign = (c) => ({
+  id:                c.campaign_id                  ?? c.id ?? Math.random(),
+  name:              c.campaign_name                ?? c.name ?? "—",
+  campaignType:      c.campaign_type                ?? "",
+  communicationType: c.communication_type           ?? "",
+  status:            c.status                       ?? "COMPLETED",
+  agentName:         c.agent_name                   ?? "—",
+  ownerEmail:        c.logged_in_user_email         ?? "",
+  startDate:         c.start_date                   ?? "",
+  createdAt:         c.created_at                   ?? "",
+  lastRun:           c.last_run_datetime            ?? "",
+  totalLeads:        toNumber(c.total_leads),
+  queued:            toNumber(c.queued),
+  called:            toNumber(c.called),
+  completed:         toNumber(c.completed),
+  failed:            toNumber(c.failed),
+  noAnswer:          toNumber(c.no_answer),
+  completionPct:     toNumber(c.completion_percentage),
+  emailsSent:        toNumber(c.emails_sent_count),
+  emailsFailed:      toNumber(c.emails_failed_count),
+  emailsPending:     toNumber(c.emails_pending_count),
+  meetings:          toNumber(c.meetings_scheduled_count),
+  linkedinSent:      toNumber(c.linkedin_sent_count),
+  linkedinFailed:    toNumber(c.linkedin_failed_count),
+  linkedinPending:   toNumber(c.linkedin_pending_count),
+  whatsappSent:      toNumber(c.whatsapp_sent_count),
+  whatsappFailed:    toNumber(c.whatsapp_failed_count),
+  whatsappPending:   toNumber(c.whatsapp_pending_count),
+  total_tasks_count: toNumber(c.total_tasks_count ?? c.total_tasks),
+  convRate:          toNumber(c.campaign_conversion_rate),
+  agentPerf:         toNumber(c.agent_performance_percentage),
+  fromName:          c.from_name                    ?? "",
+  fromEmail:         c.from_email                   ?? "",
+  isSmtp:            c.is_smtp                      ?? false,
+  isProcessing:      c.is_processing                ?? false,
+  parallelCalls:     toNumber(c.campaign_parallel_calls, 1),
+  listId:            c.list_id                      ?? null,
+  channelOrder:      parseChannelOrder(c),
+  channelSteps:      (c.channel_steps ?? []).map((s) => ({
+                     order:       s.step_order,
+                     channelType: (s.channel_type ?? "").toUpperCase(),
+                     status:      (s.status ?? "NOT_STARTED").toUpperCase(),
+                   })),
+});
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const patchCreatedCampaignUntilLeads = async (dispatch, campaignId) => {
+  const id = String(campaignId ?? "").trim();
+  if (!id) return;
+
+  const maxAttempts = 8;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const detail = await axiosInstance.get(`/get-campaigns/${id}`);
+      const normalized = normalizeCampaign(detail?.data ?? {});
+      dispatch({ type: CAMPAIGN_PATCH_SUCCESS, payload: normalized });
+
+      const leadCount = Number(detail?.data?.total_leads ?? 0);
+      if (leadCount > 0) break;
+    } catch (_err) {
+      // Retry until max attempts is reached.
+    }
+
+    if (attempt < maxAttempts - 1) {
+      await wait(2000);
+    }
+  }
+};
+
+// � Poll campaign detail after activation to pick up async lead count changes
+const patchCampaignAfterActivation = async (dispatch, campaignId) => {
+  const id = String(campaignId ?? "").trim();
+  if (!id) return;
+
+  const maxAttempts = 5;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const detail = await axiosInstance.get(`/get-campaigns/${id}`);
+      const normalized = normalizeCampaign(detail?.data ?? {});
+      dispatch({ type: CAMPAIGN_PATCH_SUCCESS, payload: normalized });
+    } catch (_err) {
+      // Retry silently
+    }
+    if (attempt < maxAttempts - 1) {
+      await wait(2000);
+    }
+  }
+};
+
+// �📋 Create Campaign
 export const createCampaign = (formData, agent_id, onSuccess) => async (dispatch) => {
   try {
     const headers = {};
     if (agent_id) headers["X-Agent-ID"] = agent_id;
     const res = await axiosInstance.post("/create-campaign", formData, { headers });
+    const createdCampaignId =
+      res?.data?.campaign_id ??
+      res?.data?.id ??
+      res?.data?.data?.campaign_id ??
+      res?.data?.data?.id ??
+      null;
     toast.success(res?.data?.message ?? "Campaign created successfully!");
     dispatch(listCampaigns({ page: 1, page_size: 20 }));
-    if (onSuccess) onSuccess();
+    if (createdCampaignId) {
+      patchCreatedCampaignUntilLeads(dispatch, createdCampaignId);
+    }
+    if (onSuccess) onSuccess(res?.data);
+    return { success: true, campaignId: createdCampaignId, data: res?.data };
   } catch (err) {
     toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to create campaign.");
+    return { success: false, error: err };
   }
 };
 
@@ -515,6 +649,7 @@ export const toggleActivateCampaign = (campaignId, currentStatus, onDone) => asy
     toast.success(res?.data?.message ?? "Campaign activated!");
     dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "ACTIVE" } });
     if (onDone) onDone();
+    patchCampaignAfterActivation(dispatch, campaignId);
   } catch (err) {
     toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to activate campaign.");
   }
@@ -539,6 +674,7 @@ export const resumeCampaign = (campaignId, onDone) => async (dispatch) => {
     toast.success(res?.data?.message ?? "Campaign resumed!");
     dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "ACTIVE" } });
     if (onDone) onDone();
+    patchCampaignAfterActivation(dispatch, campaignId);
   } catch (err) {
     toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to resume campaign.");
   }

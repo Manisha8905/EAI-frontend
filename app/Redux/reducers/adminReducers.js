@@ -38,6 +38,7 @@ import {
   CAMPAIGN_LIST_REQUEST,
   CAMPAIGN_LIST_SUCCESS,
   CAMPAIGN_LIST_FAILURE,
+  CAMPAIGN_PATCH_SUCCESS,
 
   CALL_HISTORY_REQUEST,
   CALL_HISTORY_SUCCESS,
@@ -295,6 +296,30 @@ const adminReducers = (state = initialState, action) => {
       };
     case CAMPAIGN_LIST_FAILURE:
       return { ...state, campaignLoading: false, campaignError: action.payload };
+    case CAMPAIGN_PATCH_SUCCESS: {
+      const incoming = action.payload;
+      const incomingId = String(incoming?.id ?? "");
+      const existingIndex = state.campaigns.findIndex((c) => String(c.id) === incomingId);
+
+      if (existingIndex === -1) {
+        return {
+          ...state,
+          campaigns: [incoming, ...state.campaigns],
+          campaignTotal: (state.campaignTotal ?? 0) + 1,
+        };
+      }
+
+      const nextCampaigns = [...state.campaigns];
+      nextCampaigns[existingIndex] = {
+        ...nextCampaigns[existingIndex],
+        ...incoming,
+      };
+
+      return {
+        ...state,
+        campaigns: nextCampaigns,
+      };
+    }
 
     // ▶️ Optimistic status patch after activate/deactivate
     case "ACTIVATE_CAMPAIGN_SUCCESS":
