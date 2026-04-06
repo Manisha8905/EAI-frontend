@@ -855,8 +855,88 @@ export default function ModuleDashboard({
     ? emailData.email_performance_by_month.map((item) => ({ x: shortMonth(item.month), v: item.email_count }))
     : null;
 
-  // EM chart 2: email outcomes (not in current API — placeholder)
-  const emailOutcomes = emailData?.email_outcomes_distribution ?? null;
+  // EM chart 2: email outcomes (mapped for pie chart)
+  const pickCount = (...values) => {
+    for (const value of values) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return 0;
+  };
+
+  const emailOutcomesApi = emailData?.email_outcomes ?? emailData?.[" "] ?? null;
+
+  const cardTotalLeads = pickCount(
+    emailOutcomesApi?.total_leads,
+    emailSm?.total_leads,
+    emailData?.total_leads,
+    emailSm?.leads_targeted_total,
+    emailData?.leads_targeted_total,
+    emailSm?.unique_recipients,
+    emailData?.unique_recipients,
+    emailTotalLeads,
+  );
+
+  const cardSent = pickCount(
+    emailOutcomesApi?.delivered,
+    emailSm?.emails_sent_total,
+    emailSm?.emails_sent,
+    emailData?.emails_sent_total,
+    emailData?.total_sent,
+    emailSentTotal,
+  );
+
+  const cardSkipped = pickCount(
+    emailOutcomesApi?.skipped,
+    emailSm?.emails_skipped_total,
+    emailSm?.skipped_total,
+    emailSm?.emails_skipped,
+    emailData?.emails_skipped_total,
+    emailData?.skipped_total,
+    emailData?.emails_skipped,
+    emailData?.skipped,
+  );
+
+  const cardFailed = pickCount(
+    emailOutcomesApi?.failed,
+    emailSm?.emails_failed_total,
+    emailSm?.failed_total,
+    emailSm?.emails_failed,
+    emailData?.emails_failed_total,
+    emailData?.failed_total,
+    emailData?.emails_failed,
+    emailData?.failed,
+  );
+
+  const cardReplies = pickCount(
+    emailOutcomesApi?.leads_engaged,
+    emailSm?.leads_engaged_total,
+    emailSm?.engaged_leads_total,
+    emailSm?.responses_received_total,
+    emailData?.leads_engaged_total,
+    emailData?.engaged_leads_total,
+    emailData?.responses_received_total,
+    emailData?.total_replied,
+    emailData?.total_replies,
+  );
+
+  const mappedEmailOutcomes = [
+    { name: "Total Leads", value: cardTotalLeads, fill: "#6366f1" },
+    { name: "Delivered", value: cardSent, fill: "#1d4ed8" },
+    { name: "Skipped", value: cardSkipped, fill: "#93c5fd" },
+    { name: "Failed", value: cardFailed, fill: "#3b82f6" },
+    { name: "Leads Engaged", value: cardReplies, fill: "#16a34a" },
+  ];
+
+  const emailOutcomesTotal = mappedEmailOutcomes.reduce((sum, item) => sum + item.value, 0);
+  const emailOutcomes = emailOutcomesTotal > 0
+    ? mappedEmailOutcomes.map((item) => ({
+        name: item.name,
+        call_count: item.value,
+        percentage: Number(((item.value / emailOutcomesTotal) * 100).toFixed(2)),
+        fill: item.fill,
+      }))
+    : null;
 
   // EM chart 3: meetings — compare total leads vs meetings per campaign
   const emailMeetingCampaign = (emailData?.meeting_schedule_by_emails ?? emailData?.meeting_schedule_by_campaign)
@@ -1468,7 +1548,7 @@ export default function ModuleDashboard({
             badge={emailOutcomes ? `${emailOutcomes.reduce((s, d) => s + (d.call_count ?? d.count ?? 0), 0)} emails` : undefined}
           >
             {emailOutcomes ? (
-              <OutcomesPieChart data={emailOutcomes.map((e) => ({ ...e, call_count: e.call_count ?? e.count ?? 0 }))} />
+              <OutcomesPieChart data={emailOutcomes} />
             ) : (
               <div className="h-[200px] flex items-center justify-center text-[13px] text-gray-400">No outcomes data</div>
             )}
