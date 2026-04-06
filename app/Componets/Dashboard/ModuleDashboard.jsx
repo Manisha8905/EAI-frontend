@@ -328,8 +328,25 @@ function KpiCard({ gradient, shadow, icon: Icon, trend, title, today, week, mont
 const OUTCOME_COLORS = ["#ef4444", "#f97316", "#3b82f6", "#22c55e", "#9ca3af"];
 
 /* ─── Multi-slice outcomes pie (side legend) ────────────────────── */
-function OutcomesPieChart({ data }) {
-  const total = data.reduce((s, d) => s + d.call_count, 0);
+function OutcomesPieChart({ data, totalOverride = null }) {
+  const totalLeadsEntry = data.find((entry) => entry.name === "Total Leads");
+  const chartData = data;
+  const computedTotal = chartData.reduce((sum, entry) => sum + Number(entry.call_count ?? 0), 0);
+  const rawTotal = Number(totalOverride);
+  const totalLeadsValue = Number(totalLeadsEntry?.call_count);
+  const total = Number.isFinite(totalLeadsValue) && totalLeadsValue > 0
+    ? totalLeadsValue
+    : (Number.isFinite(rawTotal) && rawTotal > 0 ? rawTotal : computedTotal);
+  const chartDataWithPct = chartData.map((entry) => {
+    const count = Number(entry.call_count ?? 0);
+    const pct = total > 0 ? Number(((count / total) * 100).toFixed(2)) : 0;
+    return {
+      ...entry,
+      call_count: count,
+      percentage: pct,
+    };
+  });
+  const outsideLegendData = chartDataWithPct.filter((entry) => entry.name !== "Total Leads");
   return (
     <div className="flex items-center gap-4 w-full">
       {/* Donut */}
@@ -337,7 +354,7 @@ function OutcomesPieChart({ data }) {
         <ResponsiveContainer width={170} height={170}>
           <PieChart>
             <Pie
-              data={data}
+              data={chartDataWithPct}
               cx="50%"
               cy="50%"
               innerRadius={48}
@@ -347,8 +364,8 @@ function OutcomesPieChart({ data }) {
               strokeWidth={0}
               stroke="none"
             >
-              {data.map((entry, index) => (
-                <Cell key={entry.name} fill={OUTCOME_COLORS[index % OUTCOME_COLORS.length]} stroke="none" />
+              {chartDataWithPct.map((entry, index) => (
+                <Cell key={entry.name} fill={entry.fill ?? OUTCOME_COLORS[index % OUTCOME_COLORS.length]} stroke="none" />
               ))}
             </Pie>
             <Tooltip
@@ -359,13 +376,15 @@ function OutcomesPieChart({ data }) {
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span className="text-[22px] font-extrabold text-gray-900 leading-none">{total}</span>
-          <span className="text-[9px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Total</span>
+          <span className="text-[9px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">
+            {totalLeadsEntry ? "Total Leads" : "Total"}
+          </span>
         </div>
       </div>
       {/* Legend rows */}
       <div className="flex-1 flex flex-col gap-2.5 min-w-0">
-        {data.map((entry, index) => {
-          const color = OUTCOME_COLORS[index % OUTCOME_COLORS.length];
+        {outsideLegendData.map((entry, index) => {
+          const color = entry.fill ?? OUTCOME_COLORS[index % OUTCOME_COLORS.length];
           return (
             <div key={entry.name}>
               <div className="flex items-center justify-between mb-1">
@@ -386,7 +405,7 @@ function OutcomesPieChart({ data }) {
               <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
                 <div
                   className="h-full rounded-full"
-                  style={{ width: `${entry.percentage}%`, backgroundColor: color, transition: "width 0.7s ease" }}
+                  style={{ width: `${Math.min(entry.percentage, 100)}%`, backgroundColor: color, transition: "width 0.7s ease" }}
                 />
               </div>
             </div>
@@ -929,11 +948,13 @@ export default function ModuleDashboard({
   ];
 
   const emailOutcomesTotal = mappedEmailOutcomes.reduce((sum, item) => sum + item.value, 0);
-  const emailOutcomes = emailOutcomesTotal > 0
+  const emailOutcomes = (cardTotalLeads > 0 || emailOutcomesTotal > 0)
     ? mappedEmailOutcomes.map((item) => ({
         name: item.name,
         call_count: item.value,
-        percentage: Number(((item.value / emailOutcomesTotal) * 100).toFixed(2)),
+        percentage: cardTotalLeads > 0
+          ? Number(((item.value / cardTotalLeads) * 100).toFixed(2))
+          : 0,
         fill: item.fill,
       }))
     : null;
@@ -1545,10 +1566,10 @@ export default function ModuleDashboard({
           <ChartCard
             title="Email Outcomes Distribution"
             subtitle="Breakdown of every email interaction result"
-            badge={emailOutcomes ? `${emailOutcomes.reduce((s, d) => s + (d.call_count ?? d.count ?? 0), 0)} emails` : undefined}
+            badge={cardTotalLeads > 0 ? `${cardTotalLeads} total leads` : undefined}
           >
             {emailOutcomes ? (
-              <OutcomesPieChart data={emailOutcomes} />
+              <OutcomesPieChart data={emailOutcomes} totalOverride={cardTotalLeads} />
             ) : (
               <div className="h-[200px] flex items-center justify-center text-[13px] text-gray-400">No outcomes data</div>
             )}
