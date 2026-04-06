@@ -148,20 +148,31 @@ const isPreviewEligibleCampaign = (campaign) => {
     : [];
   const commType = String(campaign?.communicationType ?? campaign?.communication_type ?? "").toUpperCase();
 
-  if (order.length === 1) {
-    return order[0] === "EMAIL";
+  if (commType) {
+    return commType === "EMAIL";
   }
-  if (order.length > 1) return false;
-  return commType === "EMAIL";
+
+  if (order.length > 0) {
+    return order.includes("EMAIL");
+  }
+
+  return false;
 };
 
 const getPreviewChannelKey = (campaign) => {
+  const commType = String(campaign?.communicationType ?? campaign?.communication_type ?? "").toUpperCase();
+  if (commType === "EMAIL") {
+    return "EMAIL";
+  }
+
   const order = Array.isArray(campaign?.channelOrder)
     ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
     : [];
-  if (order.length === 1 && order[0] === "EMAIL") {
-    return order[0];
+
+  if (order.includes("EMAIL")) {
+    return "EMAIL";
   }
+
   return "EMAIL";
 };
 

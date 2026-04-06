@@ -176,13 +176,7 @@ export default function CampaignPreviewPage() {
   const allSelected = validLeads.length > 0 && validLeads.every((l) => selectedLeadIds.has(l.id));
 
   const goBackToCampaign = () => {
-    const nextParams = new URLSearchParams();
-    if (campaignId) nextParams.set("campaign", String(campaignId));
-    if (previewApproved && campaignId) {
-      nextParams.set("previewSavedCampaign", String(campaignId));
-    }
-    const nextQuery = nextParams.toString();
-    router.push(nextQuery ? `/sales/campaign?${nextQuery}` : "/sales/campaign");
+    router.push("/sales/campaign");
   };
 
   useEffect(() => {

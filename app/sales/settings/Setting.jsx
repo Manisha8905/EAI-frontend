@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
+import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
 import { toast } from "react-toastify";
 import {
   Pencil,
@@ -39,6 +40,11 @@ import {
   MessageCircle,
   Linkedin,
 } from "lucide-react";
+
+const isAdminRole = (role) => {
+  const normalizedRole = String(role || "").toUpperCase().replace(/[\s_-]/g, "");
+  return normalizedRole === "ADMIN" || normalizedRole === "SUPERADMIN";
+};
 
 /* ═══════════════════════ SHARED INPUT ═══════════════════════ */
 function Field({
@@ -4301,8 +4307,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
 
-  const setField = (section, key) => (e) => {
-    const value = e?.target?.type === "checkbox" ? e.target.checked : e.target.value;
+  const setField = (section, key) => (input) => {
+    const value =
+      input?.target
+        ? (input.target.type === "checkbox" ? input.target.checked : input.target.value)
+        : input;
     setForms((prev) => ({
       ...prev,
       [section]: {
@@ -4649,16 +4658,16 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <SaveBtn section="groq" />
             </div>
             <Field label="Groq API Key" type="password" value={forms.groq.groq_api_key} onChange={setField("groq", "groq_api_key")} />
-            <SelectField
-              label="Email Deliverability"
-              value={forms.groq.email_deliverability_provider}
-              onChange={setField("groq", "email_deliverability_provider")}
-              options={[
-                { value: "",       label: "— Select —" },
-                { value: "enable", label: "Enable" },
-                { value: "disable", label: "Disable" },
-              ]}
-            />
+          </div>
+
+          <div className="">
+            {/* <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-emerald-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">Email Deliverability</h3>
+              </div>
+            </div> */}
+            <EmailDeliverabilitySettings />
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
@@ -4730,18 +4739,9 @@ export default function Setting() {
   const [userCanAccessGlobalSettings, setUserCanAccessGlobalSettings] = useState(false);
 
   useEffect(() => {
-    const normalizeRole = (role) =>
-      (role || "").toUpperCase().replace(/[\s_-]/g, "");
-    const isAdminRole = (role) => {
-      const r = normalizeRole(role);
-      return r === "ADMIN" || r === "SUPERADMIN";
-    };
-
-    if (typeof window !== "undefined") {
-      const userRole = localStorage.getItem("userRole");
-      const userRoleDisplay = localStorage.getItem("userRoleDisplay");
-      setUserCanAccessGlobalSettings(isAdminRole(userRole) || isAdminRole(userRoleDisplay));
-    }
+    if (typeof window === "undefined") return;
+    const storedRole = localStorage.getItem("userRole") || "";
+    setUserCanAccessGlobalSettings(isAdminRole(storedRole));
   }, []);
 
   // Fetch CRM OAuth status on mount — show toast if connected, silently mark disconnected
@@ -4911,7 +4911,7 @@ export default function Setting() {
     </div>
   );
 
-  const GearBtn = ({ page }) => (
+  const GearBtn = ({ page }) => ( 
     <button
       type="button"
       onClick={() => setActivePage(page)}
@@ -4963,7 +4963,7 @@ export default function Setting() {
         <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Connection & Integration</p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        {userCanAccessGlobalSettings && (
+        {/* {userCanAccessGlobalSettings && (
           <SettingCard
             icon={Settings}
             iconBg="bg-blue-50"
@@ -4972,7 +4972,7 @@ export default function Setting() {
             desc="Configure Twilio, ElevenLabs, LinkedIn scraping, Azure, Groq, TM solution and app config"
             action={<GearBtn page="global-integrations" />}
           />
-        )}
+        )} */}
         <SettingCard
           icon={Database} iconBg="bg-indigo-50" iconColor="text-indigo-600"
           title="Configure CRM" desc="Connect & authorise your CRM via OAuth2 credentials"
