@@ -325,6 +325,10 @@ export default function CampaignPage() {
   const [emailDeliverabilityLoading, setEmailDeliverabilityLoading] = useState(false);
 
   const updateCampaignRoute = (campaign, tabKey = null) => {
+    if (campaign && (campaign.id == null || String(campaign.id).trim() === "")) {
+      return;
+    }
+
     const nextParams = new URLSearchParams(searchParams.toString());
     if (campaign?.id != null) {
       nextParams.set("campaign", String(campaign.id));
@@ -340,7 +344,9 @@ export default function CampaignPage() {
     }
 
     const nextQuery = nextParams.toString();
-    router.push(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    const currentQuery = searchParams.toString();
+    if (nextQuery === currentQuery) return;
+    router.push(nextQuery ? `${pathname}?${nextQuery}` : pathname);
   };
 
   const openCampaignDetails = (campaign, tabKey = null) => {
@@ -374,6 +380,11 @@ export default function CampaignPage() {
     nextParams.set("channel", String(channelKey ?? "EMAIL").toUpperCase());
     router.push(`/sales/campaign/preview?${nextParams.toString()}`);
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.scrollTo(0, 0);
+  }, [page, activeTab, selectedCampaign?.id, searchParams]);
 
   const getDeliverabilityCounts = (payload) => {
     const pickNum = (...vals) => {
@@ -837,13 +848,17 @@ export default function CampaignPage() {
   }, [showCreate]);
 
   // Email fields are intentionally not pre-filled from localStorage so placeholder-only behavior is preserved.
+  // NOTE: selectedCampaign and activeTab are intentionally excluded from the dep array.
+  // Including them causes a race: openCampaignDetails sets state before router.push updates the URL,
+  // so the effect fires with the old URL (no `?campaign=`), hits the clear-branch, and causes a flash.
+  // The effect is URL-driven only — state is the output, not an input.
   useEffect(() => {
     const routeCampaignId = searchParams.get("campaign");
     const routeTab = normalizeActivityTab(searchParams.get("tab"));
 
     if (!routeCampaignId) {
-      if (selectedCampaign !== null) setSelectedCampaign(null);
-      if (activeTab !== null) setActiveTab(null);
+      setSelectedCampaign(null);
+      setActiveTab(null);
       return;
     }
 
@@ -856,13 +871,12 @@ export default function CampaignPage() {
     const allowedChannels = new Set(matchedCampaign.channelOrder ?? []);
     const safeRouteTab = routeTab === "ALL" || allowedChannels.has(routeTab) ? routeTab : null;
 
-    if (!selectedCampaign || String(selectedCampaign.id) !== String(matchedCampaign.id)) {
-      setSelectedCampaign(matchedCampaign);
-    }
-    if (activeTab !== safeRouteTab) {
-      setActiveTab(safeRouteTab);
-    }
-  }, [searchParams, campaigns, selectedCampaign, activeTab]);
+    setSelectedCampaign((prev) =>
+      !prev || String(prev.id) !== String(matchedCampaign.id) ? matchedCampaign : prev
+    );
+    setActiveTab((prev) => (prev !== safeRouteTab ? safeRouteTab : prev));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, campaigns]);
 
   useEffect(() => {
     const savedPreviewCampaignId = searchParams.get("previewSavedCampaign");
@@ -2601,6 +2615,23 @@ export default function CampaignPage() {
     if (status === "COMPLETED") return "bg-blue-500";
     return "bg-gray-400";
   };
+
+  const routeCampaignId = searchParams.get("campaign");
+  const isRouteCampaignLoading =
+    !!routeCampaignId &&
+    !selectedCampaign &&
+    loading;
+
+  if (isRouteCampaignLoading) {
+    return (
+      <main className="min-h-screen bg-[#f4f5f7] p-6">
+        <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+          <RefreshCw className="h-6 w-6 animate-spin text-violet-400" />
+          <p className="text-[13px] text-gray-400">Loading campaign details...</p>
+        </div>
+      </main>
+    );
+  }
 
   /* ── Campaign Activities routing ── */
   if (selectedCampaign) {
@@ -6162,7 +6193,7 @@ export default function CampaignPage() {
             ];
             const order = c.channelOrder ?? [];
             const channels = order.length > 0
-              ? allChannels.filter((ch) => order.includes(ch.key))
+              ? order.map((key) => allChannels.find((ch) => ch.key === key)).filter(Boolean)
               : allChannels;
             const selectedCampaignMatches = selectedCampaign?.id === c.id;
             const activeCampaignTab = selectedCampaignMatches ? activeTab : null;
@@ -6199,11 +6230,11 @@ export default function CampaignPage() {
                         <span className={`w-1.5 h-1.5 rounded-full ${statusDot(c.status)}`} />
                         {c.status}
                       </span>
-                      {c.campaignType && (
+                      {/* {c.campaignType && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-[10px] font-[600] text-gray-500 uppercase tracking-wide">
                           {c.campaignType}
                         </span>
-                      )}
+                      )} */}
                       {c.communicationType && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-[10px] font-[600] text-indigo-600 uppercase tracking-wide">
                           {c.communicationType}
