@@ -234,6 +234,11 @@ export default function CampaignPreviewPage() {
       // Any successful approve request (2xx) should mark preview as completed.
       setPreviewApproved(true);
 
+      // Remove sent rows from the table and clear selection
+      const sentSet = new Set(selected);
+      setLeads((prev) => prev.filter((l) => !sentSet.has(l.id)));
+      setSelectedLeadIds(new Set());
+
       if (failed > 0) {
         toast.warn(`Approved: ${approved}, Sent: ${sent}, Failed: ${failed}`);
       } else {

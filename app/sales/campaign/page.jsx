@@ -3647,7 +3647,7 @@ export default function CampaignPage() {
                 {[
                   {
                     label: "Total Calls",
-                    value: totalCalls || c.called,
+                    value: totalCalls || c.total_calls || 0,
                     sub: "all calls",
                     color: "text-blue-600",
                     ring: "ring-blue-200",
