@@ -478,6 +478,8 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
                            channelType: (s.channel_type ?? "").toUpperCase(),
                            status:      (s.status ?? "NOT_STARTED").toUpperCase(),
                          })),
+      preview:           c.preview          ?? false,
+      preview_mode:      c.preview_mode     ?? false,
     }));
 
     // store total count if API returns it (for pagination display)
@@ -570,6 +572,8 @@ const normalizeCampaign = (c) => ({
                      channelType: (s.channel_type ?? "").toUpperCase(),
                      status:      (s.status ?? "NOT_STARTED").toUpperCase(),
                    })),
+  preview:           c.preview          ?? false,
+  preview_mode:      c.preview_mode     ?? false,
 });
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -21,6 +21,7 @@ const toRows = (payload) => {
 const resolveLeadId = (lead) => {
   const leadData = lead?.lead_data ?? {};
   return (
+    lead?.draft_id ??
     lead?.list_lead_id ??
     lead?.lead_id ??
     lead?.id ??
@@ -101,16 +102,97 @@ const normalizeLead = (lead) => {
 
   return {
     id: id == null ? null : String(id),
-    name: String(lead?.name ?? lead?.lead_name ?? leadData?.name ?? leadData?.lead_name ?? lead?.lead?.name ?? "—"),
+    name: String(lead?.lead_name ?? lead?.name ?? leadData?.name ?? leadData?.lead_name ?? lead?.lead?.name ?? "—"),
     email: String(lead?.email_address ?? lead?.email ?? leadData?.email_address ?? lead?.lead?.email_address ?? "—"),
     toEmail: String(lead?.to_email ?? leadData?.to_email ?? lead?.recipient_email ?? leadData?.recipient_email ?? "—"),
-    company: String(lead?.company ?? leadData?.company ?? lead?.company_name ?? leadData?.company_name ?? "—"),
+    company: String(lead?.company_name ?? lead?.company ?? leadData?.company ?? leadData?.company_name ?? "—"),
     phone: String(lead?.contact_number ?? lead?.phone ?? leadData?.contact_number ?? leadData?.phone ?? "—"),
     previewSubject: preview.subject,
     previewBody: preview.body,
     previewBodyHtml: preview.bodyHtml,
+    availableOnSystem: lead?.available_on_system ?? null,
+    fetchedByAi: lead?.fetched_by_ai ?? null,
+    aiEngine: lead?.ai_engine ?? null,
   };
 };
+
+const fetchArchivedLeads = async (campaignId) => {
+  const candidates = [
+    `/api/campaigns/${campaignId}/leads/archived`,
+    `/campaigns/${campaignId}/leads/archived`,
+    `/api/campaigns/${campaignId}/archived-leads`,
+    `/campaigns/${campaignId}/archived-leads`,
+  ];
+
+  let lastError = null;
+  for (const url of candidates) {
+    try {
+      const res = await axiosInstance.get(url);
+      return toRows(res.data);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+};
+
+const normalizeArchiveLead = (item) => {
+  const leadData = item?.lead_data ?? {};
+  return {
+    id: String(
+      item?.list_lead_id ?? item?.lead_id ?? item?.id ?? item?._id ??
+      leadData?.lead_id ?? leadData?.id ?? Math.random()
+    ),
+    name: String(item?.name ?? item?.lead_name ?? leadData?.name ?? "—"),
+    email: String(item?.email_address ?? item?.email ?? leadData?.email_address ?? "—"),
+    company: String(item?.company ?? leadData?.company ?? item?.company_name ?? "—"),
+    archivedAt: String(item?.archived_at ?? item?.updated_at ?? item?.created_at ?? ""),
+    reason: String(item?.archive_reason ?? item?.reason ?? ""),
+  };
+};
+
+const MOCK_ARCHIVE_LEADS = [
+  {
+    id: "mock-1",
+    name: "Sarah Johnson",
+    email: "sarah.johnson@techcorp.io",
+    company: "TechCorp Solutions",
+    archivedAt: "2026-03-15T10:30:00Z",
+    reason: "Duplicate",
+  },
+  {
+    id: "mock-2",
+    name: "Michael Chen",
+    email: "m.chen@innovate.co",
+    company: "Innovate Co.",
+    archivedAt: "2026-03-18T14:20:00Z",
+    reason: "Not Interested",
+  },
+  {
+    id: "mock-3",
+    name: "Priya Nair",
+    email: "priya.nair@globalventures.com",
+    company: "Global Ventures",
+    archivedAt: "2026-03-22T09:15:00Z",
+    reason: "Unsubscribed",
+  },
+  {
+    id: "mock-4",
+    name: "James Whitfield",
+    email: "james.w@blueridge.net",
+    company: "Blue Ridge Inc.",
+    archivedAt: "2026-03-28T16:45:00Z",
+    reason: "",
+  },
+  {
+    id: "mock-5",
+    name: "Amina Osei",
+    email: "amina.osei@nexagroup.org",
+    company: "Nexa Group",
+    archivedAt: "2026-04-01T08:00:00Z",
+    reason: "Invalid Contact",
+  },
+];
 
 const fetchPreviewLeads = async (campaignId) => {
   const candidates = [
@@ -171,6 +253,14 @@ export default function CampaignPreviewPage() {
   const [activePreviewLead, setActivePreviewLead] = useState(null);
   const [previewApproved, setPreviewApproved] = useState(false);
   const [previewTab, setPreviewTab] = useState("content");
+  const [modalTab, setModalTab] = useState("preview");
+  const [archiveLeads, setArchiveLeads] = useState(MOCK_ARCHIVE_LEADS);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveFetched, setArchiveFetched] = useState(false);
+  const [enrichmentSubTab, setEnrichmentSubTab] = useState("system");
+  const [tabClickCount, setTabClickCount] = useState({});
+  const [reprocessPrompt, setReprocessPrompt] = useState("");
+  const [reprocessing, setReprocessing] = useState(false);
 
   const validLeads = useMemo(() => leads.filter((l) => !!l.id), [leads]);
   const allSelected = validLeads.length > 0 && validLeads.every((l) => selectedLeadIds.has(l.id));
@@ -255,11 +345,67 @@ export default function CampaignPreviewPage() {
 
   const openPreviewModal = (lead) => {
     setActivePreviewLead(lead);
+    setModalTab("preview");
+    setArchiveFetched(false);
+    setArchiveLeads(MOCK_ARCHIVE_LEADS);
+    setEnrichmentSubTab("system");
+    setTabClickCount({});
+    setReprocessPrompt("");
+    setReprocessing(false);
+  };
+
+  const handleReprocess = async () => {
+    if (!reprocessPrompt.trim() || !campaignId) return;
+    const leadId = activePreviewLead?.id;
+    setReprocessing(true);
+    const candidates = [
+      `/api/campaigns/${campaignId}/leads/${leadId}/reprocess`,
+      `/campaigns/${campaignId}/leads/${leadId}/reprocess`,
+      `/api/campaigns/${campaignId}/reprocess`,
+      `/campaigns/${campaignId}/reprocess`,
+    ];
+    let lastError = null;
+    let succeeded = false;
+    for (const url of candidates) {
+      try {
+        await axiosInstance.post(url, { prompt: reprocessPrompt.trim(), lead_id: leadId });
+        succeeded = true;
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    setReprocessing(false);
+    if (succeeded) {
+      toast.success("Lead reprocessed successfully.");
+      setReprocessPrompt("");
+      closePreviewModal();
+    } else {
+      toast.error(lastError?.response?.data?.message || "Failed to reprocess lead.");
+    }
   };
 
   const closePreviewModal = () => {
     setActivePreviewLead(null);
   };
+
+  useEffect(() => {
+    if (modalTab !== "enrichment" || archiveFetched || !campaignId) return;
+    setArchiveLoading(true);
+    fetchArchivedLeads(campaignId)
+      .then((rows) => {
+        setArchiveLeads(
+          (Array.isArray(rows) ? rows : []).map(normalizeArchiveLead)
+        );
+      })
+      .catch(() => {
+        toast.error("Failed to load archived leads.");
+      })
+      .finally(() => {
+        setArchiveLoading(false);
+        setArchiveFetched(true);
+      });
+  }, [modalTab, archiveFetched, campaignId]);
 
   // Close modal on ESC key
   useEffect(() => {
@@ -398,63 +544,368 @@ export default function CampaignPreviewPage() {
       </div>
 
       {activePreviewLead ? (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
           onClick={closePreviewModal}
           role="dialog"
           aria-label="Email preview modal"
         >
-          <div 
+          <div
             className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200 px-6 py-5 flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <h2 className="text-[18px] font-[700] text-gray-900">Email Preview</h2>
-                <div className="mt-3 space-y-1">
-                  <p className="text-[13px] text-gray-600">
-                    <span className="font-[600] text-gray-800">From:</span> {activePreviewLead.name}
-                  </p>
-                  <p className="text-[13px] text-gray-600 mt-2 pb-1 border-t border-gray-200 pt-2">
-                    <span className="font-[600] text-gray-800">Subject:</span>
-                  </p>
-                  <p className="text-[14px] font-[600] text-gray-900 bg-blue-50/50 rounded-lg px-3 py-2 border border-blue-100">
-                    {activePreviewLead.previewSubject}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1">
+            {/* ── Modal Header ── */}
+            <div className="bg-white border-b border-gray-100 px-6 pt-5 pb-0">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-[16px] font-[700] text-gray-900 tracking-tight">Preview</h2>
                 <button
                   type="button"
                   onClick={closePreviewModal}
-                  className="flex-shrink-0 rounded-lg p-2 text-gray-500 hover:bg-gray-300 hover:text-gray-800 transition duration-200"
-                  title="Close (or press ESC)"
+                  className="flex-shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition duration-200"
+                  title="Close (ESC)"
                 >
                   <X className="h-5 w-5" />
                 </button>
-                {/* <span className="text-[10px] text-gray-400 px-2">Press ESC to close</span> */}
               </div>
+
+              {/* ── Main Tab Switcher ── */}
+              <div className="flex items-end gap-0">
+                {[
+                  { key: "preview", label: "Preview Email" },
+                  { key: "enrichment", label: "Enrichment" },
+                  { key: "reprocess", label: "Reprocess" },
+                ].map((tab) => {
+                  const active = modalTab === tab.key;
+                  const clickKey = tabClickCount[tab.key] ?? 0;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => {
+                        setModalTab(tab.key);
+                        setTabClickCount((prev) => ({ ...prev, [tab.key]: (prev[tab.key] ?? 0) + 1 }));
+                      }}
+                      className={`relative px-5 py-2.5 text-[13px] tracking-wide select-none focus:outline-none transition-colors duration-200 ${
+                        active
+                          ? "font-[700] text-gray-900"
+                          : "font-[500] text-gray-400 hover:text-gray-700"
+                      }`}
+                    >
+                      <span
+                        key={`${tab.key}-${clickKey}`}
+                        className={active ? "animate-tabLift" : "inline-block"}
+                      >
+                        {tab.label}
+                      </span>
+                      <span
+                        className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-sm transition-opacity duration-200"
+                        style={{
+                          background: "linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)",
+                          opacity: active ? 1 : 0,
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                {htmlPreview ? (
-                  <iframe
-                    srcDoc={htmlPreview}
-                    sandbox="allow-same-origin"
-                    title={`Email preview ${activePreviewLead.id}`}
-                    className="w-full h-[65vh] min-h-[480px] rounded-lg border border-slate-200"
-                  />
-                ) : (
-                  <div className="text-[14px] leading-7 text-gray-800 whitespace-pre-wrap break-words font-[400]">
-                    {plainContent || (
-                      <span className="text-gray-400 italic">No text content available.</span>
+            {/* ── Tab Panels ── */}
+            <div className="flex-1 overflow-y-auto bg-gray-50">
+
+              {/* Preview Email */}
+              {modalTab === "preview" && (
+                <div className="p-6 animate-fadeIn">
+                  {/* Compact email metadata strip */}
+                  <div className="mb-3 bg-white border border-gray-200 rounded-xl px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+                    <span className="text-[12px] text-gray-500 whitespace-nowrap">
+                      <span className="font-[600] text-gray-700 mr-1">From:</span>{activePreviewLead.name}
+                    </span>
+                    <span className="hidden sm:block text-gray-200 select-none">|</span>
+                    <span className="text-[12px] text-gray-500 whitespace-nowrap">
+                      <span className="font-[600] text-gray-700 mr-1">To:</span>{activePreviewLead.toEmail}
+                    </span>
+                    {/* {activePreviewLead.company && activePreviewLead.company !== "—" && (
+                      <>
+                        <span className="hidden sm:block text-gray-200 select-none">|</span>
+                        <span className="text-[12px] text-gray-500 whitespace-nowrap">
+                          <span className="font-[600] text-gray-700 mr-1">Company:</span>{activePreviewLead.company}
+                        </span>
+                      </>
+                    )} */}
+                    <span className="hidden sm:block text-gray-200 select-none">|</span>
+                    <span className="text-[12px] text-gray-500 min-w-0 truncate">
+                      <span className="font-[600] text-gray-700 mr-1">Subject:</span>
+                      <span className="font-[600] text-gray-900">{activePreviewLead.previewSubject}</span>
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    {htmlPreview ? (
+                      <iframe
+                        srcDoc={htmlPreview}
+                        sandbox="allow-same-origin"
+                        title={`Email preview ${activePreviewLead.id}`}
+                        className="w-full h-[55vh] min-h-[400px] block"
+                      />
+                    ) : (
+                      <div className="p-6 text-[14px] leading-7 text-gray-800 whitespace-pre-wrap break-words">
+                        {plainContent || (
+                          <span className="text-gray-400 italic">No content available.</span>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* Enrichment */}
+              {modalTab === "enrichment" && (
+                <div className="p-5 animate-fadeIn">
+
+                  {/* ── Sub-tab segment control — centered ── */}
+                  <div className="flex justify-center mb-5">
+                    <div className="inline-flex items-center bg-white border border-gray-200 rounded-full p-1 shadow-sm gap-1">
+                      {[
+                        { key: "system", label: "Available on System" },
+                        { key: "ai",     label: "Fetched by AI" },
+                      ].map((st) => (
+                        <button
+                          key={st.key}
+                          type="button"
+                          onClick={() => setEnrichmentSubTab(st.key)}
+                          className={`px-4 py-1.5 rounded-full text-[12px] font-[600] transition-all duration-200 whitespace-nowrap ${
+                            enrichmentSubTab === st.key
+                              ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-sm"
+                              : "text-gray-400 hover:text-gray-700"
+                          }`}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── Available on System — dynamic key-value ── */}
+                  {enrichmentSubTab === "system" && (() => {
+                    const sys = activePreviewLead?.availableOnSystem;
+                    if (!sys || typeof sys !== "object") {
+                      return (
+                        <div className="flex items-center justify-center py-16">
+                          <p className="text-[13px] text-gray-400">No data available.</p>
+                        </div>
+                      );
+                    }
+                    const entries = Object.entries(sys);
+                    return (
+                      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-fadeIn">
+                        {entries.map(([key, val], idx) => {
+                          const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                          const isLast = idx === entries.length - 1;
+                          const renderValue = (v) => {
+                            if (Array.isArray(v)) {
+                              if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
+                              // array of objects (e.g. linkedin_recent_posts)
+                              if (typeof v[0] === "object" && v[0] !== null) {
+                                return (
+                                  <div className="flex flex-col gap-2 mt-1">
+                                    {v.map((item, i) => (
+                                      <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-[11px] text-gray-600">
+                                        {Object.entries(item).map(([k, vv]) => (
+                                          <div key={k} className="flex gap-1.5 flex-wrap">
+                                            <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
+                                            {typeof vv === "string" && vv.startsWith("http") ? (
+                                              <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
+                                            ) : (
+                                              <span className="text-gray-700">{String(vv ?? "—")}</span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              // array of primitives
+                              return (
+                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                  {v.map((item, i) => (
+                                    <span key={i} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-[500]">{String(item)}</span>
+                                  ))}
+                                </div>
+                              );
+                            }
+                            if (typeof val === "string" && val.startsWith("http")) {
+                              return <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{val}</a>;
+                            }
+                            return <span className="text-gray-800 text-[12px]">{String(v ?? "—")}</span>;
+                          };
+                          return (
+                            <div key={key} className={`px-4 py-3 flex gap-3 ${!isLast ? "border-b border-gray-50" : ""}`}>
+                              <span className="text-[11px] font-[600] text-gray-400 w-36 flex-shrink-0 pt-0.5 capitalize">{label}</span>
+                              <div className="flex-1 min-w-0">{renderValue(val)}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Fetched by AI — dynamic key-value ── */}
+                  {enrichmentSubTab === "ai" && (() => {
+                    const ai = activePreviewLead?.fetchedByAi;
+                    const engine = activePreviewLead?.aiEngine;
+                    if (!ai || typeof ai !== "object") {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-16 gap-2">
+                          {engine && (
+                            <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 text-[11px] font-[600] mb-1">
+                              Engine: {engine}
+                            </span>
+                          )}
+                          <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
+                        </div>
+                      );
+                    }
+                    const entries = Object.entries(ai);
+                    return (
+                      <div className="flex flex-col gap-3 animate-fadeIn">
+                        {engine && (
+                          <div className="flex justify-end">
+                            <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 text-[11px] font-[600]">
+                              Engine: {engine}
+                            </span>
+                          </div>
+                        )}
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                          {entries.map(([key, val], idx) => {
+                            const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                            const isLast = idx === entries.length - 1;
+                            const renderValue = (v) => {
+                              if (Array.isArray(v)) {
+                                if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
+                                if (typeof v[0] === "object" && v[0] !== null) {
+                                  return (
+                                    <div className="flex flex-col gap-2 mt-1">
+                                      {v.map((item, i) => (
+                                        <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-[11px] text-gray-600">
+                                          {Object.entries(item).map(([k, vv]) => (
+                                            <div key={k} className="flex gap-1.5 flex-wrap">
+                                              <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
+                                              {typeof vv === "string" && vv.startsWith("http") ? (
+                                                <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
+                                              ) : (
+                                                <span className="text-gray-700">{String(vv ?? "—")}</span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="flex flex-wrap gap-1.5 mt-1">
+                                    {v.map((item, i) => (
+                                      <span key={i} className="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 text-[11px] font-[500]">{String(item)}</span>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              if (typeof val === "string" && val.startsWith("http")) {
+                                return <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{val}</a>;
+                              }
+                              return <span className="text-gray-800 text-[12px]">{String(v ?? "—")}</span>;
+                            };
+                            return (
+                              <div key={key} className={`px-4 py-3 flex gap-3 ${!isLast ? "border-b border-gray-50" : ""}`}>
+                                <span className="text-[11px] font-[600] text-gray-400 w-36 flex-shrink-0 pt-0.5 capitalize">{label}</span>
+                                <div className="flex-1 min-w-0">{renderValue(val)}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                </div>
+              )}
+
+              {/* Reprocess */}
+              {modalTab === "reprocess" && (
+                <div className="p-6 animate-fadeIn flex flex-col gap-5">
+
+                  {/* Header */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <RefreshCw className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[14px] font-[700] text-gray-900 leading-tight">Reprocess Email Draft</p>
+                      <p className="text-[12px] text-gray-400 mt-0.5">Describe your changes and the AI will regenerate this draft.</p>
+                    </div>
+                  </div>
+
+                  {/* Suggestion chips */}
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Make it more formal",
+                      "Shorten the message",
+                      "Focus on product benefits",
+                      "Add a sense of urgency",
+                      "More friendly tone",
+                    ].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        disabled={reprocessing}
+                        onClick={() => setReprocessPrompt((prev) => prev ? `${prev.trimEnd()}, ${chip.toLowerCase()}` : chip)}
+                        className="px-3 py-1 rounded-full border border-gray-200 bg-white text-[11px] font-[500] text-gray-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Prompt box */}
+                  <div className={`bg-white rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden ${reprocessPrompt.trim() ? "border-blue-300 ring-1 ring-blue-100" : "border-gray-200"}`}>
+                    <textarea
+                      value={reprocessPrompt}
+                      onChange={(e) => setReprocessPrompt(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleReprocess();
+                      }}
+                      placeholder="e.g. Make the subject line more compelling, emphasize the ROI, and end with a clear call to action…"
+                      rows={5}
+                      className="w-full px-4 pt-4 pb-2 text-[13px] text-gray-800 placeholder-gray-300 resize-none focus:outline-none leading-6 bg-transparent"
+                      disabled={reprocessing}
+                    />
+                    {/* Toolbar row */}
+                    <div className="flex items-center justify-between px-4 pb-3 pt-1.5">
+                      <span className="text-[11px] text-gray-300 select-none">
+                        {reprocessPrompt.length > 0 ? `${reprocessPrompt.length} chars` : "⌘ Enter to submit"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleReprocess}
+                        disabled={!reprocessPrompt.trim() || reprocessing}
+                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[12px] font-[700] transition-all duration-200 shadow-sm disabled:cursor-not-allowed ${
+                          reprocessPrompt.trim() && !reprocessing
+                            ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white hover:from-blue-600 hover:to-violet-600 shadow-blue-100"
+                            : "bg-gray-100 text-gray-300"
+                        }`}
+                      >
+                        {reprocessing
+                          ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Processing…</>
+                          : <><Send className="h-3.5 w-3.5" /> Submit</>}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
             </div>
           </div>
         </div>

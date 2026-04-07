@@ -28,6 +28,24 @@
   animation: fadeInUp 0.25s ease-out forwards;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.18s ease-out forwards;
+}
+
+@keyframes tabLift {
+  0%   { opacity: 0.4; transform: translateY(4px); }
+  60%  { opacity: 1;   transform: translateY(-2px); }
+  100% { opacity: 1;   transform: translateY(0); }
+}
+.animate-tabLift {
+  display: inline-block;
+  animation: tabLift 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
 /* ── Global base typography ── */
 html {
   font-size: 16px;

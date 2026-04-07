@@ -3,6 +3,9 @@ import {
   CAMPAIGN_LIST_REQUEST,
   CAMPAIGN_LIST_SUCCESS,
   CAMPAIGN_LIST_FAILURE,
+  CAMPAIGN_REMOVE_REQUEST,
+  CAMPAIGN_REMOVE_SUCCESS,
+  CAMPAIGN_REMOVE_FAILURE,
 } from "../types/campaignTypes";
 
 export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
@@ -18,6 +21,8 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
     const res = await axiosInstance.get("/list-campaigns", {
       params: { page, page_size: pageSize },
     });
+    const preview = res.data.preview === true;
+    const total = res.data.total ?? (Array.isArray(res.data) ? res.data.length : (res.data.campaigns?.length ?? res.data.data?.length ?? 0));
     const raw = Array.isArray(res.data)
       ? res.data
       : (res.data.campaigns ?? res.data.data ?? []);
@@ -58,9 +63,11 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
       isSmtp:            c.is_smtp                      ?? false,
       isProcessing:      c.is_processing                ?? false,
       parallelCalls:     c.campaign_parallel_calls      ?? 1,
+      preview:           c.preview          ?? false,
+      preview_mode:      c.preview_mode     ?? false,
     }));
 
-    dispatch({ type: CAMPAIGN_LIST_SUCCESS, payload: campaigns });
+    dispatch({ type: CAMPAIGN_LIST_SUCCESS, payload: { campaigns, preview, total } });
   } catch (err) {
     dispatch({
       type: CAMPAIGN_LIST_FAILURE,
@@ -68,6 +75,34 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
         err?.response?.data?.detail ||
         err?.response?.data?.message ||
         "Failed to load campaigns.",
+    });
+  }
+};
+
+export const removeCampaign = (campaignId) => async (dispatch) => {
+  const rawToken = typeof window !== "undefined" ? localStorage.getItem("session_token") : "";
+  const token = (rawToken || "").trim();
+  const isTokenValid = Boolean(token && token !== "undefined" && token !== "null");
+  if (!isTokenValid) {
+    dispatch({ type: CAMPAIGN_REMOVE_FAILURE, payload: "Unauthorized - login required" });
+    return;
+  }
+  dispatch({ type: CAMPAIGN_REMOVE_REQUEST });
+  try {
+    const res = await axiosInstance.delete("/remove-campaign", {
+      params: { campaign_id: campaignId },
+    });
+    dispatch({
+      type: CAMPAIGN_REMOVE_SUCCESS,
+      payload: res.data ?? { success: true, message: "Campaign removed successfully" },
+    });
+  } catch (err) {
+    dispatch({
+      type: CAMPAIGN_REMOVE_FAILURE,
+      payload:
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to remove campaign.",
     });
   }
 };

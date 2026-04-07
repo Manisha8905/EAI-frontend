@@ -143,6 +143,9 @@ const normalizeActivityTab = (tabValue) => {
 };
 
 const isPreviewEligibleCampaign = (campaign) => {
+  // Must have preview === true from the API (live flag: drafts are ready to review)
+  if (campaign?.preview !== true) return false;
+
   const order = Array.isArray(campaign?.channelOrder)
     ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
     : [];
@@ -177,6 +180,72 @@ const getPreviewChannelKey = (campaign) => {
 };
 
 export default function CampaignPage() {
+    // Add Lead modal state (must be at top level)
+    const [showAddLead, setShowAddLead] = useState(false);
+    const [addLeadForm, setAddLeadForm] = useState({
+      name: "",
+      contact_number: "",
+      email_address: "",
+      company: "",
+      title: "",
+      lead_source: "",
+      lead_status: "",
+      lead_rating: "",
+      address_street: "",
+      address_city: "",
+      address_state: "",
+      address_zip_code: "",
+      address_country: "",
+      website: "",
+      industry: "",
+      // Add more fields as needed
+    });
+    const [addLeadLoading, setAddLeadLoading] = useState(false);
+
+    const handleAddLeadChange = (e) => {
+      const { name, value } = e.target;
+      setAddLeadForm((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleAddLead = async (e) => {
+      e.preventDefault();
+      if (!addLeadForm.name.trim() || !addLeadForm.contact_number.trim() || !addLeadForm.email_address.trim()) {
+        toast.error("Name, Contact Number, and Email are required.");
+        return;
+      }
+      if (!selectedCampaign?.id) {
+        toast.error("No campaign selected.");
+        return;
+      }
+      setAddLeadLoading(true);
+      try {
+        await axiosInstance.post(`/campaigns/${selectedCampaign.id}/leads`, addLeadForm);
+        toast.success("Lead added successfully.");
+        setShowAddLead(false);
+        setAddLeadForm({
+          name: "",
+          contact_number: "",
+          email_address: "",
+          company: "",
+          title: "",
+          lead_source: "",
+          lead_status: "",
+          lead_rating: "",
+          address_street: "",
+          address_city: "",
+          address_state: "",
+          address_zip_code: "",
+          address_country: "",
+          website: "",
+          industry: "",
+        });
+        refreshCampaignJourney(selectedCampaign.id);
+      } catch (err) {
+        toast.error(err?.response?.data?.message || "Failed to add lead.");
+      } finally {
+        setAddLeadLoading(false);
+      }
+    };
   const dispatch = useDispatch();
   const router = useRouter();
   const pathname = usePathname();
@@ -262,6 +331,7 @@ export default function CampaignPage() {
     linkedin_max_attempts: 3,
     reply_wait_hours: 72,
     reply_wait_minutes: 0,
+    preview_mode: true,
   };
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(blankForm);
@@ -647,6 +717,7 @@ export default function CampaignPage() {
       enable_ai_personalization: form.enable_ai_personalization,
       ai_tone: form.ai_tone,
       ai_context: form.ai_context,
+      preview_mode: form.preview_mode,
     };
 
     if (editingCampaignId) {
@@ -740,6 +811,7 @@ export default function CampaignPage() {
         linkedin_max_attempts: liData.max_attempts ?? 3,
         reply_wait_hours: liData.reply_wait_hours ?? 72,
         reply_wait_minutes: liData.reply_wait_minutes ?? 0,
+        preview_mode: c.preview ?? c.preview_mode ?? true,
       });
       setEditingCampaignId(campaignId);
       setShowCreate(true);
@@ -2423,32 +2495,39 @@ export default function CampaignPage() {
             </section>
           )}
 
-          {/* Section: AI Personalization — only when Email is in channel_order */}
+          {/* Section: AI Personalization + Preview — only when Email is in channel_order */}
           {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && (
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center justify-between py-1">
-              <div>
-                <p className="text-[14px] font-[600] text-[#0a0a0a]">
-                  Enable AI Personalization
-                </p>
-                <p className="text-[12px] text-blue-500 mt-0.5">
-                  Use AI to personalize email content
-                </p>
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              {/* Enable AI Personalization */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
+                <div className="min-w-0 mr-3">
+                  <p className="text-[13px] font-[600] text-[#0a0a0a] leading-tight">AI Personalization</p>
+                  <p className="text-[11px] text-blue-500 mt-0.5">Personalize email content</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, enable_ai_personalization: !p.enable_ai_personalization }))}
+                  className={`flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.enable_ai_personalization ? "bg-[#1e293b]" : "bg-gray-200"}`}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.enable_ai_personalization ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setForm((p) => ({
-                    ...p,
-                    enable_ai_personalization: !p.enable_ai_personalization,
-                  }))
-                }
-                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.enable_ai_personalization ? "bg-[#1e293b]" : "bg-gray-200"}`}
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.enable_ai_personalization ? "translate-x-6" : "translate-x-1"}`}
-                />
-              </button>
+
+              {/* Preview */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
+                <div className="min-w-0 mr-3">
+                  <p className="text-[13px] font-[600] text-[#0a0a0a] leading-tight">Preview</p>
+                  <p className="text-[11px] text-blue-500 mt-0.5">Review drafts before sending</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, preview_mode: !p.preview_mode }))}
+                  className={`flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.preview_mode ? "bg-[#1e293b]" : "bg-gray-200"}`}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.preview_mode ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+              </div>
             </div>
             {form.enable_ai_personalization && (
               <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
@@ -3001,15 +3080,25 @@ export default function CampaignPage() {
             </section>
           ) : null}
           {/* Table */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h3 className="text-[14px] font-[600] text-gray-900">
-                All Campaign Activity
-              </h3>
-              <p className="text-[12px] text-gray-400 mt-0.5">
-                Overview of all channel activities across campaigns
-              </p>
-            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-[14px] font-[600] text-gray-900">
+                    All Campaign Activity
+                  </h3>
+                  <p className="text-[12px] text-gray-400 mt-0.5">
+                    Overview of all channel activities across campaigns
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow transition"
+                  onClick={() => setShowAddLead(true)}
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Lead
+                </button>
+              </div>
             {leadListLoading ? (
               <div className="px-5 py-12 text-center text-[13px] text-gray-400">
                 Loading leads…
@@ -3293,6 +3382,87 @@ export default function CampaignPage() {
                 )}
               </tbody>
             </table>
+            )}
+            {/* Add Lead Modal */}
+            {showAddLead && (
+              <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-sm">
+                <div className="flex min-h-full items-center justify-center p-0 sm:p-4">
+                <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-100 w-full sm:max-w-lg flex flex-col max-h-screen sm:max-h-[90vh]">
+                  <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
+                    <h3 className="text-[15px] font-[700] text-gray-900">Add Lead</h3>
+                    <button onClick={() => setShowAddLead(false)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition">✕</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+                  <form onSubmit={handleAddLead} className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                    <div className="sm:col-span-2">
+                      <label className="text-[12px] font-[600] text-gray-600">Name <span className="text-red-500">*</span></label>
+                      <input name="name" type="text" value={addLeadForm.name} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" required />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Contact Number <span className="text-red-500">*</span></label>
+                      <input name="contact_number" type="text" value={addLeadForm.contact_number} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" required />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Email <span className="text-red-500">*</span></label>
+                      <input name="email_address" type="email" value={addLeadForm.email_address} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" required />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Company</label>
+                      <input name="company" type="text" value={addLeadForm.company} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Title</label>
+                      <input name="title" type="text" value={addLeadForm.title} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Lead Source</label>
+                      <input name="lead_source" type="text" value={addLeadForm.lead_source} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Lead Status</label>
+                      <input name="lead_status" type="text" value={addLeadForm.lead_status} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Lead Rating</label>
+                      <input name="lead_rating" type="text" value={addLeadForm.lead_rating} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-[12px] font-[600] text-gray-600">Street</label>
+                      <input name="address_street" type="text" value={addLeadForm.address_street} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">City</label>
+                      <input name="address_city" type="text" value={addLeadForm.address_city} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">State</label>
+                      <input name="address_state" type="text" value={addLeadForm.address_state} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Zip Code</label>
+                      <input name="address_zip_code" type="text" value={addLeadForm.address_zip_code} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Country</label>
+                      <input name="address_country" type="text" value={addLeadForm.address_country} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-[600] text-gray-600">Website</label>
+                      <input name="website" type="text" value={addLeadForm.website} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-[12px] font-[600] text-gray-600">Industry</label>
+                      <input name="industry" type="text" value={addLeadForm.industry} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
+                    </div>
+                    <div className="sm:col-span-2 flex gap-3 pt-2 pb-1">
+                      <button type="button" onClick={() => setShowAddLead(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition">Cancel</button>
+                      <button type="submit" disabled={addLeadLoading} className="flex-1 py-2.5 rounded-xl bg-green-600 text-white text-[13px] font-[700] hover:bg-green-700 transition disabled:opacity-60 disabled:cursor-not-allowed">{addLeadLoading ? "Adding..." : "Add Lead"}</button>
+                    </div>
+                  </form>
+                  </div>
+                </div>
+                </div>
+              </div>
             )}
           </div>
           </div>{/* end main content */}

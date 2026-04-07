@@ -293,6 +293,7 @@ const adminReducers = (state = initialState, action) => {
         campaignLoading: false,
         campaigns: action.payload.campaigns,
         campaignTotal: action.payload.total,
+        preview: action.payload.preview,
       };
     case CAMPAIGN_LIST_FAILURE:
       return { ...state, campaignLoading: false, campaignError: action.payload };

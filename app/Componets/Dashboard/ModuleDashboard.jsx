@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
 import { fetchOutboundCalls, fetchInboundCalls, fetchEmailCampaigns, fetchLinkedinCampaigns } from "../../Redux/actions/authActions";
+import { fetchWhatsappMetrics } from "../../Redux/actions/whatsappMetricsActions";
 import axiosInstance from "../../Redux/axiosInstance";
 import {
   ArrowUpRight,
@@ -631,9 +632,56 @@ export default function ModuleDashboard({
     if (activeTab === "linkedin") {
       dispatch(fetchLinkedinCampaigns(activeFilter));
     }
+    if (activeTab === "whatsapp") {
+      dispatch(fetchWhatsappMetrics({ filter: activeFilter }));
+    }
   }, [activeTab, activeFilter, dispatch, router]);
 
-  const d = tabData[activeTab];
+
+  // WhatsApp metrics from Redux
+  const whatsappMetrics = useSelector((state) => state.whatsappMetrics);
+  const whatsappData = whatsappMetrics?.data || {};
+  const whatsappLoading = whatsappMetrics?.loading;
+  const whatsappError = whatsappMetrics?.error;
+
+  // Map WhatsApp API response to UI fields
+  const whatsappSm = whatsappData.summary_metrics || {};
+  const whatsappKpi = {
+    calls: {
+      today: whatsappSm.messages_sent_today,
+      week: whatsappSm.messages_sent_this_week,
+      month: whatsappSm.messages_sent_this_month,
+      trend: '', // You can calculate trend if available
+    },
+    meetings: {
+      today: whatsappSm.replies_received_today,
+      week: whatsappSm.replies_received_this_week,
+      month: whatsappSm.replies_received_this_month,
+      trend: '',
+    },
+    tasks: {
+      today: whatsappSm.read_today,
+      week: whatsappSm.read_this_week,
+      month: whatsappSm.read_this_month,
+      trend: '',
+    },
+    duration: whatsappSm.avg_time_to_first_reply_hours,
+    donut: {
+      title: 'Response Rate',
+      resolved: whatsappSm.reply_rate_percent || 0,
+      label: 'Replies',
+    },
+    barChart: {
+      title: 'WhatsApp Messages by Month',
+      label: 'Messages',
+      data: (whatsappData.monthly_trend || []).map(item => ({
+        x: item.month,
+        v: item.messages_sent
+      })),
+    },
+  };
+
+  const d = activeTab === "whatsapp" ? whatsappKpi : tabData[activeTab];
 
   // summary_metrics from real API response
   const sm = (activeTab === "outbound" && outboundData?.summary_metrics)
@@ -1071,6 +1119,8 @@ export default function ModuleDashboard({
 
       {/* ── KPI cards ── */}
       <section className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {activeTab === "whatsapp" && whatsappLoading && <div>Loading WhatsApp metrics...</div>}
+        {activeTab === "whatsapp" && whatsappError && <div className="text-red-500">{whatsappError}</div>}
 
         {/* Card 1: Calls Processed / Total Leads */}
         <KpiCard
@@ -1285,93 +1335,118 @@ export default function ModuleDashboard({
           </ChartCard>
 
         </section>
-      ) : (activeTab === "linkedin" || activeTab === "whatsapp") ? (
+      ) : activeTab === "whatsapp" ? (
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <ChartCard
-            title={barChartTitle}
-            subtitle={d.barChart.title}
-            badge={`${d.calls.month} total`}
-          >
+          {/* Monthly Trend */}
+
+          <ChartCard title="WhatsApp Messages by Month" subtitle="Monthly trend of sent, replied, and meetings">
             <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={barChartData} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                <AreaChart data={whatsappData.monthly_trend || []} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
                   <defs>
-                    <linearGradient id="multiAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#2563eb" stopOpacity={0.35} />
-                      <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.15} />
-                      <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                    <linearGradient id="waAreaSent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="#6366f1" stopOpacity={0.45} />
+                      <stop offset="60%"  stopColor="#6366f1" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0}   />
+                    </linearGradient>
+                    <linearGradient id="waAreaReplied" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.45} />
+                      <stop offset="60%"  stopColor="#22c55e" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0}   />
+                    </linearGradient>
+                    <linearGradient id="waAreaMeetings" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%"   stopColor="#a21caf" stopOpacity={0.45} />
+                      <stop offset="60%"  stopColor="#a21caf" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#a21caf" stopOpacity={0}   />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="x" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} dy={4} />
+                  <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} dy={4} />
                   <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
-                  <Tooltip content={<AreaTooltip />} cursor={{ stroke: "#e0e7ff", strokeWidth: 1, strokeDasharray: "4 2" }} />
-                  <Area
-                    type="monotone"
-                    dataKey="v"
-                    stroke="#2563eb"
-                    strokeWidth={2.5}
-                    fill="url(#multiAreaGrad)"
-                    dot={{ fill: "#fff", r: 4, strokeWidth: 2, stroke: "#2563eb" }}
-                    activeDot={{ r: 6, fill: "#2563eb", stroke: "#c7d2fe", strokeWidth: 3 }}
-                    name={barChartLabel}
-                  />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="messages_sent" stroke="#6366f1" strokeWidth={2.5} fill="url(#waAreaSent)" dot={{ fill: "#fff", r: 4, strokeWidth: 2, stroke: "#6366f1" }} activeDot={{ r: 6, fill: "#6366f1", stroke: "#c7d2fe", strokeWidth: 3 }} name="Sent" />
+                  <Area type="monotone" dataKey="replied" stroke="#22c55e" strokeWidth={2.5} fill="url(#waAreaReplied)" dot={{ fill: "#fff", r: 4, strokeWidth: 2, stroke: "#22c55e" }} activeDot={{ r: 6, fill: "#22c55e", stroke: "#bbf7d0", strokeWidth: 3 }} name="Replied" />
+                  <Area type="monotone" dataKey="meetings_scheduled" stroke="#a21caf" strokeWidth={2.5} fill="url(#waAreaMeetings)" dot={{ fill: "#fff", r: 4, strokeWidth: 2, stroke: "#a21caf" }} activeDot={{ r: 6, fill: "#a21caf", stroke: "#f0abfc", strokeWidth: 3 }} name="Meetings" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </ChartCard>
 
-          <ChartCard
-            title={d.donut.title}
-            subtitle={`${d.barChart.label} rate`}
-            badge={`${d.donut.resolved}%`}
-          >
-            <div className="flex h-[240px] w-full items-center justify-center">
-              <DonutChart resolved={d.donut.resolved} label={d.donut.label} />
+          {/* Delivery Status Distribution */}
+          <ChartCard title="Delivery Status Distribution" subtitle="Delivery breakdown">
+            <div className="h-[240px] w-full flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={whatsappData.delivery_status_distribution || []} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={60} outerRadius={90} strokeWidth={0}>
+                    {(whatsappData.delivery_status_distribution || []).map((entry, idx) => (
+                      <Cell key={idx} fill={["#6366f1", "#22c55e", "#f59e42", "#ef4444"][idx % 4]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [`${value}`, name]} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </ChartCard>
 
-          <ChartCard
-            title="Activity Breakdown"
-            subtitle="Daily performance overview"
-          >
-            <div className="h-[260px] w-full">
+          {/* Intent Distribution */}
+          <ChartCard title="Intent Distribution" subtitle="Intent breakdown">
+            <div className="h-[240px] w-full flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barChartData} barGap={6} barSize={16} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                <PieChart>
+                  <Pie data={whatsappData.intent_distribution || []} dataKey="count" nameKey="intent" cx="50%" cy="50%" innerRadius={60} outerRadius={90} strokeWidth={0}>
+                    {(whatsappData.intent_distribution || []).map((entry, idx) => (
+                      <Cell key={idx} fill={["#6366f1", "#22c55e", "#f59e42", "#ef4444"][idx % 4]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [`${value}`, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+
+          {/* Conversation Status Distribution */}
+          <ChartCard title="Conversation Status Distribution" subtitle="Conversation breakdown">
+            <div className="h-[240px] w-full flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={whatsappData.conversation_status_distribution || []} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={60} outerRadius={90} strokeWidth={0}>
+                    {(whatsappData.conversation_status_distribution || []).map((entry, idx) => (
+                      <Cell key={idx} fill={["#6366f1", "#22c55e", "#f59e42", "#ef4444"][idx % 4]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [`${value}`, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartCard>
+
+          {/* Meetings by Campaign */}
+          <ChartCard title="Meetings by Campaign" subtitle="Meetings scheduled per campaign">
+            <div className="h-[240px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={whatsappData.meetings_by_campaign || []} barGap={4} barSize={14} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                  <XAxis dataKey="x" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                  <XAxis dataKey="campaign_name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#9ca3af" }} />
                   <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
-                  <Tooltip formatter={(value) => [`${value}`, barChartLabel]} />
-                  <Bar dataKey="v" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                  <Tooltip />
+                  <Bar dataKey="meetings_scheduled" fill="#6366f1" name="Meetings" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total_sent" fill="#22c55e" name="Sent" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </ChartCard>
 
-          <ChartCard
-            title="Response Funnel"
-            subtitle="Accepted vs not accepted"
-          >
-            <div className="h-[240px] w-full flex items-center justify-center">
+          {/* Reply Time Distribution */}
+          <ChartCard title="Reply Time Distribution" subtitle="How quickly leads reply">
+            <div className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: d.donut.label, value: d.donut.resolved },
-                      { name: "No response", value: 100 - d.donut.resolved },
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    dataKey="value"
-                    strokeWidth={0}
-                  >
-                    <Cell fill="#22c55e" />
-                    <Cell fill="#e2e8f0" />
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [`${value}%`, name]} />
-                </PieChart>
+                <BarChart data={whatsappData.reply_time_distribution || []} barGap={6} barSize={16} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="bucket" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#6366f1" name="Replies" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </ChartCard>
