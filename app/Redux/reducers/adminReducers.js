@@ -109,10 +109,12 @@ const initialState = {
   emailHistoryTotalTasks: 0,
   // 💼 LinkedIn History
   linkedinHistory: [],
+  linkedinHistoryTotal: 0,
   linkedinHistoryLoading: false,
   linkedinHistoryError: null,
   // 📱 WhatsApp History
   whatsappHistory: [],
+  whatsappAnalytics: null,
   whatsappHistoryLoading: false,
   whatsappHistoryError: null,
   // ✏️ Update Campaign
@@ -386,17 +388,21 @@ const adminReducers = (state = initialState, action) => {
 
     // 💼 LinkedIn History
     case LINKEDIN_HISTORY_REQUEST:
-      return { ...state, linkedinHistoryLoading: true, linkedinHistoryError: null, linkedinHistory: [] };
-    case LINKEDIN_HISTORY_SUCCESS:
-      return { ...state, linkedinHistoryLoading: false, linkedinHistory: action.payload };
+      return { ...state, linkedinHistoryLoading: true, linkedinHistoryError: null, linkedinHistory: [], linkedinHistoryTotal: 0 };
+    case LINKEDIN_HISTORY_SUCCESS: {
+      const liPayload = action.payload;
+      const liData = Array.isArray(liPayload) ? liPayload : (liPayload?.data ?? []);
+      const liTotal = liPayload?.total ?? liData.length;
+      return { ...state, linkedinHistoryLoading: false, linkedinHistory: liData, linkedinHistoryTotal: liTotal };
+    }
     case LINKEDIN_HISTORY_FAILURE:
       return { ...state, linkedinHistoryLoading: false, linkedinHistoryError: action.payload };
 
     // 📱 WhatsApp History
     case WHATSAPP_HISTORY_REQUEST:
-      return { ...state, whatsappHistoryLoading: true, whatsappHistoryError: null, whatsappHistory: [] };
+      return { ...state, whatsappHistoryLoading: true, whatsappHistoryError: null, whatsappHistory: [], whatsappAnalytics: null };
     case WHATSAPP_HISTORY_SUCCESS:
-      return { ...state, whatsappHistoryLoading: false, whatsappHistory: action.payload };
+      return { ...state, whatsappHistoryLoading: false, whatsappHistory: action.payload.conversations ?? [], whatsappAnalytics: action.payload.analytics ?? null };
     case WHATSAPP_HISTORY_FAILURE:
       return { ...state, whatsappHistoryLoading: false, whatsappHistoryError: action.payload };
 

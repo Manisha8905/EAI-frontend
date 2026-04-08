@@ -2001,6 +2001,54 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
                   </Field>
                 </div>
               )}
+
+              {/* Email-specific fields */}
+              {form.channelOrder.includes("EMAIL") && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100">
+                      <Mail className="h-3.5 w-3.5 text-indigo-600" />
+                    </div>
+                    <p className="text-[12px] font-[700] text-indigo-700">Email Config</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-indigo-100 bg-white px-3 py-3 flex items-center justify-between">
+                      <div className="min-w-0 mr-2">
+                        <p className="text-[12px] font-[700] text-gray-800 leading-tight">AI Personalization</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Personalize email content</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => set("aiPersonalization", !form.aiPersonalization)}
+                        className={`flex-shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.aiPersonalization ? "bg-indigo-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                          form.aiPersonalization ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+                    <div className="rounded-xl border border-indigo-100 bg-white px-3 py-3 flex items-center justify-between">
+                      <div className="min-w-0 mr-2">
+                        <p className="text-[12px] font-[700] text-gray-800 leading-tight">Preview Mode</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Review drafts before sending</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => set("preview_mode", !form.preview_mode)}
+                        className={`flex-shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.preview_mode ? "bg-indigo-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                          form.preview_mode ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2090,46 +2138,6 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
             <input type="email" placeholder="support@acme.com" value={form.replyToEmail}
               onChange={(e) => set("replyToEmail", e.target.value)} className={inputCls()} />
           </Field>
-
-          {form.channelOrder.includes("EMAIL") && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-3 flex items-center justify-between">
-                <div className="min-w-0 mr-2">
-                  <p className="text-[12px] font-[700] text-gray-800 leading-tight">AI Personalization</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Personalize email content</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => set("aiPersonalization", !form.aiPersonalization)}
-                  className={`flex-shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    form.aiPersonalization ? "bg-indigo-600" : "bg-gray-300"
-                  }`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                    form.aiPersonalization ? "translate-x-6" : "translate-x-1"
-                  }`} />
-                </button>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-gray-50/50 px-3 py-3 flex items-center justify-between">
-                <div className="min-w-0 mr-2">
-                  <p className="text-[12px] font-[700] text-gray-800 leading-tight">Preview</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">Review drafts before sending</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => set("preview_mode", !form.preview_mode)}
-                  className={`flex-shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    form.preview_mode ? "bg-indigo-600" : "bg-gray-300"
-                  }`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                    form.preview_mode ? "translate-x-6" : "translate-x-1"
-                  }`} />
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* AI Tone */}
           <Field label="AI Tone">

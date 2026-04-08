@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts";
 import {
@@ -22,6 +23,8 @@ import {
   BarChart3,
   RefreshCw,
   ShieldAlert,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import axiosInstance from "../../Redux/axiosInstance";
 import { toast } from "react-toastify";
@@ -56,6 +59,15 @@ const CHANNEL_DATA = {
       { name: "Waiting", value: 351, color: "#f59e0b" },
       { name: "Escalated", value: 217, color: "#7c3aed" },
     ],
+    feedback: { thumbsUp: 312, thumbsDown: 89 },
+    weeklyFeedback: [
+      { week: "W1", positive: 48, negative: 12 },
+      { week: "W2", positive: 55, negative: 10 },
+      { week: "W3", positive: 43, negative: 18 },
+      { week: "W4", positive: 60, negative: 8 },
+      { week: "W5", positive: 52, negative: 14 },
+      { week: "W6", positive: 54, negative: 9 },
+    ],
   },
   whatsapp: {
     updatedAt: "11:19:10 AM",
@@ -85,6 +97,15 @@ const CHANNEL_DATA = {
       { name: "Resolved", value: 901, color: "#0ea95a" },
       { name: "Waiting", value: 248, color: "#f59e0b" },
       { name: "Escalated", value: 148, color: "#7c3aed" },
+    ],
+    feedback: { thumbsUp: 218, thumbsDown: 54 },
+    weeklyFeedback: [
+      { week: "W1", positive: 35, negative: 9 },
+      { week: "W2", positive: 40, negative: 7 },
+      { week: "W3", positive: 31, negative: 12 },
+      { week: "W4", positive: 44, negative: 6 },
+      { week: "W5", positive: 38, negative: 10 },
+      { week: "W6", positive: 42, negative: 7 },
     ],
   },
 };
@@ -243,6 +264,28 @@ const mapStatsResponse = (payload, fallback) => {
           },
         ];
 
+  const feedback = {
+    thumbsUp: getFirstNumber(
+      root?.feedback ?? root,
+      ["thumbs_up", "positive_feedback", "thumbsUp", "positive"],
+      fallback.feedback.thumbsUp,
+    ),
+    thumbsDown: getFirstNumber(
+      root?.feedback ?? root,
+      ["thumbs_down", "negative_feedback", "thumbsDown", "negative"],
+      fallback.feedback.thumbsDown,
+    ),
+  };
+
+  const rawWeekly = root?.weeklyFeedback ?? root?.weekly_feedback ?? null;
+  const weeklyFeedback = Array.isArray(rawWeekly)
+    ? rawWeekly.map((item, i) => ({
+        week: item?.week ?? item?.label ?? item?.period ?? `W${i + 1}`,
+        positive: getFirstNumber(item, ["positive", "thumbs_up", "thumbsUp"], 0),
+        negative: getFirstNumber(item, ["negative", "thumbs_down", "thumbsDown"], 0),
+      }))
+    : fallback.weeklyFeedback;
+
   return {
     updatedAt: root?.updatedAt ?? root?.updated_at ?? new Date().toLocaleTimeString(),
     cards: {
@@ -255,6 +298,8 @@ const mapStatsResponse = (payload, fallback) => {
     assignedSplit: computedAssignedSplit,
     escalationTrend: escalationTrend.length > 0 ? escalationTrend : fallback.escalationTrend,
     statusPie: computedStatusPie,
+    feedback,
+    weeklyFeedback,
   };
 };
 
@@ -417,6 +462,67 @@ export default function SupportChatbotMetrics() {
         />
       </section>
 
+      {/* ── Feedback Card ── */}
+      <section className="mb-6">
+        <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-[18px] font-[700] text-[#0b1b3b]">User Feedback</h3>
+              <p className="text-[13px] text-gray-500 mt-0.5">Thumbs rating from chat sessions</p>
+            </div>
+            {(() => {
+              const total = data.feedback.thumbsUp + data.feedback.thumbsDown;
+              const pct = total > 0 ? Math.round((data.feedback.thumbsUp / total) * 100) : 0;
+              return (
+                <span className={`text-[13px] font-[700] px-3 py-1.5 rounded-full ${
+                  pct >= 70 ? "bg-green-50 text-green-700" : pct >= 50 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"
+                }`}>
+                  {pct}% satisfied
+                </span>
+              );
+            })()}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Thumbs Up */}
+            <div className="flex items-center gap-4 rounded-xl bg-green-50 border border-green-100 px-5 py-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-500 shadow-sm">
+                <ThumbsUp className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <p className="text-[30px] font-[800] leading-none text-green-700">{data.feedback.thumbsUp.toLocaleString()}</p>
+                <p className="text-[12px] font-[600] text-green-600 mt-1">Positive ratings</p>
+              </div>
+            </div>
+            {/* Thumbs Down */}
+            <div className="flex items-center gap-4 rounded-xl bg-red-50 border border-red-100 px-5 py-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-500 shadow-sm">
+                <ThumbsDown className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <p className="text-[30px] font-[800] leading-none text-red-600">{data.feedback.thumbsDown.toLocaleString()}</p>
+                <p className="text-[12px] font-[600] text-red-500 mt-1">Negative ratings</p>
+              </div>
+            </div>
+          </div>
+          {/* Progress bar */}
+          {(() => {
+            const total = data.feedback.thumbsUp + data.feedback.thumbsDown;
+            const upPct = total > 0 ? Math.round((data.feedback.thumbsUp / total) * 100) : 0;
+            return (
+              <div className="mt-4">
+                <div className="flex justify-between text-[11px] font-[600] text-gray-500 mb-1">
+                  <span className="text-green-600">{upPct}% positive</span>
+                  <span className="text-red-500">{100 - upPct}% negative</span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-red-100 overflow-hidden">
+                  <div className="h-full rounded-full bg-green-500 transition-all duration-500" style={{ width: `${upPct}%` }} />
+                </div>
+              </div>
+            );
+          })()}
+        </article>
+      </section>
+
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <h3 className="text-[20px] font-[700] text-[#0b1b3b]">Open vs Closed</h3>
@@ -490,41 +596,94 @@ export default function SupportChatbotMetrics() {
 
       <section className="mt-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <h3 className="text-[20px] font-[700] text-[#0b1b3b]">Conversation Status Mix</h3>
-        <p className="mt-1 text-[14px] text-gray-500">Pie view for resolution health</p>
-        <div className="mt-4 grid grid-cols-1 items-center gap-4 md:grid-cols-3">
-          <div className="md:col-span-1 h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={data.statusPie} dataKey="value" innerRadius={58} outerRadius={95}>
-                  {data.statusPie.map((item) => (
-                    <Cell key={item.name} fill={item.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="md:col-span-2 space-y-3">
-            {data.statusPie.map((item) => (
-              <div key={item.name} className="rounded-xl border border-gray-100 bg-[#f8fafc] p-3">
-                <div className="mb-2 flex items-center justify-between text-[14px]">
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
-                    <span className="font-[600] text-gray-700">{item.name}</span>
+        <p className="mt-1 text-[14px] text-gray-500">Resolution health · Weekly feedback trend</p>
+        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Left — Pie + Legend */}
+          <div>
+            <div className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={data.statusPie} dataKey="value" innerRadius={54} outerRadius={88}>
+                    {data.statusPie.map((item) => (
+                      <Cell key={item.name} fill={item.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-3 space-y-2.5">
+              {data.statusPie.map((item) => (
+                <div key={item.name} className="rounded-xl border border-gray-100 bg-[#f8fafc] p-3">
+                  <div className="mb-2 flex items-center justify-between text-[13px]">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
+                      <span className="font-[600] text-gray-700">{item.name}</span>
+                    </div>
+                    <span className="font-[700] text-gray-900">{item.value}</span>
                   </div>
-                  <span className="font-[700] text-gray-900">{item.value}</span>
+                  <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.max(4, Math.round((item.value / data.cards.total) * 100))}%`,
+                        background: item.color,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.max(4, Math.round((item.value / data.cards.total) * 100))}%`,
-                      background: item.color,
-                    }}
+              ))}
+            </div>
+          </div>
+
+          {/* Right — Weekly Feedback Line Chart */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <h4 className="text-[15px] font-[700] text-gray-800">Weekly Feedback Trend</h4>
+              <span className="flex items-center gap-1 text-[11px] font-[600] bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-100">
+                <ThumbsUp className="h-3 w-3" /> Positive
+              </span>
+              <span className="flex items-center gap-1 text-[11px] font-[600] bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-100">
+                <ThumbsDown className="h-3 w-3" /> Negative
+              </span>
+            </div>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={data.weeklyFeedback} margin={{ top: 4, right: 10, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="week" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 10, border: "none", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                    formatter={(val, name) => [val, name === "positive" ? "👍 Positive" : "👎 Negative"]}
                   />
-                </div>
-              </div>
-            ))}
+                  <Legend
+                    formatter={(value) => value === "positive" ? "👍 Positive" : "👎 Negative"}
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="positive"
+                    stroke="#22c55e"
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: "#22c55e", strokeWidth: 0 }}
+                    activeDot={{ r: 7 }}
+                    name="positive"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="negative"
+                    stroke="#ef4444"
+                    strokeWidth={3}
+                    dot={{ r: 5, fill: "#ef4444", strokeWidth: 0 }}
+                    activeDot={{ r: 7 }}
+                    name="negative"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </section>

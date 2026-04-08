@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, memo } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
 import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
 import { toast } from "react-toastify";
@@ -650,6 +650,60 @@ function CRMPage({ onBack, onConnectionChange }) {
   );
 }
 
+/* ── Agent toggle — defined outside AgentsPage so React.memo prevents sibling re-renders ── */
+const AgentToggle = memo(function AgentToggle({ agentId, agentName, isOn, onRefresh, onDelete }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleClick = async () => {
+    if (loading) return;
+    setLoading(true);
+    try {
+      await axiosInstance.post("/switch-agent", { agent_id: agentId });
+      toast.success("Agent switched successfully.");
+      await onRefresh();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to switch agent.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isOn}
+        onClick={handleClick}
+        disabled={loading}
+        title={isOn ? "Active agent" : "Click to activate this agent"}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-60 ${
+          isOn
+            ? "bg-green-500 cursor-pointer"
+            : loading
+            ? "bg-indigo-400 cursor-wait"
+            : "bg-gray-300 hover:bg-indigo-500 cursor-pointer"
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+            isOn ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </button>
+      <span className={`text-[11px] font-[600] w-16 ${isOn ? "text-green-600" : loading ? "text-indigo-500" : "text-gray-400"}`}>
+        {isOn ? "Active" : loading ? "Switching…" : "Inactive"}
+      </span>
+      <button
+        onClick={() => onDelete({ id: agentId, name: agentName })}
+        className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-600 hover:bg-red-100 transition"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+});
+
 /* ── Agents ── */
 function AgentsPage({ onBack }) {
   const [agents, setAgents] = useState([]);
@@ -664,7 +718,10 @@ function AgentsPage({ onBack }) {
   const [pcError, setPcError] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
-  const [switchingId, setSwitchingId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
+  // Ref keeps handleRefresh stable while always calling the latest fetchAgents
+  const fetchAgentsRef = useRef(null);
 
   const fetchAgents = async () => {
     setLoadingAgents(true);
@@ -672,18 +729,18 @@ function AgentsPage({ onBack }) {
     try {
       const res = await axiosInstance.get("/my-agents");
       const list = Array.isArray(res.data) ? res.data : (res.data.agents ?? []);
-      setAgents(
-        list.map((a) => ({
-          id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
-          name: a.agent_name ?? a.name ?? "—",
-          created_at: a.created_at ?? "—",
-          created_at_display: a.created_at
-            ? new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-            : "—",
-          is_active: a.is_active ?? false,
-          is_current: a.is_current ?? false,
-        }))
-      );
+      const normalized = list.map((a) => ({
+        id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
+        name: a.agent_name ?? a.name ?? "—",
+        created_at: a.created_at ?? "—",
+        created_at_display: a.created_at
+          ? new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : "—",
+        is_active: a.is_active ?? false,
+        is_current: a.is_current ?? false,
+      }));
+      setAgents(normalized);
+      setSelectedIds(new Set(normalized.filter((a) => a.is_current).map((a) => a.id)));
     } catch (err) {
       setFetchError(
         err?.response?.data?.detail ||
@@ -694,6 +751,14 @@ function AgentsPage({ onBack }) {
       setLoadingAgents(false);
     }
   };
+
+  // Keep ref up-to-date every render so handleRefresh never captures a stale closure
+  useEffect(() => { fetchAgentsRef.current = fetchAgents; });
+
+  // Stable callback passed to AgentToggle — no parent-state change during loading
+  const handleRefresh = useCallback(async () => {
+    if (fetchAgentsRef.current) await fetchAgentsRef.current();
+  }, []);
 
   const fetchParallelCalls = async () => {
     setPcLoading(true);
@@ -716,18 +781,7 @@ function AgentsPage({ onBack }) {
       (a.created_at !== "—" && a.created_at.toLowerCase().includes(search.toLowerCase())),
   );
 
-  const switchAgent = async (id) => {
-    setSwitchingId(id);
-    try {
-      await axiosInstance.post("/switch-agent", { agent_id: id });
-      toast.success("Agent switched successfully.");
-      await fetchAgents();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to switch agent.");
-    } finally {
-      setSwitchingId(null);
-    }
-  };
+
 
   const createAgent = async () => {
     if (!newName.trim()) return;
@@ -900,27 +954,13 @@ function AgentsPage({ onBack }) {
                     })()}
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      {a.is_current ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-green-50 border border-green-200 text-[11px] font-[600] text-green-700">
-                          Current
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => switchAgent(a.id)}
-                          disabled={switchingId === a.id}
-                          className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                        >
-                          {switchingId === a.id ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : null}
-                          {switchingId === a.id ? "Switching…" : (a.is_active ? "Switch" : "Activate")}
-                        </button>
-                      )}
-                      <button onClick={() => setDeleteTarget({ id: a.id, name: a.name })} className="rounded-lg border border-red-100 bg-red-50 px-2.5 py-1.5 text-[12px] text-red-600 hover:bg-red-100 transition">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    <AgentToggle
+                      agentId={a.id}
+                      agentName={a.name}
+                      isOn={selectedIds.has(a.id)}
+                      onRefresh={handleRefresh}
+                      onDelete={setDeleteTarget}
+                    />
                   </td>
                 </tr>
               ))

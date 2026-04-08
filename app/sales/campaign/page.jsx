@@ -19,6 +19,7 @@ import {
 import axiosInstance from "../../Redux/axiosInstance";
 import { toast } from "react-toastify";
 import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
+import WhatsAppConversationDetail from "../../Componets/Dashboard/WhatsAppConversationDetail";
 import {
   Plus,
   Search,
@@ -143,9 +144,6 @@ const normalizeActivityTab = (tabValue) => {
 };
 
 const isPreviewEligibleCampaign = (campaign) => {
-  // Must have preview === true from the API (live flag: drafts are ready to review)
-  if (campaign?.preview !== true) return false;
-
   const order = Array.isArray(campaign?.channelOrder)
     ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
     : [];
@@ -267,7 +265,9 @@ export default function CampaignPage() {
     emailHistoryTotalTasks,
     linkedinHistory,
     linkedinHistoryLoading,
+    linkedinHistoryTotal,
     whatsappHistory,
+    whatsappAnalytics,
     whatsappHistoryLoading,
   } = useSelector((state) => state.admin);
 
@@ -331,7 +331,7 @@ export default function CampaignPage() {
     linkedin_max_attempts: 3,
     reply_wait_hours: 72,
     reply_wait_minutes: 0,
-    preview_mode: true,
+    preview: false,
   };
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(blankForm);
@@ -358,8 +358,14 @@ export default function CampaignPage() {
   const [emailTooltip, setEmailTooltip] = useState(null);
   const [liSearch, setLiSearch] = useState("");
   const [liStatus, setLiStatus] = useState("All Status");
+  const [liTooltip, setLiTooltip] = useState(null);
+  const [liTaskFilter, setLiTaskFilter] = useState(false);
   const [waSearch, setWaSearch] = useState("");
   const [waStatus, setWaStatus] = useState("All Status");
+  const [waTooltip, setWaTooltip] = useState(null);
+  const [waTaskFilter, setWaTaskFilter] = useState(false);
+  const [waConversationModal, setWaConversationModal] = useState(null); // conversation id
+  const [waCardFilter, setWaCardFilter] = useState(null); // "sent"|"delivered"|"read"|"replied"|"meetings"
 
   /* ── Lead list leads for Lead Activity tab ── */
   const [leadListLeads, setLeadListLeads] = useState([]);
@@ -717,7 +723,7 @@ export default function CampaignPage() {
       enable_ai_personalization: form.enable_ai_personalization,
       ai_tone: form.ai_tone,
       ai_context: form.ai_context,
-      preview_mode: form.preview_mode,
+      preview: form.preview,
     };
 
     if (editingCampaignId) {
@@ -811,7 +817,7 @@ export default function CampaignPage() {
         linkedin_max_attempts: liData.max_attempts ?? 3,
         reply_wait_hours: liData.reply_wait_hours ?? 72,
         reply_wait_minutes: liData.reply_wait_minutes ?? 0,
-        preview_mode: c.preview ?? c.preview_mode ?? true,
+        preview: c.preview ?? false,
       });
       setEditingCampaignId(campaignId);
       setShowCreate(true);
@@ -2495,37 +2501,45 @@ export default function CampaignPage() {
             </section>
           )}
 
-          {/* Section: AI Personalization + Preview — only when Email is in channel_order */}
+          {/* Section: AI Personalization — only when Email is in channel_order */}
           {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && (
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              {/* Enable AI Personalization */}
-              <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
-                <div className="min-w-0 mr-3">
-                  <p className="text-[13px] font-[600] text-[#0a0a0a] leading-tight">AI Personalization</p>
-                  <p className="text-[11px] text-blue-500 mt-0.5">Personalize email content</p>
+          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="grid grid-cols-2 gap-3">
+              {/* AI Personalization toggle */}
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                <div>
+                  <p className="text-[14px] font-[600] text-[#0a0a0a]">Enable AI Personalization</p>
+                  <p className="text-[12px] text-blue-500 mt-0.5">Use AI to personalize email content</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setForm((p) => ({ ...p, enable_ai_personalization: !p.enable_ai_personalization }))}
-                  className={`flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.enable_ai_personalization ? "bg-[#1e293b]" : "bg-gray-200"}`}
+                  onClick={() =>
+                    setForm((p) => ({
+                      ...p,
+                      enable_ai_personalization: !p.enable_ai_personalization,
+                    }))
+                  }
+                  className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.enable_ai_personalization ? "bg-[#1e293b]" : "bg-gray-200"}`}
                 >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.enable_ai_personalization ? "translate-x-6" : "translate-x-1"}`} />
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.enable_ai_personalization ? "translate-x-6" : "translate-x-1"}`}
+                  />
                 </button>
               </div>
-
-              {/* Preview */}
-              <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 bg-gray-50/50">
-                <div className="min-w-0 mr-3">
-                  <p className="text-[13px] font-[600] text-[#0a0a0a] leading-tight">Preview</p>
-                  <p className="text-[11px] text-blue-500 mt-0.5">Review drafts before sending</p>
+              {/* Preview Mode toggle */}
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                <div>
+                  <p className="text-[14px] font-[600] text-[#0a0a0a]">Preview Mode</p>
+                  <p className="text-[12px] text-blue-500 mt-0.5">Review drafts before sending</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setForm((p) => ({ ...p, preview_mode: !p.preview_mode }))}
-                  className={`flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.preview_mode ? "bg-[#1e293b]" : "bg-gray-200"}`}
+                  onClick={() => setForm((p) => ({ ...p, preview: !p.preview }))}
+                  className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.preview ? "bg-[#1e293b]" : "bg-gray-200"}`}
                 >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.preview_mode ? "translate-x-6" : "translate-x-1"}`} />
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.preview ? "translate-x-6" : "translate-x-1"}`}
+                  />
                 </button>
               </div>
             </div>
@@ -4205,13 +4219,16 @@ export default function CampaignPage() {
                   <div>
                   {transcriptTaskNames.length > 0 && (
                     <div>
-                      <p className="text-[12px] font-[600] text-gray-700 mb-2">
-                        Task List
-                      </p>
-                      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                        <ul className="space-y-1 text-[12px] text-gray-700">
+                      <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 mb-3">
+                        <p className="text-[9px] font-[700] uppercase tracking-widest text-violet-500 mb-1.5">
+                          Follow-up Tasks &nbsp;<span className="bg-violet-200 text-violet-700 rounded-full px-1.5 py-px text-[9px]">{transcriptTaskNames.length}</span>
+                        </p>
+                        <ul className="space-y-0.5">
                           {transcriptTaskNames.map((task, idx) => (
-                            <li key={idx}>{`${idx + 1}. ${task}`}</li>
+                            <li key={idx} className="flex items-start gap-1.5 text-[11px] text-violet-900">
+                              <span className="mt-0.5 shrink-0 w-3.5 h-3.5 rounded bg-violet-400 text-white text-[8px] font-[800] flex items-center justify-center">{idx + 1}</span>
+                              <span className="leading-snug">{task}</span>
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -5173,13 +5190,15 @@ export default function CampaignPage() {
                           const modalTasks = normalizeFollowUpTasks(emailDetailModal.follow_up_tasks);
                           if (!modalTasks.length) return null;
                           return (
-                            <div className="shrink-0 border-b border-amber-100 bg-amber-50 px-6 py-2.5">
-                              <p className="text-[11px] font-[700] text-amber-700 uppercase tracking-wide mb-1.5">Follow-up Tasks ({modalTasks.length})</p>
-                              <ul className="space-y-1">
+                            <div className="shrink-0 border-b border-violet-100 bg-violet-50 px-6 py-2">
+                              <p className="text-[9px] font-[700] uppercase tracking-widest text-violet-500 mb-1.5">
+                                Follow-up Tasks &nbsp;<span className="bg-violet-200 text-violet-700 rounded-full px-1.5 py-px text-[9px]">{modalTasks.length}</span>
+                              </p>
+                              <ul className="space-y-0.5">
                                 {modalTasks.map((task, ti) => (
-                                  <li key={ti} className="flex items-start gap-1.5 text-[11px] text-amber-800">
-                                    <span className="mt-0.5 flex-shrink-0 h-4 w-4 rounded-full bg-amber-200 text-amber-700 text-[9px] font-[700] flex items-center justify-center">{ti + 1}</span>
-                                    <span>{task}</span>
+                                  <li key={ti} className="flex items-start gap-1.5 text-[11px] text-violet-900">
+                                    <span className="mt-0.5 shrink-0 w-3.5 h-3.5 rounded bg-violet-400 text-white text-[8px] font-[800] flex items-center justify-center">{ti + 1}</span>
+                                    <span className="leading-snug">{task}</span>
                                   </li>
                                 ))}
                               </ul>
@@ -5319,22 +5338,33 @@ export default function CampaignPage() {
         "All Status",
         ...new Set(linkedinHistoryData.map((r) => r.status)),
       ];
+      const liTotalTasks = linkedinHistoryData.reduce((sum, r) => {
+        const names = normalizeFollowUpTasks(r.follow_up_tasks);
+        const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
+        return sum + cnt;
+      }, 0);
       const liRows = linkedinHistoryData.filter((r) => {
         const ms =
           r.name?.toLowerCase().includes(liSearch.toLowerCase()) ||
           r.company?.toLowerCase().includes(liSearch.toLowerCase());
         const ss = liStatus === "All Status" || r.status === liStatus;
-        return ms && ss;
+        if (!ms || !ss) return false;
+        if (liTaskFilter) {
+          const names = normalizeFollowUpTasks(r.follow_up_tasks);
+          const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
+          if (cnt === 0) return false;
+        }
+        return true;
       });
-      const totalOutreach = linkedinHistoryData.length;
+      const totalOutreach = linkedinHistoryTotal > 0 ? linkedinHistoryTotal : linkedinHistoryData.length;
       const accepted = linkedinHistoryData.filter(
-        (r) => r.status === "ACCEPTED" || r.status === "CONNECTED",
+        (r) => r.connectionAccepted || r.status === "ACCEPTED" || r.status === "CONNECTED",
       ).length;
       const replied = linkedinHistoryData.filter(
-        (r) => r.status === "REPLIED" || r.status === "MEETING SCHEDULED",
+        (r) => r.replied || r.status === "REPLIED" || r.status === "MEETING SCHEDULED",
       ).length;
       const noReply = linkedinHistoryData.filter(
-        (r) => r.status === "NO REPLY" || r.status === "NOT CONNECTED",
+        (r) => !r.replied && (r.status === "NO REPLY" || r.status === "NOT CONNECTED" || r.status === "PENDING"),
       ).length;
       const meetingBooked =
         linkedinHistoryData.filter((r) => r.meeting).length || c.meetings;
@@ -5373,14 +5403,22 @@ export default function CampaignPage() {
             </p>
           </div>
           {/* KPI strip */}
-          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
             {[
               {
                 label: "Total Outreach",
-                value: totalOutreach || c.totalLeads,
+                value: totalOutreach,
                 sub: "all activity",
                 color: "text-blue-600",
                 ring: "ring-blue-200",
+              },
+              {
+                label: "Total Tasks",
+                value: liTotalTasks,
+                sub: "follow-up tasks",
+                color: liTaskFilter ? "text-blue-700" : "text-blue-600",
+                ring: liTaskFilter ? "ring-blue-400" : "ring-blue-200",
+                isTaskCard: true,
               },
               {
                 label: "Accepted",
@@ -5420,7 +5458,8 @@ export default function CampaignPage() {
             ].map((k) => (
               <article
                 key={k.label}
-                className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring}`}
+                onClick={k.isTaskCard ? () => setLiTaskFilter((v) => !v) : undefined}
+                className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring} ${k.isTaskCard ? "cursor-pointer select-none hover:shadow-md" : ""} ${k.isTaskCard && liTaskFilter ? "ring-2 shadow-md" : ""}`}
               >
                 <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
                   {k.label}
@@ -5573,18 +5612,22 @@ export default function CampaignPage() {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left" style={{ minWidth: "860px" }}>
+              <table className="w-full text-left" style={{ minWidth: "1200px" }}>
                 <thead>
                   <tr className="bg-[#1e293b]">
                     {[
                       "Lead Name",
                       "Company",
-                      "Connection Sent",
-                      "Connection Accepted",
-                      "Message Sent",
+                      "Title",
+                      "Conn. Sent",
+                      "Conn. Accepted",
+                      "DM Sent",
                       "Replied",
+                      "Intent",
                       "Status",
                       "Date",
+                      "Meeting",
+                      "Tasks",
                       "Actions",
                     ].map((h) => (
                       <th
@@ -5600,7 +5643,7 @@ export default function CampaignPage() {
                   {liRows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={13}
                         className="px-4 py-12 text-center text-[13px] text-gray-400"
                       >
                         No LinkedIn records available.
@@ -5612,34 +5655,74 @@ export default function CampaignPage() {
                         key={idx}
                         className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                       >
-                        <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">
-                          {row.name}
+                        <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">{row.name}</td>
+                        <td className="px-3 py-3 text-[12px] text-blue-600 font-[500]">{row.company}</td>
+                        <td className="px-3 py-3 text-[11px] text-gray-500">{row.title}</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
+                            row.connectionSent ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-100 text-gray-500 border-gray-200"
+                          }`}>{row.connectionSent ? "Yes" : "No"}</span>
                         </td>
-                        <td className="px-3 py-3 text-[12px] text-gray-700">
-                          {row.connectionSent ? "Yes" : "No"}
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
+                            row.connectionAccepted ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"
+                          }`}>{row.connectionAccepted ? "Yes" : "No"}</span>
                         </td>
-                        <td className="px-3 py-3 text-[12px] text-gray-700">
-                          {row.connectionAccepted ?? row.action ?? "—"}
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
+                            row.messageSent ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-gray-100 text-gray-500 border-gray-200"
+                          }`}>{row.messageSent ? "Yes" : "No"}</span>
                         </td>
-                        <td className="px-3 py-3 text-[12px] text-gray-700">
-                          {row.messageSent ? "Yes" : "No"}
-                        </td>
-                        <td className="px-3 py-3 text-[12px] text-gray-700">
-                          {row.replied ? "Yes" : "No"}
+                        <td className="px-3 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
+                            row.replied ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-gray-100 text-gray-500 border-gray-200"
+                          }`}>{row.replied ? "Yes" : "No"}</span>
                         </td>
                         <td className="px-3 py-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${LINKEDIN_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
-                          >
-                            {row.status}
-                          </span>
+                          {row.lastReplyIntent !== "—" ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] bg-amber-50 text-amber-700 border border-amber-200 capitalize">
+                              {row.lastReplyIntent}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-gray-400">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${row.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
-                          >
-                            {row.meeting ? "Yes" : "No"}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${LINKEDIN_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {row.status || "—"}
                           </span>
+                        </td>
+                        <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-nowrap">
+                          {row.dateTime !== "—" ? new Date(row.dateTime).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
+                            row.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"
+                          }`}>{row.meeting ? "Yes" : "No"}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          {(() => {
+                            const rawTasks = Array.isArray(row.follow_up_tasks) ? row.follow_up_tasks : [];
+                            const taskNames = normalizeFollowUpTasks(rawTasks);
+                            const taskCount = Math.max(Number(row.total_tasks) || 0, taskNames.length, rawTasks.length);
+                            const hasTasks = taskCount > 0;
+                            return (
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border cursor-default ${
+                                  hasTasks
+                                    ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
+                                    : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
+                                }`}
+                                onMouseEnter={hasTasks ? (e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setLiTooltip({ taskNames, taskCount, rect });
+                                } : undefined}
+                                onMouseLeave={hasTasks ? () => setLiTooltip(null) : undefined}
+                              >
+                                {taskCount}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-3">
                           <button
@@ -5657,7 +5740,7 @@ export default function CampaignPage() {
             </div>
             <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
               <p className="text-[12px] text-gray-400">
-                Showing {liRows.length} of {linkedinHistoryData.length} records
+                Showing {liRows.length} of {totalOutreach} records
               </p>
               <span className="flex items-center gap-1.5 text-[12px] text-green-600 font-[500]">
                 <CheckCircle2 className="h-3.5 w-3.5" /> {meetingBooked}{" "}
@@ -5665,6 +5748,28 @@ export default function CampaignPage() {
               </span>
             </div>
           </div>
+          {liTooltip && (() => {
+            const { rect } = liTooltip;
+            const left = Math.min(Math.max(rect.left + rect.width / 2, 10), (typeof window !== "undefined" ? window.innerWidth : 1200) - 10);
+            const top = rect.top - 8;
+            return (
+              <div
+                style={{ position: "fixed", top, left, transform: "translate(-50%, -100%)", zIndex: 9999, pointerEvents: "none" }}
+                className="rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg"
+              >
+                <p className="font-[600] mb-1">Follow-up Tasks</p>
+                {liTooltip.taskNames.length > 0 ? (
+                  <ul className="space-y-0.5 text-gray-200 w-[340px] max-w-[calc(100vw-2rem)]">
+                    {liTooltip.taskNames.map((task, ti) => (
+                      <li key={ti} className="whitespace-normal break-words">{`${ti + 1}. ${task}`}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-300 w-[340px] max-w-[calc(100vw-2rem)]"><strong>Total:</strong> {liTooltip.taskCount} task{liTooltip.taskCount !== 1 ? "s" : ""}</p>
+                )}
+              </div>
+            );
+          })()}
         </main>
       );
     }
@@ -5672,55 +5777,87 @@ export default function CampaignPage() {
     /* ─── WHATSAPP HISTORY ─── */
     if (activeTab === "WHATSAPP") {
       const whatsappHistoryData = whatsappHistory ?? [];
+      const waAnalytics = whatsappAnalytics ?? null;
+
+      // Use analytics object for KPI cards when available
+      const totalSent        = waAnalytics?.total_sent           ?? whatsappHistoryData.length;
+      const delivered        = waAnalytics?.delivered            ?? whatsappHistoryData.filter((r) => r.status === "delivered" || r.status === "DELIVERED").length;
+      const readCount        = waAnalytics?.read                 ?? whatsappHistoryData.filter((r) => r.status === "read" || r.status === "READ").length;
+      const repliedCount     = waAnalytics?.replied              ?? whatsappHistoryData.filter((r) => r.is_replied).length;
+      const positiveIntent   = waAnalytics?.positive_intent      ?? 0;
+      const negativeIntent   = waAnalytics?.negative_intent      ?? 0;
+      const neutralIntent    = waAnalytics?.neutral_intent        ?? 0;
+      const meetingBooked    = waAnalytics?.meetings_scheduled   ?? waAnalytics?.meeting_booked ?? whatsappHistoryData.filter((r) => r.meeting).length;
+      const optedOut         = waAnalytics?.opted_out            ?? 0;
+      const activeConvs      = waAnalytics?.active_conversations  ?? 0;
+      const completedConvs   = waAnalytics?.completed_conversations ?? 0;
+      const replyRatePct     = waAnalytics?.reply_rate_pct       ?? (totalSent > 0 ? Math.round((repliedCount / totalSent) * 100) : 0);
+      const readRatePct      = waAnalytics?.read_rate_pct        ?? (totalSent > 0 ? Math.round((readCount / totalSent) * 100) : 0);
+      const totalFollowUps   = waAnalytics?.leads_with_tasks ?? whatsappHistoryData.reduce((sum, r) => {
+        const names = normalizeFollowUpTasks(r.follow_up_tasks);
+        return sum + Math.max(Number(r.total_tasks) || 0, names.length);
+      }, 0);
+      const leadsSkipped     = waAnalytics?.leads_skipped        ?? 0;
+
       const waStatuses = [
         "All Status",
-        ...new Set(whatsappHistoryData.map((r) => r.status)),
-      ];
+        "ACTIVE",
+        "COMPLETED",
+        "OPTED_OUT",
+        ...new Set(whatsappHistoryData.map((r) => (r.status ?? "").toUpperCase()).filter(Boolean)),
+      ].filter((v, i, a) => a.indexOf(v) === i);
+
       const waRows = whatsappHistoryData.filter((r) => {
-        const ms =
-          r.name?.toLowerCase().includes(waSearch.toLowerCase()) ||
-          r.company?.toLowerCase().includes(waSearch.toLowerCase());
-        const ss = waStatus === "All Status" || r.status === waStatus;
-        return ms && ss;
+        const phoneMatch = r.phone?.toLowerCase().includes(waSearch.toLowerCase());
+        const ss = waStatus === "All Status" || (r.status ?? "").toUpperCase() === waStatus.toUpperCase();
+        if (!phoneMatch || !ss) return false;
+        if (waTaskFilter) {
+          const names = normalizeFollowUpTasks(r.follow_up_tasks);
+          const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
+          if (cnt === 0) return false;
+        }
+        if (waCardFilter === "delivered") {
+          if ((r.status ?? "").toUpperCase() !== "DELIVERED") return false;
+        }
+        if (waCardFilter === "read") {
+          if ((r.status ?? "").toUpperCase() !== "READ") return false;
+        }
+        if (waCardFilter === "replied") {
+          if (!r.is_replied) return false;
+        }
+        if (waCardFilter === "meetings") {
+          if (!r.meeting && !r.meeting_link) return false;
+        }
+        return true;
       });
-      const totalMessages = whatsappHistoryData.length;
-      const delivered = whatsappHistoryData.filter(
-        (r) => r.status === "DELIVERED",
-      ).length;
-      const read = whatsappHistoryData.filter(
-        (r) => r.status === "READ",
-      ).length;
-      const replied = whatsappHistoryData.filter(
-        (r) => r.status === "REPLIED",
-      ).length;
-      const failed = whatsappHistoryData.filter(
-        (r) => r.status === "FAILED",
-      ).length;
-      const meetingBooked = whatsappHistoryData.filter((r) => r.meeting).length;
-      const readRate =
-        totalMessages > 0
-          ? Math.round(((read + replied) / totalMessages) * 100)
-          : 0;
 
       const WA_STATUS_STYLE = {
-        DELIVERED: "bg-blue-50 text-blue-700 border border-blue-200",
-        READ: "bg-blue-100 text-blue-700 border border-blue-200",
-        REPLIED: "bg-blue-50 text-blue-700 border border-blue-200",
-        FAILED: "bg-blue-50 text-blue-700 border border-blue-200",
-        SENT: "bg-blue-50 text-blue-700 border border-blue-200",
+        ACTIVE:     "bg-green-50 text-green-700 border border-green-200",
+        DELIVERED:  "bg-blue-50 text-blue-700 border border-blue-200",
+        READ:       "bg-indigo-100 text-indigo-700 border border-indigo-200",
+        REPLIED:    "bg-violet-50 text-violet-700 border border-violet-200",
+        COMPLETED:  "bg-teal-50 text-teal-700 border border-teal-200",
+        FAILED:     "bg-red-50 text-red-700 border border-red-200",
+        SENT:       "bg-blue-50 text-blue-700 border border-blue-200",
+        OPTED_OUT:  "bg-orange-50 text-orange-700 border border-orange-200",
+      };
+
+      const INTENT_STYLE = {
+        positive: "bg-green-50 text-green-700 border border-green-200",
+        negative: "bg-red-50 text-red-700 border border-red-200",
+        neutral:  "bg-gray-100 text-gray-600 border border-gray-200",
       };
 
       const statusBarData = [
-        { name: "Delivered", value: delivered, fill: "#1d4ed8" },
-        { name: "Read", value: read, fill: "#2563eb" },
-        { name: "Replied", value: replied, fill: "#3b82f6" },
-        { name: "Failed", value: failed, fill: "#93c5fd" },
+        { name: "Sent",      value: totalSent,    fill: "#6366f1" },
+        { name: "Delivered", value: delivered,    fill: "#1d4ed8" },
+        { name: "Read",      value: readCount,    fill: "#2563eb" },
+        { name: "Replied",   value: repliedCount, fill: "#3b82f6" },
       ];
-      const outcomeDonut = [
-        { name: "Read", value: read, color: "#2563eb" },
-        { name: "Replied", value: replied, color: "#3b82f6" },
-        { name: "Delivered", value: delivered, color: "#1d4ed8" },
-        { name: "Failed", value: failed, color: "#93c5fd" },
+      const intentDonut = [
+        { name: "Positive", value: positiveIntent, color: "#22c55e" },
+        { name: "Negative", value: negativeIntent, color: "#ef4444" },
+        { name: "Neutral",  value: neutralIntent,  color: "#94a3b8" },
       ].filter((s) => s.value > 0);
 
       return (
@@ -5742,174 +5879,158 @@ export default function CampaignPage() {
               Track all WhatsApp message delivery, reads, and replies
             </p>
           </div>
-          {/* KPI strip */}
+
+          {/* ── Analytics KPI Cards ── */}
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
+              { label: "Total Sent",    value: totalSent,      sub: "messages",              color: "text-indigo-600", ring: "ring-indigo-200",  filter: "sent" },
+              { label: "Delivered",     value: delivered,      sub: "reached",               color: "text-blue-600",   ring: "ring-blue-200",    filter: "delivered" },
+              { label: "Read",          value: readCount,      sub: `${readRatePct}% rate`,  color: "text-blue-700",   ring: "ring-blue-300",    filter: "read" },
+              { label: "Replied",       value: repliedCount,   sub: `${replyRatePct}% rate`, color: "text-violet-600", ring: "ring-violet-200",  filter: "replied" },
+              { label: "Meetings",      value: meetingBooked,  sub: "scheduled",             color: "text-green-600",  ring: "ring-green-200",   filter: "meetings" },
               {
-                label: "Total Sent",
-                value: totalMessages,
-                sub: "all messages",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
+                label: "Total Tasks",
+                value: totalFollowUps,
+                sub: "total tasks",
+                color: waTaskFilter ? "text-blue-700" : "text-blue-600",
+                ring: waTaskFilter ? "ring-blue-400" : "ring-blue-200",
+                isTaskCard: true,
               },
-              {
-                label: "Delivered",
-                value: delivered,
-                sub: "reached",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
-              },
-              {
-                label: "Read",
-                value: read,
-                sub: "opened",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
-              },
-              {
-                label: "Replied",
-                value: replied,
-                sub: "responded",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
-              },
-              {
-                label: "Meetings",
-                value: meetingBooked,
-                sub: "booked",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
-              },
-              {
-                label: "Read Rate",
-                value: `${readRate}%`,
-                sub: "of all sent",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
-              },
-            ].map((k) => (
-              <article
-                key={k.label}
-                className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring}`}
-              >
-                <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
-                  {k.label}
-                </p>
-                <p className={`text-[28px] font-[800] leading-none ${k.color}`}>
-                  {k.value}
-                </p>
-                <p className="text-[11px] text-gray-400">{k.sub}</p>
-              </article>
-            ))}
+            ].map((k) => {
+              const isActive = k.isTaskCard ? waTaskFilter : (k.filter && waCardFilter === k.filter);
+              return (
+                <article
+                  key={k.label}
+                  onClick={
+                    k.isTaskCard
+                      ? () => setWaTaskFilter((v) => !v)
+                      : k.filter
+                      ? () => setWaCardFilter((v) => (v === k.filter ? null : k.filter))
+                      : undefined
+                  }
+                  className={`rounded-2xl bg-white border shadow-sm p-4 flex flex-col gap-0.5 ring-1 cursor-pointer select-none hover:shadow-md transition-all ${
+                    isActive
+                      ? "ring-2 ring-indigo-400 border-indigo-100 shadow-md"
+                      : `border-gray-100 ${k.ring}`
+                  }`}
+                >
+                  <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">{k.label}</p>
+                  <p className={`text-[28px] font-[800] leading-none ${isActive && !k.isTaskCard ? "text-indigo-700" : k.color}`}>{k.value}</p>
+                  <p className="text-[11px] text-gray-400">{k.sub}</p>
+                  {isActive && <span className="text-[9px] font-[600] text-indigo-500 uppercase tracking-wide">● filtered</span>}
+                </article>
+              );
+            })}
           </section>
+
+          {/* ── Intent + Active/Completed row ── */}
+          <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <article className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ring-green-200">
+              <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">Positive Intent</p>
+              <p className="text-[26px] font-[800] leading-none text-green-600">{positiveIntent}</p>
+              <p className="text-[11px] text-gray-400">interested leads</p>
+            </article>
+            <article className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ring-red-200">
+              <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">Negative Intent</p>
+              <p className="text-[26px] font-[800] leading-none text-red-500">{negativeIntent}</p>
+              <p className="text-[11px] text-gray-400">not interested</p>
+            </article>
+            <article className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ring-blue-200">
+              <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">Active Convs.</p>
+              <p className="text-[26px] font-[800] leading-none text-blue-600">{activeConvs}</p>
+              <p className="text-[11px] text-gray-400">in progress</p>
+            </article>
+            <article className="rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ring-teal-200">
+              <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">Completed</p>
+              <p className="text-[26px] font-[800] leading-none text-teal-600">{completedConvs}</p>
+              <p className="text-[11px] text-gray-400">conversations</p>
+            </article>
+          </section>
+
           {/* Charts */}
           {statusBarData.some((d) => d.value > 0) && (
             <section className="mb-5 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
-                  Message Status Distribution
-                </h3>
-                <p className="text-[12px] text-gray-400 mb-4">
-                  Delivery and engagement breakdown
-                </p>
+                <h3 className="text-[14px] font-[700] text-gray-900 mb-1">Message Status Distribution</h3>
+                <p className="text-[12px] text-gray-400 mb-4">Delivery and engagement breakdown</p>
                 <ResponsiveContainer width="100%" height={170}>
-                  <BarChart
-                    data={statusBarData}
-                    barSize={38}
-                    margin={{ top: 0, right: 10, left: -18, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#f1f5f9"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 12, fill: "#64748b" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#94a3b8" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: 10,
-                        border: "none",
-                        fontSize: 12,
-                      }}
-                    />
+                  <BarChart data={statusBarData} barSize={38} margin={{ top: 0, right: 10, left: -18, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: 10, border: "none", fontSize: 12 }} />
                     <Bar dataKey="value" name="Messages" radius={[8, 8, 0, 0]}>
-                      {statusBarData.map((e, i) => (
-                        <Cell key={i} fill={e.fill} />
-                      ))}
+                      {statusBarData.map((e, i) => <Cell key={i} fill={e.fill} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              {outcomeDonut.length > 0 && (
+              {intentDonut.length > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col">
-                  <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
-                    Outcome Split
-                  </h3>
-                  <p className="text-[12px] text-gray-400 mb-2">
-                    Delivered, read, replied
-                  </p>
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                    <ResponsiveContainer width={140} height={140}>
+                  {/* Header */}
+                  <div className="mb-3">
+                    <h3 className="text-[14px] font-[700] text-gray-900">Intent Split</h3>
+                    <p className="text-[11px] text-gray-400 mt-0.5">Lead response sentiment</p>
+                  </div>
+
+                  {/* Donut — centered with total in middle */}
+                  <div className="flex items-center justify-center relative mb-4">
+                    <ResponsiveContainer width={160} height={160}>
                       <PieChart>
                         <Pie
-                          data={outcomeDonut}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={42}
-                          outerRadius={65}
+                          data={intentDonut}
+                          cx="50%" cy="50%"
+                          innerRadius={50} outerRadius={72}
                           dataKey="value"
-                          paddingAngle={0}
+                          paddingAngle={3}
                           labelLine={false}
                           label={renderPieLabel}
+                          strokeWidth={0}
                         >
-                          {outcomeDonut.map((s, i) => (
-                            <Cell key={i} fill={s.color} stroke="none" strokeWidth={0} />
-                          ))}
+                          {intentDonut.map((s, i) => <Cell key={i} fill={s.color} stroke="none" />)}
                         </Pie>
                         <Tooltip
-                          contentStyle={{
-                            borderRadius: 10,
-                            border: "none",
-                            fontSize: 12,
-                          }}
+                          contentStyle={{ borderRadius: 8, border: "none", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                          formatter={(val, name) => [`${val} leads`, name]}
                         />
                       </PieChart>
                     </ResponsiveContainer>
-                    <div className="space-y-1.5 w-full">
-                      {outcomeDonut.map((s) => (
-                        <div
-                          key={s.name}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-2.5 h-2.5 rounded-sm shrink-0"
-                              style={{ background: s.color }}
-                            />
-                            <span className="text-[11px] text-gray-600">
-                              {s.name}
-                            </span>
-                          </div>
-                          <span className="text-[12px] font-[700] text-gray-800">
-                            {s.value}
-                          </span>
-                        </div>
-                      ))}
+                    {/* Center label */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-[22px] font-[800] text-gray-800 leading-none">{intentDonut.reduce((s, d) => s + d.value, 0)}</span>
+                      <span className="text-[9px] font-[600] uppercase tracking-widest text-gray-400 mt-0.5">Total</span>
                     </div>
+                  </div>
+
+                  {/* Legend with progress bars */}
+                  <div className="space-y-2">
+                    {intentDonut.map((s) => {
+                      const total = intentDonut.reduce((sum, d) => sum + d.value, 0);
+                      const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+                      return (
+                        <div key={s.name} className="flex flex-col gap-0.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                              <span className="text-[11px] font-[500] text-gray-700">{s.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-[700] text-gray-800">{s.value}</span>
+                              <span className="text-[10px] font-[600] px-1.5 py-0.5 rounded-full" style={{ background: `${s.color}20`, color: s.color }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: s.color }} />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </section>
           )}
+
           {/* Table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-wrap">
@@ -5917,7 +6038,7 @@ export default function CampaignPage() {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Search by lead name or company..."
+                  placeholder="Search by phone..."
                   value={waSearch}
                   onChange={(e) => setWaSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-violet-400/30"
@@ -5929,9 +6050,7 @@ export default function CampaignPage() {
                   onChange={(e) => setWaStatus(e.target.value)}
                   className="appearance-none rounded-lg border border-gray-200 bg-white pl-3 pr-8 py-2 text-[12px] text-gray-600 shadow-sm outline-none cursor-pointer"
                 >
-                  {waStatuses.map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
+                  {waStatuses.map((s) => <option key={s}>{s}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>
@@ -5943,80 +6062,91 @@ export default function CampaignPage() {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left" style={{ minWidth: "780px" }}>
+              <table className="w-full text-left" style={{ minWidth: "720px" }}>
                 <thead>
                   <tr className="bg-[#1e293b]">
-                    {[
-                      "Lead Name",
-                      "Phone",
-                      "Company",
-                      "Date & Time",
-                      "Message Preview",
-                      "Status",
-                      "Meeting",
-                      "Actions",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-3 text-[11px] font-[600] uppercase tracking-wide text-white"
-                      >
-                        {h}
-                      </th>
+                    {["Lead Name", "Phone", "Date & Time", "Status", "Replied", "Meeting", "Tasks", "Actions"].map((h) => (
+                      <th key={h} className="px-3 py-3 text-[11px] font-[600] uppercase tracking-wide text-white">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {waRows.length === 0 ? (
+                  {whatsappHistoryLoading ? (
                     <tr>
-                      <td
-                        colSpan={8}
-                        className="px-4 py-12 text-center text-[13px] text-gray-400"
-                      >
+                      <td colSpan={10} className="px-4 py-12 text-center text-[13px] text-gray-400">
+                        Loading conversations...
+                      </td>
+                    </tr>
+                  ) : waRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-4 py-12 text-center text-[13px] text-gray-400">
                         No WhatsApp records available.
                       </td>
                     </tr>
                   ) : (
                     waRows.map((row, idx) => (
-                      <tr
-                        key={idx}
-                        className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
-                      >
-                        <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">
-                          {row.name}
-                        </td>
-                        <td className="px-3 py-3 text-[12px] text-gray-600 font-mono">
-                          {row.phone}
-                        </td>
-                        <td className="px-3 py-3 text-[12px] text-blue-600 font-[500]">
-                          {row.company}
-                        </td>
+                      <tr key={row.id ?? idx} className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                        <td className="px-3 py-3 text-[12px] font-mono text-gray-700">{row.lead_name ?? "—"}</td>
+                        <td className="px-3 py-3 text-[12px] text-gray-600 font-mono">{row.phone}</td>
                         <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-pre-line leading-tight">
                           {formatTableDateTime(row.dateTime)}
                         </td>
-                        <td
-                          className="px-3 py-3 text-[11px] text-gray-600 max-w-[200px] truncate"
-                          title={row.messagePreview}
-                        >
-                          {row.messagePreview}
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${WA_STATUS_STYLE[(row.status ?? "").toUpperCase()] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>
+                            {(row.status ?? "—").toUpperCase()}
+                          </span>
+                        </td>
+                        {/* <td className="px-3 py-3">
+                          {row.intent ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${INTENT_STYLE[row.intent.toLowerCase()] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>
+                              {row.intent}
+                            </span>
+                          ) : <span className="text-[11px] text-gray-400">—</span>}
                         </td>
                         <td className="px-3 py-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${WA_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}
-                          >
-                            {row.status}
+                          {row.last_message_status ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${WA_STATUS_STYLE[(row.last_message_status ?? "").toUpperCase()] ?? "bg-gray-100 text-gray-600 border border-gray-200"}`}>
+                              {(row.last_message_status ?? "").toUpperCase()}
+                            </span>
+                          ) : <span className="text-[11px] text-gray-400">—</span>}
+                        </td> */}
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${row.is_replied ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                            {row.is_replied ? "Yes" : "No"}
                           </span>
                         </td>
                         <td className="px-3 py-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${row.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
-                          >
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${row.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
                             {row.meeting ? "Yes" : "No"}
                           </span>
                         </td>
                         <td className="px-3 py-3">
+                          {(() => {
+                            const rawTasks = Array.isArray(row.follow_up_tasks) ? row.follow_up_tasks : [];
+                            const taskNames = normalizeFollowUpTasks(rawTasks);
+                            const taskCount = Math.max(Number(row.total_tasks) || 0, taskNames.length, rawTasks.length);
+                            const hasTasks = taskCount > 0;
+                            return (
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border cursor-default ${hasTasks ? "font-[700] bg-blue-50 text-blue-700 border-blue-200" : "font-[600] bg-gray-100 text-gray-500 border-gray-200"}`}
+                                onMouseEnter={hasTasks ? (e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setWaTooltip({ taskNames, taskCount, rect });
+                                } : undefined}
+                                onMouseLeave={hasTasks ? () => setWaTooltip(null) : undefined}
+                              >
+                                {taskCount}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-3">
                           <button
                             type="button"
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1d4ed8] text-white text-[11px] font-[600] hover:bg-blue-700 transition"
+                            onClick={() => row.id != null && setWaConversationModal(row.id)}
+                            disabled={row.id == null}
+                            title={row.id == null ? "No conversation ID available" : `View conversation #${row.id}`}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-[600] transition ${row.id != null ? "bg-[#1d4ed8] text-white hover:bg-blue-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
                           >
                             <Eye className="h-3.5 w-3.5" /> View
                           </button>
@@ -6032,11 +6162,56 @@ export default function CampaignPage() {
                 Showing {waRows.length} of {whatsappHistoryData.length} records
               </p>
               <span className="flex items-center gap-1.5 text-[12px] text-green-600 font-[500]">
-                <CheckCircle2 className="h-3.5 w-3.5" /> {meetingBooked}{" "}
-                meetings booked
+                <CheckCircle2 className="h-3.5 w-3.5" /> {meetingBooked} meetings booked
               </span>
             </div>
           </div>
+
+          {/* Task tooltip */}
+          {waTooltip && (() => {
+            const { rect } = waTooltip;
+            const left = Math.min(Math.max(rect.left + rect.width / 2, 10), (typeof window !== "undefined" ? window.innerWidth : 1200) - 10);
+            const top = rect.top - 8;
+            return (
+              <div
+                style={{ position: "fixed", top, left, transform: "translate(-50%, -100%)", zIndex: 9999, pointerEvents: "none" }}
+                className="rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg"
+              >
+                <p className="font-[600] mb-1">Follow-up Tasks</p>
+                {waTooltip.taskNames.length > 0 ? (
+                  <ul className="space-y-0.5 text-gray-200 w-[340px] max-w-[calc(100vw-2rem)]">
+                    {waTooltip.taskNames.map((task, ti) => (
+                      <li key={ti} className="whitespace-normal break-words">{`${ti + 1}. ${task}`}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-300 w-[340px] max-w-[calc(100vw-2rem)]"><strong>Total:</strong> {waTooltip.taskCount} task{waTooltip.taskCount !== 1 ? "s" : ""}</p>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Conversation Detail Modal */}
+          {waConversationModal != null && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setWaConversationModal(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-0" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-[700] text-gray-900 flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4 text-green-500" /> WhatsApp Conversation
+                  </h2>
+                  <button type="button" onClick={() => setWaConversationModal(null)} className="text-gray-400 hover:text-gray-600 transition">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="p-5">
+                  <WhatsAppConversationDetail
+                    conversationId={waConversationModal}
+                    onClose={() => setWaConversationModal(null)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       );
     }

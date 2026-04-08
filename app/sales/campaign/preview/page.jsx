@@ -117,23 +117,10 @@ const normalizeLead = (lead) => {
 };
 
 const fetchArchivedLeads = async (campaignId) => {
-  const candidates = [
-    `/api/campaigns/${campaignId}/leads/archived`,
-    `/campaigns/${campaignId}/leads/archived`,
-    `/api/campaigns/${campaignId}/archived-leads`,
-    `/campaigns/${campaignId}/archived-leads`,
-  ];
-
-  let lastError = null;
-  for (const url of candidates) {
-    try {
-      const res = await axiosInstance.get(url);
-      return toRows(res.data);
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError;
+  const res = await axiosInstance.get(
+    `/api/campaigns/${campaignId}/email-drafts`
+  );
+  return toRows(res.data);
 };
 
 const normalizeArchiveLead = (item) => {
@@ -261,6 +248,7 @@ export default function CampaignPreviewPage() {
   const [tabClickCount, setTabClickCount] = useState({});
   const [reprocessPrompt, setReprocessPrompt] = useState("");
   const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessResult, setReprocessResult] = useState(null);
 
   const validLeads = useMemo(() => leads.filter((l) => !!l.id), [leads]);
   const allSelected = validLeads.length > 0 && validLeads.every((l) => selectedLeadIds.has(l.id));
@@ -352,36 +340,32 @@ export default function CampaignPreviewPage() {
     setTabClickCount({});
     setReprocessPrompt("");
     setReprocessing(false);
+    setReprocessResult(null);
   };
 
   const handleReprocess = async () => {
     if (!reprocessPrompt.trim() || !campaignId) return;
-    const leadId = activePreviewLead?.id;
+    const draftId = activePreviewLead?.id;
+    if (!draftId) { toast.error("Draft ID is missing."); return; }
     setReprocessing(true);
-    const candidates = [
-      `/api/campaigns/${campaignId}/leads/${leadId}/reprocess`,
-      `/campaigns/${campaignId}/leads/${leadId}/reprocess`,
-      `/api/campaigns/${campaignId}/reprocess`,
-      `/campaigns/${campaignId}/reprocess`,
-    ];
-    let lastError = null;
-    let succeeded = false;
-    for (const url of candidates) {
-      try {
-        await axiosInstance.post(url, { prompt: reprocessPrompt.trim(), lead_id: leadId });
-        succeeded = true;
-        break;
-      } catch (err) {
-        lastError = err;
-      }
-    }
-    setReprocessing(false);
-    if (succeeded) {
-      toast.success("Lead reprocessed successfully.");
+    setReprocessResult(null);
+    try {
+      const res = await axiosInstance.post(
+        `/api/campaigns/${campaignId}/email-drafts/${draftId}/regenerate`,
+        { record_prompt: reprocessPrompt.trim() }
+      );
+      const data = res?.data ?? {};
+      setReprocessResult({
+        newDraftId: data.new_draft_id,
+        subject: data.subject ?? "",
+        bodyHtml: data.body_html ?? "",
+      });
+      toast.success("Draft regenerated successfully.");
       setReprocessPrompt("");
-      closePreviewModal();
-    } else {
-      toast.error(lastError?.response?.data?.message || "Failed to reprocess lead.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to regenerate draft.");
+    } finally {
+      setReprocessing(false);
     }
   };
 
@@ -620,7 +604,7 @@ export default function CampaignPreviewPage() {
                   {/* Compact email metadata strip */}
                   <div className="mb-3 bg-white border border-gray-200 rounded-xl px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1">
                     <span className="text-[12px] text-gray-500 whitespace-nowrap">
-                      <span className="font-[600] text-gray-700 mr-1">From:</span>{activePreviewLead.name}
+                      <span className="font-[600] text-gray-700 mr-1">To:</span>{activePreviewLead.name}
                     </span>
                     <span className="hidden sm:block text-gray-200 select-none">|</span>
                     <span className="text-[12px] text-gray-500 whitespace-nowrap">
@@ -758,11 +742,11 @@ export default function CampaignPreviewPage() {
                     if (!ai || typeof ai !== "object") {
                       return (
                         <div className="flex flex-col items-center justify-center py-16 gap-2">
-                          {engine && (
+                          {/* {engine && (
                             <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 text-[11px] font-[600] mb-1">
                               Engine: {engine}
                             </span>
-                          )}
+                          )} */}
                           <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
                         </div>
                       );
@@ -770,13 +754,13 @@ export default function CampaignPreviewPage() {
                     const entries = Object.entries(ai);
                     return (
                       <div className="flex flex-col gap-3 animate-fadeIn">
-                        {engine && (
+                        {/* {engine && (
                           <div className="flex justify-end">
                             <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 text-[11px] font-[600]">
                               Engine: {engine}
                             </span>
                           </div>
-                        )}
+                        )} */}
                         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                           {entries.map(([key, val], idx) => {
                             const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -846,6 +830,46 @@ export default function CampaignPreviewPage() {
                       <p className="text-[12px] text-gray-400 mt-0.5">Describe your changes and the AI will regenerate this draft.</p>
                     </div>
                   </div>
+
+                  {/* Regenerated result */}
+                  {reprocessResult && (
+                    <div className="animate-fadeIn flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[12px] font-[700] text-emerald-600 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-4 w-4" /> Draft regenerated
+                          {reprocessResult.newDraftId && (
+                            <span className="ml-1 text-[11px] text-gray-400 font-[400]">ID: {reprocessResult.newDraftId}</span>
+                          )}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setReprocessResult(null)}
+                          className="text-[11px] text-gray-400 hover:text-gray-600 transition"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                      {reprocessResult.subject && (
+                        <div className="bg-white border border-emerald-100 rounded-xl px-4 py-2 text-[12px] text-gray-700">
+                          <span className="font-[600] text-gray-500 mr-1.5">Subject:</span>
+                          {reprocessResult.subject}
+                        </div>
+                      )}
+                      <div className="bg-white rounded-xl border border-emerald-100 shadow-sm overflow-hidden">
+                        {reprocessResult.bodyHtml ? (
+                          <iframe
+                            srcDoc={reprocessResult.bodyHtml}
+                            sandbox="allow-same-origin"
+                            title="Regenerated email preview"
+                            className="w-full h-[35vh] min-h-[280px] block"
+                          />
+                        ) : (
+                          <div className="p-4 text-[13px] text-gray-400 italic">No preview available.</div>
+                        )}
+                      </div>
+                      <div className="border-t border-gray-100 pt-1" />
+                    </div>
+                  )}
 
                   {/* Suggestion chips */}
                   <div className="flex flex-wrap gap-2">

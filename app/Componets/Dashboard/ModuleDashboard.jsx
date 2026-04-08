@@ -717,11 +717,19 @@ export default function ModuleDashboard({
   const isLoading =
     (outboundLoading && activeTab === "outbound") ||
     (inboundLoading  && activeTab === "inbound")  ||
-    (emailLoading    && activeTab === "email");
+    (emailLoading    && activeTab === "email")    ||
+    (linkedinLoading && activeTab === "linkedin");
 
   // ── KPI card values ────────────────────────────────────────────
-  // Card 1: Calls Processed (calls) / Total Leads (email)
-  const calls = emailSm
+  // Card 1: Calls Processed (calls) / Total Leads (email) / Connections Sent (linkedin)
+  const calls = linkedinSm
+    ? {
+        today: linkedinSm.connections_sent_today,
+        week:  linkedinSm.connections_sent_this_week,
+        month: linkedinSm.connections_sent_this_month,
+        trend: `${linkedinSm.connections_sent_total ?? linkedinData?.total_connections ?? 0} total`,
+      }
+    : emailSm
     ? {
         today: emailSm.total_leads_today ?? emailSm.leads_targeted_today ?? emailSm.unique_recipients_today ?? emailSm.emails_sent_today,
         week:  emailSm.total_leads_this_week ?? emailSm.leads_targeted_this_week ?? emailSm.unique_recipients_this_week ?? emailSm.emails_sent_this_week,
@@ -737,8 +745,15 @@ export default function ModuleDashboard({
       }
     : d.calls;
 
-  // Card 2: Meetings Scheduled
-  const meetings = emailSm
+  // Card 2: Meetings Scheduled / Connections Accepted (linkedin)
+  const meetings = linkedinSm
+    ? {
+        today: linkedinSm.connections_accepted_today,
+        week:  linkedinSm.connections_accepted_this_week,
+        month: linkedinSm.connections_accepted_this_month,
+        trend: `${linkedinSm.connections_accepted_total ?? 0} total`,
+      }
+    : emailSm
     ? {
         today: emailSm.meetings_scheduled_today,
         week:  emailSm.meetings_scheduled_this_week,
@@ -754,8 +769,15 @@ export default function ModuleDashboard({
       }
     : d.meetings;
 
-  // Card 3: Tasks Created (calls) / Leads Engaged (email)
-  const tasks = emailSm
+  // Card 3: Tasks Created (calls) / Leads Engaged (email) / Messages Exchanged (linkedin)
+  const tasks = linkedinSm
+    ? {
+        today: linkedinSm.messages_exchanged_today,
+        week:  linkedinSm.messages_exchanged_this_week,
+        month: linkedinSm.messages_exchanged_this_month,
+        trend: `${linkedinSm.messages_exchanged_total ?? 0} total`,
+      }
+    : emailSm
     ? {
         today: emailSm.leads_engaged_today ?? emailSm.engaged_leads_today ?? emailSm.responses_received_today,
         week:  emailSm.leads_engaged_this_week ?? emailSm.engaged_leads_this_week ?? emailSm.responses_received_this_week,
@@ -782,14 +804,16 @@ export default function ModuleDashboard({
     0,
   );
 
-  // Card 4: Avg Call Duration / Avg Emails per Lead (sent emails / total leads)
-  const duration = emailSm
+  // Card 4: Avg Call Duration / Avg Emails per Lead / Avg Response Time (linkedin)
+  const duration = linkedinSm
+    ? linkedinSm.avg_response_time_hours ?? linkedinSm.average_response_time ?? 0
+    : emailSm
     ? (emailTotalLeads > 0
       ? Number((emailSentTotal / emailTotalLeads).toFixed(2))
       : Number(emailSm.average_emails_per_lead ?? emailData?.average_emails_per_lead ?? 0))
     : sm ? sm.average_call_duration
     : d.duration;
-  const durationDisplay = activeTab === "email" ? duration : formatCallDuration(duration);
+  const durationDisplay = (activeTab === "email" || activeTab === "linkedin") ? duration : formatCallDuration(duration);
   const donut    = d.donut;
 
   // ── Chart data ─────────────────────────────────────────────────
@@ -1047,6 +1071,103 @@ export default function ModuleDashboard({
     : emailData?.reason_for_interest_distribution &&
       Object.keys(emailData.reason_for_interest_distribution ?? {}).length
     ? Object.entries(emailData.reason_for_interest_distribution)
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count)
+    : null;
+
+  // ── LinkedIn-specific chart data ───────────────────────────────
+
+  // LI chart 1: monthly trend (connections_sent, dms_sent, replies_received)
+  const linkedinMonthly = (() => {
+    const src = linkedinData?.monthly_trend ?? linkedinData?.campaign_performance_by_month ?? null;
+    if (!src) return null;
+    return src.map((item) => ({
+      x:                shortMonth(item.month),
+      connections_sent: item.connections_sent ?? item.connection_count ?? item.count ?? 0,
+      dms_sent:         item.dms_sent ?? 0,
+      replies_received: item.replies_received ?? 0,
+    }));
+  })();
+
+  // LI chart 2: funnel stages
+  const linkedinFunnel = linkedinData?.funnel?.length
+    ? linkedinData.funnel.map((item) => ({
+        stage: item.stage,
+        count: item.count ?? 0,
+      }))
+    : null;
+
+  // LI chart 3: connection status distribution (pie)
+  const linkedinOutcomes = (() => {
+    const src =
+      linkedinData?.connection_status_distribution ??
+      linkedinData?.connection_outcomes_distribution ??
+      linkedinData?.outcomes_distribution ??
+      null;
+    if (!src || !src.length) return null;
+    const total = src.reduce((s, d) => s + (d.call_count ?? d.count ?? 0), 1);
+    return src.map((item) => ({
+      name:       item.status ?? item.name ?? item.outcome ?? "Unknown",
+      call_count: item.call_count ?? item.count ?? 0,
+      percentage: item.percentage ?? parseFloat((((item.call_count ?? item.count ?? 0) / total) * 100).toFixed(2)),
+    }));
+  })();
+
+  // LI chart 4: intent distribution (pie)
+  const linkedinIntent = (() => {
+    const src = linkedinData?.intent_distribution ?? null;
+    if (!src || !src.length) return null;
+    const total = src.reduce((s, d) => s + (d.count ?? 0), 1);
+    return src.map((item) => ({
+      name:       item.intent ?? item.name ?? "Unknown",
+      call_count: item.count ?? 0,
+      percentage: parseFloat((((item.count ?? 0) / total) * 100).toFixed(2)),
+    }));
+  })();
+
+  // LI chart 5: meetings by campaign
+  const linkedinMeetingCampaign = (() => {
+    const src =
+      linkedinData?.meetings_by_campaign ??
+      linkedinData?.meeting_schedule_by_campaign ??
+      linkedinData?.meeting_schedule_by_linkedin ??
+      null;
+    if (!src) return null;
+    return src.map((item) => {
+      const raw = item.campaign_name ?? item.name ?? "";
+      return {
+        campaignName: raw,
+        name: raw.length > 16 ? raw.slice(0, 16) + "\u2026" : raw,
+        connections: item.total_connections ?? item.connections_sent ?? item.total_leads ?? 0,
+        meetings:    item.meetings_scheduled ?? item.count ?? 0,
+      };
+    });
+  })();
+
+  // LI chart 6: sentiment distribution
+  const linkedinSentimentArr = (() => {
+    const src =
+      linkedinData?.sentiment_distribution ??
+      linkedinData?.sentiment_analysis_distribution ??
+      linkedinData?.sentiment_analysis ??
+      null;
+    if (!src || !src.length) return [];
+    const total = src.reduce((s, d) => s + (d.call_count ?? d.count ?? 0), 1);
+    return src.map((s) => ({
+      name:       s.sentiment ?? s.name ?? "Unknown",
+      value:      s.call_count ?? s.count ?? 0,
+      percentage: s.percentage ?? parseFloat((((s.call_count ?? s.count ?? 0) / total) * 100).toFixed(2)),
+    }));
+  })();
+
+  // LI chart 7 (legacy): top interested reasons
+  const linkedinReasons = linkedinData?.top_interested_reasons?.length
+    ? linkedinData.top_interested_reasons
+        .map((item) => ({ reason: item.reason, count: item.count }))
+        .sort((a, b) => b.count - a.count)
+    : linkedinData?.reason_for_interest_distribution &&
+      Object.keys(linkedinData.reason_for_interest_distribution ?? {}).length
+    ? Object.entries(linkedinData.reason_for_interest_distribution)
         .map(([reason, count]) => ({ reason, count }))
         .sort((a, b) => b.count - a.count)
     : null;
@@ -1831,6 +1952,199 @@ export default function ModuleDashboard({
               <ReasonsChart data={emailReasons} />
             ) : (
               <div className="h-[160px] flex items-center justify-center text-[13px] text-gray-400">No reason data</div>
+            )}
+          </ChartCard>
+
+        </section>
+
+      ) : activeTab === "linkedin" && linkedinData ? (
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+          {/* LI-1 ── Monthly Trend (3-line area) */}
+          <ChartCard
+            title="Monthly Trend"
+            subtitle="Connections sent, DMs sent, and replies over time"
+            badge={linkedinMonthly ? `${linkedinMonthly.length} months` : undefined}
+          >
+            <div className="h-[240px] w-full">
+              {linkedinMonthly ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={linkedinMonthly} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                    <defs>
+                      <linearGradient id="liGradConn" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor="#0ea5e9" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="#0ea5e9" stopOpacity={0}    />
+                      </linearGradient>
+                      <linearGradient id="liGradDms" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor="#8b5cf6" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0}    />
+                      </linearGradient>
+                      <linearGradient id="liGradReply" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%"   stopColor="#22c55e" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="#22c55e" stopOpacity={0}    />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="x" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} dy={4} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        const colors = { connections_sent: "#0ea5e9", dms_sent: "#8b5cf6", replies_received: "#22c55e" };
+                        const labels = { connections_sent: "Connections Sent", dms_sent: "DMs Sent", replies_received: "Replies Received" };
+                        return (
+                          <div className="bg-white border border-gray-200 shadow-lg rounded-xl px-4 py-2.5 text-[12px]">
+                            <p className="font-semibold text-gray-600 mb-1.5">{label}</p>
+                            {payload.map((p) => (
+                              <p key={p.dataKey} style={{ color: colors[p.dataKey] }} className="font-bold tabular-nums">
+                                {p.value} <span className="text-[11px] font-normal text-gray-400">{labels[p.dataKey]}</span>
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      }}
+                      cursor={{ stroke: "#e0f2fe", strokeWidth: 1, strokeDasharray: "4 2" }}
+                    />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                      formatter={(value) => ({ connections_sent: "Connections Sent", dms_sent: "DMs Sent", replies_received: "Replies Received" }[value] ?? value)}
+                    />
+                    <Area type="monotone" dataKey="connections_sent" stroke="#0ea5e9" strokeWidth={2} fill="url(#liGradConn)"
+                      dot={{ fill: "#fff", r: 3, strokeWidth: 2, stroke: "#0ea5e9" }} name="connections_sent" />
+                    <Area type="monotone" dataKey="dms_sent" stroke="#8b5cf6" strokeWidth={2} fill="url(#liGradDms)"
+                      dot={{ fill: "#fff", r: 3, strokeWidth: 2, stroke: "#8b5cf6" }} name="dms_sent" />
+                    <Area type="monotone" dataKey="replies_received" stroke="#22c55e" strokeWidth={2} fill="url(#liGradReply)"
+                      dot={{ fill: "#fff", r: 3, strokeWidth: 2, stroke: "#22c55e" }} name="replies_received" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[13px] text-gray-400">No trend data</div>
+              )}
+            </div>
+          </ChartCard>
+
+          {/* LI-2 ── Funnel */}
+          <ChartCard
+            title="LinkedIn Campaign Funnel"
+            subtitle="Stage-by-stage progression of LinkedIn outreach"
+            badge={linkedinFunnel ? `${linkedinFunnel[0]?.count ?? 0} started` : undefined}
+          >
+            <div className="h-[240px] w-full">
+              {linkedinFunnel ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={linkedinFunnel}
+                    layout="vertical"
+                    barSize={18}
+                    margin={{ top: 4, right: 48, bottom: 4, left: 12 }}
+                  >
+                    <defs>
+                      <linearGradient id="liFunnelGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%"   stopColor="#0ea5e9" stopOpacity={1}   />
+                        <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.7} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#f1f5f9" />
+                    <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                    <YAxis type="category" dataKey="stage" tickLine={false} axisLine={false}
+                      tick={{ fontSize: 10, fill: "#6b7280" }} width={140} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="bg-white border border-gray-200 shadow-lg rounded-xl px-4 py-2.5 text-[12px]">
+                            <p className="font-semibold text-gray-600 mb-1">{label}</p>
+                            <p className="text-sky-500 font-bold text-[15px]">{payload[0].value}</p>
+                          </div>
+                        );
+                      }}
+                      cursor={{ fill: "#f0f9ff" }}
+                    />
+                    <Bar dataKey="count" fill="url(#liFunnelGrad)" radius={[0, 4, 4, 0]}
+                      label={{ position: "right", fontSize: 11, fill: "#6b7280", fontWeight: 600 }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[13px] text-gray-400">No funnel data</div>
+              )}
+            </div>
+          </ChartCard>
+
+          {/* LI-3 ── Connection Status Distribution */}
+          <ChartCard
+            title="Connection Status Distribution"
+            subtitle="Breakdown of LinkedIn connection outcomes"
+            badge={linkedinOutcomes ? `${linkedinOutcomes.reduce((s, d) => s + (d.call_count ?? 0), 0)} total` : undefined}
+          >
+            {linkedinOutcomes ? (
+              <OutcomesPieChart data={linkedinOutcomes} />
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-[13px] text-gray-400">No connection status data</div>
+            )}
+          </ChartCard>
+
+          {/* LI-4 ── Intent Distribution */}
+          <ChartCard
+            title="Intent Distribution"
+            subtitle="Prospect intent signals from LinkedIn conversations"
+            badge={linkedinIntent ? `${linkedinIntent.reduce((s, d) => s + (d.call_count ?? 0), 0)} total` : undefined}
+          >
+            {linkedinIntent ? (
+              <OutcomesPieChart data={linkedinIntent} />
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-[13px] text-gray-400">No intent data</div>
+            )}
+          </ChartCard>
+
+          {/* LI-5 ── Meetings by Campaign */}
+          <ChartCard
+            title="Meetings by Campaign"
+            subtitle="Meetings scheduled per LinkedIn campaign"
+          >
+            <div className="h-[240px] w-full">
+              {linkedinMeetingCampaign && linkedinMeetingCampaign.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={linkedinMeetingCampaign} barSize={20} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: "#9ca3af" }} dy={4} interval={0} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#9ca3af" }} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        return (
+                          <div className="bg-white border border-gray-200 shadow-lg rounded-xl px-4 py-2.5 text-[12px]">
+                            <p className="font-semibold text-gray-600 mb-1.5">{label}</p>
+                            {payload.map((p) => (
+                              <p key={p.dataKey} style={{ color: p.color }} className="font-bold tabular-nums">
+                                {p.value} <span className="text-[11px] font-normal text-gray-400">{p.name}</span>
+                              </p>
+                            ))}
+                          </div>
+                        );
+                      }}
+                      cursor={{ fill: "#f0f9ff" }}
+                    />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                    <Bar dataKey="connections" name="Connections" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="meetings"    name="Meetings"    fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[13px] text-gray-400">No campaign meeting data</div>
+              )}
+            </div>
+          </ChartCard>
+
+          {/* LI-6 ── Sentiment Distribution */}
+          <ChartCard
+            title="Sentiment Distribution"
+            subtitle="LinkedIn prospect sentiment for selected period"
+            badge={linkedinSentimentArr.length ? `${linkedinSentimentArr.reduce((s, d) => s + (d.value ?? 0), 0)} analysed` : undefined}
+          >
+            {linkedinSentimentArr.length > 0 ? (
+              <SentimentBars data={linkedinSentimentArr} />
+            ) : (
+              <div className="h-[160px] flex items-center justify-center text-[13px] text-gray-400">No sentiment data</div>
             )}
           </ChartCard>
 

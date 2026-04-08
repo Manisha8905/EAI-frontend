@@ -352,16 +352,17 @@ export const fetchEmailCampaigns = (filter = "this_year") => async (dispatch) =>
   }
 };
 
-// � LinkedIn Campaigns Metrics
+// LinkedIn Campaigns Metrics
 // filter: "this_year" | "this_quarter" | "this_month" | "this_week" | "today"
 export const fetchLinkedinCampaigns = (filter = "this_year") => async (dispatch) => {
   dispatch({ type: LINKEDIN_CAMPAIGNS_REQUEST });
 
   try {
-    const response = await axiosInstance.get(`/api/admin/linkedin/metrics`, {
-      data: { filter },
-      headers: { "Content-Type": "application/json" }
-    });
+    const response = await axiosInstance.post(
+      `/api/metrics/linkedin-campaigns`,
+      { filter },
+      { headers: { "Content-Type": "application/json" } }
+    );
 
     dispatch({
       type: LINKEDIN_CAMPAIGNS_SUCCESS,
@@ -947,19 +948,41 @@ export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
       params: { campaign_id: campaignId },
     });
     console.log('LinkedIn API response:', res);
-    const raw = extractArray(res.data);
-    const normalized = raw.map((r) => ({
-      name:               r.lead_name           ?? r.name              ?? r.contact_name  ?? "—",
-      company:            r.campaign_name         ?? r.company           ?? r.organization  ?? "—",
-      connectionSent:     r.connection_sent      ?? r.is_connection_sent ?? false,
-      connectionAccepted: r.connection_accepted  ?? r.is_connection_accepted ?? r.action  ?? "—",
-      messageSent:        r.message_sent         ?? r.is_message_sent   ?? false,
-      replied:            r.replied              ?? r.is_replied        ?? false,
-      status:             (r.status              ?? r.linkedin_status   ?? "").toUpperCase(),
-      dateTime:           r.created_at           ?? r.date              ?? r.sent_at       ?? "—",
-      meeting:            normalizeBooleanish(r.meeting_scheduled ?? r.meeting),
-    }));
-    dispatch({ type: LINKEDIN_HISTORY_SUCCESS, payload: normalized });
+    const data = res.data ?? {};
+    const apiTotal = Number(data.total ?? 0);
+    const raw = Array.isArray(data.results)
+      ? data.results
+      : extractArray(data);
+    const normalized = raw.map((r) => {
+      const info = r.lead_info ?? {};
+      const connectionStatus = (r.connection_status ?? r.status ?? r.linkedin_status ?? "").toUpperCase();
+      const replied = !!(r.last_reply_at ?? r.replied ?? r.is_replied);
+      const meetingBooked = !!(r.meeting_start_datetime ?? r.meeting_link ?? r.meeting_scheduled ?? r.meeting);
+      return {
+        name:                   info.name               ?? r.lead_name          ?? r.name           ?? "—",
+        company:                info.company             ?? r.company            ?? r.organization    ?? "—",
+        title:                  info.title               ?? r.title              ?? "—",
+        email:                  info.email               ?? r.email              ?? "—",
+        connectionSent:         !!(r.connection_requested_at ?? r.connection_sent ?? r.is_connection_sent),
+        connectionAccepted:     !!(r.connection_accepted_at  ?? r.connection_accepted ?? r.is_connection_accepted),
+        messageSent:            !!(r.dm_sent                 ?? r.message_sent       ?? r.is_message_sent),
+        replied,
+        status:                 connectionStatus,
+        journeyStatus:          r.journey_status         ?? "",
+        lastReplyIntent:        r.last_reply_intent      ?? "—",
+        lastReplySentiment:     r.last_reply_sentiment   ?? "—",
+        dateTime:               r.connection_requested_at ?? r.created_at ?? r.date ?? r.sent_at ?? "—",
+        lastReplyAt:            r.last_reply_at          ?? null,
+        meeting:                meetingBooked,
+        meetingLink:            r.meeting_link           ?? null,
+        recipientPublicId:      r.recipient_public_id    ?? null,
+        messages:               Array.isArray(r.messages) ? r.messages : [],
+      };
+    });
+    dispatch({
+      type: LINKEDIN_HISTORY_SUCCESS,
+      payload: { data: normalized, total: apiTotal || normalized.length },
+    });
     toast.success(`LinkedIn history loaded (${normalized.length} records)`);
   } catch (err) {
     console.error('LinkedIn API error:', err.response);
@@ -975,17 +998,32 @@ export const fetchWhatsappHistory = (campaignId) => async (dispatch) => {
     const res = await axiosInstance.get("/api/whatsapp/conversations", {
       params: { campaign_id: campaignId },
     });
-    const raw = extractArray(res.data);
-    const normalized = raw.map((r) => ({
-      name:           r.lead_name      ?? r.name         ?? r.contact_name  ?? "—",
-      phone:          r.phone_number   ?? r.phone         ?? r.contact_phone ?? "—",
-      company:        r.campaign_name   ?? r.company       ?? r.organization  ?? "—",
-      dateTime:       r.sent_at        ?? r.created_at    ?? r.date          ?? "—",
-      messagePreview: r.message_preview ?? r.message      ?? r.content       ?? "—",
-      status:         (r.status        ?? r.message_status ?? "").toUpperCase(),
-      meeting:        normalizeBooleanish(r.meeting_scheduled ?? r.meeting ?? r.is_meeting_scheduled),
+    const data = res.data ?? {};
+    // Support paginated response: { conversations: [...], analytics: {...} }
+    const conversations = Array.isArray(data.conversations) ? data.conversations : extractArray(data);
+    const analytics = data.analytics ?? null;
+    const normalized = conversations.map((r) => ({
+      id:              r.id             ?? r.conversation_id ?? null,
+      lead_id:         r.lead_id        ?? null,
+      phone:           r.phone          ?? r.phone_number   ?? r.contact_phone ?? "—",
+      status:          (r.status        ?? r.message_status ?? "").toLowerCase(),
+      intent:          r.intent         ?? null,
+      last_message_status: r.last_message_status ?? null,
+      is_replied:      r.is_replied     ?? false,
+      replied_at:      r.replied_at     ?? null,
+      seen_at:         r.seen_at        ?? null,
+      follow_up_tasks: r.follow_up_tasks ?? [],
+      skippable:       r.skippable      ?? false,
+      meeting_link:    r.meeting_link   ?? null,
+      meeting_start_datetime: r.meeting_start_datetime ?? null,
+      meeting_duration_minutes: r.meeting_duration_minutes ?? null,
+      started_at:      r.started_at     ?? null,
+      updated_at:      r.updated_at     ?? null,
+      // keep raw for backward compat
+      dateTime:        r.started_at     ?? r.sent_at ?? r.created_at ?? "—",
+      meeting:         normalizeBooleanish(r.meeting_link ? true : (r.meeting_scheduled ?? r.meeting ?? false)),
     }));
-    dispatch({ type: WHATSAPP_HISTORY_SUCCESS, payload: normalized });
+    dispatch({ type: WHATSAPP_HISTORY_SUCCESS, payload: { conversations: normalized, analytics } });
     toast.success(`WhatsApp history loaded (${normalized.length} records)`);
   } catch (err) {
     dispatch({ type: WHATSAPP_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load WhatsApp history." });
