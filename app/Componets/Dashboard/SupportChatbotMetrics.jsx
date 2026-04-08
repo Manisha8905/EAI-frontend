@@ -299,13 +299,16 @@ function StatCard({ icon: Icon, title, value, sub, gradient, badge }) {
 function FeedbackStatCard({ thumbsUp, thumbsDown, gradient }) {
   return (
     <article className={`flex h-[160px] flex-col justify-between overflow-hidden rounded-2xl p-3 text-white shadow-lg ${gradient}`}>
+      {/* Top — icon */}
       <div className="flex items-start justify-start">
         <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20">
           <MessageSquare className="h-4 w-4" />
         </span>
       </div>
-      <div className="flex flex-col gap-1.5">
-        <p className="text-[15px] font-[700]">User Feedback</p>
+      {/* Bottom — title, subtitle, thumb boxes */}
+      <div className="flex flex-col gap-1">
+        <p className="text-[13px] font-[700] leading-none">User Feedback</p>
+        <p className="text-[10px] text-white/70 leading-none mb-0.5">Chatbot satisfaction</p>
         <div className="flex gap-1.5">
           <div className="flex flex-1 items-center gap-1 rounded-lg bg-white/20 px-2 py-1.5">
             <ThumbsUp className="h-3 w-3 shrink-0" />
