@@ -110,10 +110,10 @@ const CHANNEL_DATA = {
   },
 };
 
-const RANGE_OPTIONS = [
+const FILTER_OPTIONS = [
+  { key: "",          label: "All" },
+  { key: "this_week", label: "This Week" },
   { key: "this_year", label: "This Year" },
-  { key: "this_quarter", label: "This Quarter" },
-  { key: "this_month", label: "This Month" },
 ];
 
 const normalizeRole = (role) => String(role ?? "").toUpperCase().replace(/[\s_-]/g, "");
@@ -145,6 +145,24 @@ const mapNameValueArray = (arr, nameKeyCandidates, valueKeyCandidates) => {
       return { name, value };
     })
     .filter(Boolean);
+};
+
+const formatWeekKey = (key) => {
+  // "week2_mar_2026" → "W2 Mar"
+  const parts = key.split("_");
+  if (parts.length < 2) return key;
+  const weekNum = parts[0].replace("week", "W");
+  const month = parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
+  return `${weekNum} ${month}`;
+};
+
+const mapWeeklyFeedbackObject = (obj) => {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+  return Object.entries(obj).map(([key, val]) => ({
+    week: formatWeekKey(key),
+    positive: toNum(val?.positive, 0),
+    negative: toNum(val?.negative, 0),
+  }));
 };
 
 const mapEscalationTrend = (arr) => {
@@ -191,138 +209,126 @@ const mapStatusPie = (arr) => {
 };
 
 const mapStatsResponse = (payload, fallback) => {
-  const root = payload?.webchat ?? payload?.data?.webchat ?? payload?.stats?.webchat ?? payload?.data ?? payload?.stats ?? payload ?? {};
-  const cards = root?.cards ?? root;
+  // Support flat response: { total_chats, open_chats, ... } or nested under data/webchat
+  const root = payload?.webchat ?? payload?.data?.webchat ?? payload?.data ?? payload ?? {};
 
-  const total = getFirstNumber(cards, ["total", "total_chats", "totalChats", "total_conversations"], fallback.cards.total);
-  const open = getFirstNumber(cards, ["open", "open_chats", "openChats"], fallback.cards.open);
-  const closed = getFirstNumber(cards, ["closed", "closed_chats", "closedChats"], fallback.cards.closed);
-  const avgMessages = getFirstNumber(
-    cards,
-    ["avgMessages", "avg_messages", "avg_messages_per_chat", "average_messages_per_chat"],
-    fallback.cards.avgMessages,
-  );
+  const total       = getFirstNumber(root, ["total_chats", "total", "totalChats", "total_conversations"], fallback.cards.total);
+  const open        = getFirstNumber(root, ["open_chats", "open", "openChats"], fallback.cards.open);
+  const closed      = getFirstNumber(root, ["closed_chats", "closed", "closedChats"], fallback.cards.closed);
+  const avgMessages = getFirstNumber(root, ["avg_messages_per_chat", "avgMessages", "avg_messages", "average_messages_per_chat"], fallback.cards.avgMessages);
+  const assigned    = getFirstNumber(root, ["assigned_chats", "assigned", "assignedChats"], 0);
+  const escalated   = getFirstNumber(root, ["escalated", "escalated_chats", "escalatedChats"], 0);
 
-  const openClosed = mapNameValueArray(
-    root?.openClosed ?? root?.open_closed ?? root?.open_closed_split,
-    ["name", "label", "status"],
-    ["value", "count", "total"],
-  );
+  const computedOpenClosed = [
+    { name: "Open",   value: open },
+    { name: "Closed", value: closed },
+  ];
 
-  const assignedSplit = mapNameValueArray(
-    root?.assignedSplit ?? root?.assigned_split ?? root?.assignment_split,
-    ["name", "label", "status"],
-    ["value", "count", "total"],
-  );
+  const computedAssignedSplit = [
+    { name: "Assigned",   value: assigned },
+    { name: "Unassigned", value: Math.max(total - assigned, 0) },
+  ];
 
-  const escalationTrend = mapEscalationTrend(
-    root?.escalationTrend ?? root?.escalation_trend ?? root?.escalation_over_time,
-  );
+  const computedStatusPie = [
+    { name: "Resolved",  value: closed,                       color: "#0ea95a" },
+    { name: "Waiting",   value: Math.max(open - escalated, 0), color: "#f59e0b" },
+    { name: "Escalated", value: escalated,                     color: "#7c3aed" },
+  ];
 
-  const statusPie = mapStatusPie(root?.statusPie ?? root?.status_pie ?? root?.status_mix);
+  // Feedback — supports positive_responses / negative_responses and legacy keys
+  // If API doesn't return feedback, default to 0 (no static demo data)
+  const feedbackObj  = root?.feedback ?? {};
+  const hasFeedback  = Object.keys(feedbackObj).length > 0;
+  const thumbsUp   = hasFeedback ? getFirstNumber(feedbackObj, ["positive_responses", "thumbs_up", "positive_feedback", "thumbsUp", "positive"], 0) : 0;
+  const thumbsDown = hasFeedback ? getFirstNumber(feedbackObj, ["negative_responses", "thumbs_down", "negative_feedback", "thumbsDown", "negative"], 0) : 0;
 
-  const computedOpenClosed =
-    openClosed.length > 0
-      ? openClosed
-      : [
-          { name: "Open", value: open },
-          { name: "Closed", value: closed },
-        ];
+  // Weekly feedback — supports object format { week2_mar_2026: { positive, negative } } or array
+  // If API doesn't return line_chart_feedback, return [] (no static demo data)
+  const lineChartFeedback = root?.line_chart_feedback ?? root?.lineChartFeedback ?? null;
+  const rawWeeklyObj = lineChartFeedback?.weekly_feedback ?? lineChartFeedback?.weeklyFeedback;
+  const rawWeeklyArr = root?.weeklyFeedback ?? root?.weekly_feedback;
 
-  const computedAssignedSplit =
-    assignedSplit.length > 0
-      ? assignedSplit
-      : [
-          {
-            name: "Assigned",
-            value: getFirstNumber(root, ["assigned", "assigned_chats", "assignedChats"], Math.max(total - open, 0)),
-          },
-          {
-            name: "Unassigned",
-            value: getFirstNumber(root, ["unassigned", "unassigned_chats", "unassignedChats"], open),
-          },
-        ];
+  let weeklyFeedback;
+  if (rawWeeklyObj && typeof rawWeeklyObj === "object" && !Array.isArray(rawWeeklyObj)) {
+    weeklyFeedback = mapWeeklyFeedbackObject(rawWeeklyObj) ?? [];
+  } else if (Array.isArray(rawWeeklyArr)) {
+    weeklyFeedback = rawWeeklyArr.map((item, i) => ({
+      week:     item?.week ?? item?.label ?? item?.period ?? `W${i + 1}`,
+      positive: getFirstNumber(item, ["positive", "thumbs_up", "thumbsUp"], 0),
+      negative: getFirstNumber(item, ["negative", "thumbs_down", "thumbsDown"], 0),
+    }));
+  } else {
+    weeklyFeedback = [];
+  }
 
-  const computedStatusPie =
-    statusPie.length > 0
-      ? statusPie
-      : [
-          {
-            name: "Resolved",
-            value: getFirstNumber(root, ["resolved", "resolved_chats", "resolvedChats"], closed),
-            color: "#0ea95a",
-          },
-          {
-            name: "Waiting",
-            value: getFirstNumber(root, ["waiting", "waiting_chats", "waitingChats"], open),
-            color: "#f59e0b",
-          },
-          {
-            name: "Escalated",
-            value: getFirstNumber(root, ["escalated", "escalated_chats", "escalatedChats"], 0),
-            color: "#7c3aed",
-          },
-        ];
-
-  const feedback = {
-    thumbsUp: getFirstNumber(
-      root?.feedback ?? root,
-      ["thumbs_up", "positive_feedback", "thumbsUp", "positive"],
-      fallback.feedback.thumbsUp,
-    ),
-    thumbsDown: getFirstNumber(
-      root?.feedback ?? root,
-      ["thumbs_down", "negative_feedback", "thumbsDown", "negative"],
-      fallback.feedback.thumbsDown,
-    ),
-  };
-
-  const rawWeekly = root?.weeklyFeedback ?? root?.weekly_feedback ?? null;
-  const weeklyFeedback = Array.isArray(rawWeekly)
-    ? rawWeekly.map((item, i) => ({
-        week: item?.week ?? item?.label ?? item?.period ?? `W${i + 1}`,
-        positive: getFirstNumber(item, ["positive", "thumbs_up", "thumbsUp"], 0),
-        negative: getFirstNumber(item, ["negative", "thumbs_down", "thumbsDown"], 0),
-      }))
-    : fallback.weeklyFeedback;
+  // Escalation trend — use raw array if present, else keep fallback
+  const escalationTrend = mapEscalationTrend(root?.escalationTrend ?? root?.escalation_trend ?? root?.escalation_over_time);
 
   return {
     updatedAt: root?.updatedAt ?? root?.updated_at ?? new Date().toLocaleTimeString(),
-    cards: {
-      total,
-      open,
-      closed,
-      avgMessages,
-    },
+    cards: { total, open, closed, avgMessages },
     openClosed: computedOpenClosed,
     assignedSplit: computedAssignedSplit,
     escalationTrend: escalationTrend.length > 0 ? escalationTrend : fallback.escalationTrend,
     statusPie: computedStatusPie,
-    feedback,
+    feedback: { thumbsUp, thumbsDown },
     weeklyFeedback,
   };
 };
 
 function StatCard({ icon: Icon, title, value, sub, gradient, badge }) {
   return (
-    <article className={`rounded-2xl p-5 text-white shadow-lg ${gradient}`}>
-      <div className="mb-5 flex items-center justify-between">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-          <Icon className="h-5 w-5" />
+    <article className={`flex h-[160px] flex-col justify-between rounded-2xl p-4 text-white shadow-lg ${gradient}`}>
+      <div className="flex items-center justify-between">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20">
+          <Icon className="h-4 w-4" />
         </span>
         {badge ? (
-          <span className="rounded-full bg-white/25 px-2.5 py-1 text-[12px] font-[600]">{badge}</span>
+          <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-[600]">{badge}</span>
         ) : null}
       </div>
-      <p className="text-[28px] font-[800] leading-none">{value}</p>
-      <p className="mt-2 text-[16px] font-[600] leading-tight">{title}</p>
-      <p className="mt-2 text-[13px] text-white/80">{sub}</p>
+      <div>
+        <p className="text-[24px] font-[800] leading-none">{value}</p>
+        <p className="mt-1 text-[13px] font-[600] leading-tight">{title}</p>
+        <p className="mt-1 text-[11px] text-white/80">{sub}</p>
+      </div>
+    </article>
+  );
+}
+
+function FeedbackStatCard({ thumbsUp, thumbsDown, gradient }) {
+  return (
+    <article className={`flex h-[160px] flex-col justify-between overflow-hidden rounded-2xl p-3 text-white shadow-lg ${gradient}`}>
+      <div className="flex items-start justify-start">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20">
+          <MessageSquare className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[15px] font-[700]">User Feedback</p>
+        <div className="flex gap-1.5">
+          <div className="flex flex-1 items-center gap-1 rounded-lg bg-white/20 px-2 py-1.5">
+            <ThumbsUp className="h-3 w-3 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[13px] font-[800] leading-none">{thumbsUp.toLocaleString()}</p>
+              <p className="mt-0.5 text-[9px] text-white/80">Positive</p>
+            </div>
+          </div>
+          <div className="flex flex-1 items-center gap-1 rounded-lg bg-white/20 px-2 py-1.5">
+            <ThumbsDown className="h-3 w-3 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[13px] font-[800] leading-none">{thumbsDown.toLocaleString()}</p>
+              <p className="mt-0.5 text-[9px] text-white/80">Negative</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </article>
   );
 }
 
 export default function SupportChatbotMetrics() {
-  const [selectedRange, setSelectedRange] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("");
   const [data, setData] = useState(CHANNEL_DATA.webchat);
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
@@ -343,9 +349,7 @@ export default function SupportChatbotMetrics() {
 
       try {
         const params = { channel: "webchat" };
-        if (selectedRange) {
-          params.range = selectedRange;
-        }
+        if (selectedFilter) params.range = selectedFilter;
 
         const res = await axiosInstance.get("/api/chatbot/stats", {
           params,
@@ -370,7 +374,7 @@ export default function SupportChatbotMetrics() {
         setRefreshing(false);
       }
     },
-    [selectedRange],
+    [selectedFilter],
   );
 
   useEffect(() => {
@@ -406,17 +410,21 @@ export default function SupportChatbotMetrics() {
           {/* {loading ? <p className="mt-1 text-[13px] text-slate-500">Loading latest stats...</p> : null}
           {errorText ? <p className="mt-1 text-[13px] text-amber-600">{errorText}</p> : null} */}
         </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={selectedRange}
-            onChange={(e) => setSelectedRange(e.target.value)}
-            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[14px] text-gray-600"
-          >
-            <option value="">All Data</option>
-            {RANGE_OPTIONS.map((opt) => (
-              <option key={opt.key} value={opt.key}>{opt.label}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2">
+          {FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setSelectedFilter(opt.key)}
+              className={`rounded-xl border px-4 py-2 text-[13px] font-[600] transition ${
+                selectedFilter === opt.key
+                  ? "border-[#6366f1] bg-[#6366f1] text-white shadow-sm"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
           <button
             type="button"
             onClick={onRefresh}
@@ -427,7 +435,7 @@ export default function SupportChatbotMetrics() {
         </div>
       </section>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={MessageSquare}
           title="Total Chats"
@@ -460,31 +468,20 @@ export default function SupportChatbotMetrics() {
           badge="Avg"
           gradient="bg-gradient-to-br from-[#0ea5e9] to-[#0e7490]"
         />
+        <FeedbackStatCard
+          thumbsUp={data.feedback.thumbsUp}
+          thumbsDown={data.feedback.thumbsDown}
+          gradient="bg-gradient-to-br from-[#ec4899] to-[#db2777]"
+        />
       </section>
 
-      {/* ── Feedback Card ── */}
-      <section className="mb-6">
+      {/* ── Feedback Card (moved to top stat cards row) ── */}
+      {/* <section className="mb-6">
         <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-[18px] font-[700] text-[#0b1b3b]">User Feedback</h3>
-              <p className="text-[13px] text-gray-500 mt-0.5">Thumbs rating from chat sessions</p>
-            </div>
-            {(() => {
-              const total = data.feedback.thumbsUp + data.feedback.thumbsDown;
-              const pct = total > 0 ? Math.round((data.feedback.thumbsUp / total) * 100) : 0;
-              return (
-                <span className={`text-[13px] font-[700] px-3 py-1.5 rounded-full ${
-                  pct >= 70 ? "bg-green-50 text-green-700" : pct >= 50 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"
-                }`}>
-                  {pct}% satisfied
-                </span>
-              );
-            })()}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center justify-between mb-4"> */}
+          {/* <div className="grid grid-cols-2 gap-4"> */}
             {/* Thumbs Up */}
-            <div className="flex items-center gap-4 rounded-xl bg-green-50 border border-green-100 px-5 py-4">
+            {/* <div className="flex items-center gap-4 rounded-xl bg-green-50 border border-green-100 px-5 py-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-green-500 shadow-sm">
                 <ThumbsUp className="h-6 w-6 text-white" />
               </div>
@@ -492,9 +489,9 @@ export default function SupportChatbotMetrics() {
                 <p className="text-[30px] font-[800] leading-none text-green-700">{data.feedback.thumbsUp.toLocaleString()}</p>
                 <p className="text-[12px] font-[600] text-green-600 mt-1">Positive ratings</p>
               </div>
-            </div>
+            </div> */}
             {/* Thumbs Down */}
-            <div className="flex items-center gap-4 rounded-xl bg-red-50 border border-red-100 px-5 py-4">
+            {/* <div className="flex items-center gap-4 rounded-xl bg-red-50 border border-red-100 px-5 py-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-500 shadow-sm">
                 <ThumbsDown className="h-6 w-6 text-white" />
               </div>
@@ -502,10 +499,9 @@ export default function SupportChatbotMetrics() {
                 <p className="text-[30px] font-[800] leading-none text-red-600">{data.feedback.thumbsDown.toLocaleString()}</p>
                 <p className="text-[12px] font-[600] text-red-500 mt-1">Negative ratings</p>
               </div>
-            </div>
-          </div>
-          {/* Progress bar */}
-          {(() => {
+            </div> */}
+       {/* Progress bar */}
+          {/* {(() => {
             const total = data.feedback.thumbsUp + data.feedback.thumbsDown;
             const upPct = total > 0 ? Math.round((data.feedback.thumbsUp / total) * 100) : 0;
             return (
@@ -521,7 +517,7 @@ export default function SupportChatbotMetrics() {
             );
           })()}
         </article>
-      </section>
+      </section> */}
 
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -594,60 +590,62 @@ export default function SupportChatbotMetrics() {
         </article>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 className="text-[20px] font-[700] text-[#0b1b3b]">Conversation Status Mix</h3>
-        <p className="mt-1 text-[14px] text-gray-500">Resolution health · Weekly feedback trend</p>
-        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Left — Pie + Legend */}
-          <div>
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={data.statusPie} dataKey="value" innerRadius={54} outerRadius={88}>
-                    {data.statusPie.map((item) => (
-                      <Cell key={item.name} fill={item.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-3 space-y-2.5">
-              {data.statusPie.map((item) => (
-                <div key={item.name} className="rounded-xl border border-gray-100 bg-[#f8fafc] p-3">
-                  <div className="mb-2 flex items-center justify-between text-[13px]">
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
-                      <span className="font-[600] text-gray-700">{item.name}</span>
-                    </div>
-                    <span className="font-[700] text-gray-900">{item.value}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.max(4, Math.round((item.value / data.cards.total) * 100))}%`,
-                        background: item.color,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* ── Conversation Status Mix + Weekly Feedback Trend — side by side ── */}
+      <section className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
 
-          {/* Right — Weekly Feedback Line Chart */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <h4 className="text-[15px] font-[700] text-gray-800">Weekly Feedback Trend</h4>
-              <span className="flex items-center gap-1 text-[11px] font-[600] bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-100">
-                <ThumbsUp className="h-3 w-3" /> Positive
-              </span>
-              <span className="flex items-center gap-1 text-[11px] font-[600] bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-100">
-                <ThumbsDown className="h-3 w-3" /> Negative
-              </span>
-            </div>
-            <div className="h-[300px]">
+        {/* Card 1 — Conversation Status Mix */}
+        <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h3 className="text-[20px] font-[700] text-[#0b1b3b]">Conversation Status Mix</h3>
+          <p className="mt-1 text-[14px] text-gray-500">Resolution health breakdown</p>
+          <div className="mt-4 h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={data.statusPie} dataKey="value" innerRadius={54} outerRadius={88}>
+                  {data.statusPie.map((item) => (
+                    <Cell key={item.name} fill={item.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-3 space-y-2.5">
+            {data.statusPie.map((item) => (
+              <div key={item.name} className="rounded-xl border border-gray-100 bg-[#f8fafc] p-3">
+                <div className="mb-2 flex items-center justify-between text-[13px]">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
+                    <span className="font-[600] text-gray-700">{item.name}</span>
+                  </div>
+                  <span className="font-[700] text-gray-900">{item.value}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${data.cards.total > 0 ? Math.max(4, Math.round((item.value / data.cards.total) * 100)) : 0}%`,
+                      background: item.color,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        {/* Card 2 — Weekly Feedback Trend */}
+        <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <h3 className="text-[20px] font-[700] text-[#0b1b3b]">Weekly Feedback Trend</h3>
+            <span className="flex items-center gap-1 text-[11px] font-[600] bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-100">
+              <ThumbsUp className="h-3 w-3" /> Positive
+            </span>
+            <span className="flex items-center gap-1 text-[11px] font-[600] bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-100">
+              <ThumbsDown className="h-3 w-3" /> Negative
+            </span>
+          </div>
+          {data.weeklyFeedback.length > 0 ? (
+            <div className="h-[340px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.weeklyFeedback} margin={{ top: 4, right: 10, left: -18, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
@@ -663,29 +661,18 @@ export default function SupportChatbotMetrics() {
                     iconSize={8}
                     wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="positive"
-                    stroke="#22c55e"
-                    strokeWidth={3}
-                    dot={{ r: 5, fill: "#22c55e", strokeWidth: 0 }}
-                    activeDot={{ r: 7 }}
-                    name="positive"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="negative"
-                    stroke="#ef4444"
-                    strokeWidth={3}
-                    dot={{ r: 5, fill: "#ef4444", strokeWidth: 0 }}
-                    activeDot={{ r: 7 }}
-                    name="negative"
-                  />
+                  <Line type="linear" dataKey="positive" stroke="#22c55e" strokeWidth={2.5} dot={false} activeDot={false} name="positive" />
+                  <Line type="linear" dataKey="negative" stroke="#ef4444" strokeWidth={2.5} dot={false} activeDot={false} name="negative" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
-        </div>
+          ) : (
+            <div className="flex h-[340px] items-center justify-center text-[13px] text-gray-400">
+              No feedback data available
+            </div>
+          )}
+        </article>
+
       </section>
     </main>
   );
