@@ -308,7 +308,7 @@ export default function SupportChatbotReporting() {
     typeof window === "undefined"
       ? ""
       : normalizeRole(localStorage.getItem("userRole"));
-  const canAccess = role === "SUPPORT" || role === "MANAGER";
+  const canAccess = role === "SUPPORT" || role === "MANAGER" || role === "SUPERADMIN";
 
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {

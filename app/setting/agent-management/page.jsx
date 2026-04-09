@@ -24,7 +24,7 @@ const fetchAgents = async () => {
 };
 
 const bulkToggle = async (agentIds) => {
-  await axiosInstance.post("/switch-agent", { agent_id: agentIds });
+  await axiosInstance.post("/switch-agent", { agent_ids: agentIds });
 };
 
 const bulkDelete = async (agentIds) => {

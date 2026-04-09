@@ -338,7 +338,7 @@ export default function SupportChatbotMetrics() {
   const [refreshing, setRefreshing] = useState(false);
 
   const role = typeof window === "undefined" ? "" : normalizeRole(localStorage.getItem("userRole"));
-  const canAccessSupportMetrics = role === "SUPPORT" || role === "MANAGER";
+  const canAccessSupportMetrics = role === "SUPPORT" || role === "MANAGER" || role === "SUPERADMIN";
 
   const fetchMetrics = useCallback(
     async ({ isManualRefresh = false } = {}) => {

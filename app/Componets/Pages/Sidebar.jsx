@@ -213,24 +213,24 @@ const SUPPORT_SECTIONS = [
   },
 ];
 
-const SETTINGS_SECTION = [
-  {
-    key: "settings",
-    label: "Settings",
-    subtitle: "Integrations & configuration",
-    icon: SettingsIcon,
-    activeRoutes: ["/setting"],
-    links: [
-      { href: "/setting", label: "General Settings", icon: SettingsIcon, exact: true },
-      { href: "/setting/crm-configuration", label: "CRM Configuration", icon: SettingsIcon },
-      { href: "/setting/email-configuration", label: "Email Configuration", icon: EmailIcon },
-      { href: "/setting/agent-management", label: "Agent Management", icon: SettingsIcon },
-    ],
-  },
-];
+// const SETTINGS_SECTION = [
+//   {
+//     key: "settings",
+//     label: "Settings",
+//     subtitle: "Integrations & configuration",
+//     icon: SettingsIcon,
+//     activeRoutes: ["/setting"],
+//     links: [
+//       { href: "/setting", label: "General Settings", icon: SettingsIcon, exact: true },
+//       { href: "/setting/crm-configuration", label: "CRM Configuration", icon: SettingsIcon },
+//       { href: "/setting/email-configuration", label: "Email Configuration", icon: EmailIcon },
+//       { href: "/setting/agent-management", label: "Agent Management", icon: SettingsIcon },
+//     ],
+//   },
+// ];
 
 /* ─── All sections combined (for SUPERADMIN) ─────────────────── */
-/* Settings section is intentionally excluded — shown as a simple bottom link instead */
+/* SUPERADMIN sees every module plus the full settings accordion */
 const SUPERADMIN_NAV_SECTIONS = [...SALES_SECTIONS, ...SUPPORT_SECTIONS];
 
 /* ─── Role helper ─────────────────────────────────────────────── */

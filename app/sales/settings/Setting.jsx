@@ -670,7 +670,7 @@ const AgentToggle = memo(function AgentToggle({ agentId, agentName, isOn, onTogg
       if (onToggle) {
         await onToggle(agentId, isOn);
       } else {
-        await axiosInstance.post("/switch-agent", { agent_id: [agentId] });
+        await axiosInstance.post("/switch-agent", { agent_ids: [agentId] });
         toast.success("Agent switched successfully.");
         await onRefresh();
       }
@@ -734,6 +734,7 @@ function AgentsPage({ onBack }) {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const selectedOverrideRef = useRef(null);
 
   // Ref keeps handleRefresh stable while always calling the latest fetchAgents
   const fetchAgentsRef = useRef(null);
@@ -755,7 +756,13 @@ function AgentsPage({ onBack }) {
         is_current: a.is_current ?? false,
       }));
       setAgents(normalized);
-      setSelectedIds(new Set(normalized.filter((a) => a.is_current).map((a) => a.id)));
+      // If we have a fresh override from switch-agent response, use that instead of is_current
+      if (selectedOverrideRef.current) {
+        setSelectedIds(selectedOverrideRef.current);
+        selectedOverrideRef.current = null;
+      } else {
+        setSelectedIds(new Set(normalized.filter((a) => a.is_current || a.is_active).map((a) => a.id)));
+      }
     } catch (err) {
       setFetchError(
         err?.response?.data?.detail ||
@@ -784,8 +791,14 @@ function AgentsPage({ onBack }) {
     } else {
       newSelected.add(agentId);
     }
-    await axiosInstance.post("/switch-agent", { agent_id: Array.from(newSelected) });
-    toast.success("Agent switched successfully.");
+    const res = await axiosInstance.post("/switch-agent", { agent_ids: Array.from(newSelected) });
+    const data = res?.data;
+    const freshIds = data?.selected_agent_ids?.length
+      ? new Set(data.selected_agent_ids)
+      : newSelected;
+    setSelectedIds(freshIds);
+    selectedOverrideRef.current = freshIds;
+    toast.success(data?.message || "Agent switched successfully.");
     await fetchAgents();
   };
   const handleToggle = useCallback(async (agentId, isCurrentlyOn) => {
@@ -846,8 +859,14 @@ function AgentsPage({ onBack }) {
         } else {
           ids.forEach((id) => currentSelected.delete(id));
         }
-        await axiosInstance.post("/switch-agent", { agent_id: Array.from(currentSelected) });
-        toast.success(`${ids.length} agent(s) ${action === "activate" ? "activated" : "deactivated"}.`);
+        const res = await axiosInstance.post("/switch-agent", { agent_ids: Array.from(currentSelected) });
+        const data = res?.data;
+        const freshIds = data?.selected_agent_ids?.length
+          ? new Set(data.selected_agent_ids)
+          : currentSelected;
+        setSelectedIds(freshIds);
+        selectedOverrideRef.current = freshIds;
+        toast.success(data?.message || `${ids.length} agent(s) ${action === "activate" ? "activated" : "deactivated"}.`);
       }
       setCheckedIds(new Set());
       await fetchAgents();
@@ -962,6 +981,33 @@ function AgentsPage({ onBack }) {
           <p className="mt-2 text-[12px] text-red-500 font-[500]">{createError}</p>
         )}
       </div>
+
+      {/* Selected Agents Indicator */}
+      {selectedIds.size > 0 && (
+        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl border border-emerald-200 shadow-sm px-5 py-3.5 mb-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span className="text-[13px] font-[700] text-emerald-800">
+                {selectedIds.size} Active Agent{selectedIds.size !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {agents
+                .filter((a) => selectedIds.has(a.id))
+                .map((a) => (
+                  <span
+                    key={a.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-[600] border border-emerald-200"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {a.name}
+                  </span>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bulk Action Bar */}
       <AnimatePresence>
@@ -1101,7 +1147,7 @@ function AgentsPage({ onBack }) {
             ) : (
               filtered.map((a, i) => {
                 const checked = checkedIds.has(a.id);
-                const isActive = a.is_active && a.is_current;
+                const isActive = selectedIds.has(a.id);
                 const rowBusy = busyRowId === a.id;
                 return (
                   <tr
@@ -1272,6 +1318,7 @@ function UsersPage({ onBack, isSuperAdmin }) {
 
   // Metrics (superadmin only)
   const [metricsSending, setMetricsSending] = useState(false);
+  const [metricsSent, setMetricsSent] = useState(false);
 
   const handleSendMetrics = async () => {
     const selectedEmails = users
@@ -1279,14 +1326,33 @@ function UsersPage({ onBack, isSuperAdmin }) {
       .map((u) => u.email);
     if (!selectedEmails.length) return;
     setMetricsSending(true);
+    setMetricsSent(false);
     try {
       await axiosInstance.post("/api/superadmin/metrics", { emails: selectedEmails });
       toast.success(`Metrics sent for ${selectedEmails.length} user(s).`);
-      setCheckedIds(new Set());
+      setMetricsSent(true);
     } catch (err) {
       toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to send metrics.");
     } finally {
       setMetricsSending(false);
+    }
+  };
+
+  const handleUnselectUser = async (userId) => {
+    const newChecked = new Set(checkedIds);
+    newChecked.delete(userId);
+    setCheckedIds(newChecked);
+    setMetricsSent(false);
+    if (newChecked.size > 0) {
+      const remainingEmails = users
+        .filter((u) => newChecked.has(u.id))
+        .map((u) => u.email);
+      try {
+        await axiosInstance.post("/api/superadmin/metrics", { emails: remainingEmails });
+        toast.success(`Updated selection: ${remainingEmails.length} user(s).`);
+      } catch (err) {
+        toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to update selection.");
+      }
     }
   };
 
@@ -1323,10 +1389,12 @@ function UsersPage({ onBack, isSuperAdmin }) {
 
   const allChecked = filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
   const toggleCheckAll = () => {
+    setMetricsSent(false);
     if (allChecked) setCheckedIds(new Set());
     else setCheckedIds(new Set(filtered.map((u) => u.id)));
   };
   const toggleCheck = (id) => {
+    setMetricsSent(false);
     setCheckedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -1547,44 +1615,87 @@ function UsersPage({ onBack, isSuperAdmin }) {
         </AnimatePresence>
       </div>
 
-      {/* Bulk Action Bar */}
+      {/* Selected Users Indicator */}
       <AnimatePresence>
         {checkedIds.size > 0 && (
           <motion.div
-            initial={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            initial={{ opacity: 0, y: -8, height: 0, marginBottom: 0 }}
             animate={{ opacity: 1, y: 0, height: "auto", marginBottom: 16 }}
-            exit={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            exit={{ opacity: 0, y: -8, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
-            <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-3.5 flex items-center justify-between flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-                  <Users className="h-4 w-4 text-blue-600" />
+            <div className={`rounded-2xl border shadow-sm px-5 py-3.5 ${
+              metricsSent
+                ? "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200"
+                : "bg-gradient-to-r from-violet-50 to-blue-50 border-violet-200"
+            }`}>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${metricsSent ? "bg-emerald-100" : "bg-violet-100"}`}>
+                      {metricsSent
+                        ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        : <Users className="h-4 w-4 text-violet-600" />
+                      }
+                    </div>
+                    <div>
+                      <span className={`text-[14px] font-[700] ${metricsSent ? "text-emerald-800" : "text-violet-800"}`}>{checkedIds.size}</span>
+                      <span className={`text-[12px] font-[500] ml-1 ${metricsSent ? "text-emerald-600" : "text-violet-600"}`}>
+                        user{checkedIds.size !== 1 ? "s" : ""} {metricsSent ? "sent successfully" : "selected"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {users
+                      .filter((u) => checkedIds.has(u.id))
+                      .map((u) => (
+                        <span
+                          key={u.id}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${
+                            metricsSent
+                              ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                              : "bg-violet-100 text-violet-700 border-violet-200"
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${metricsSent ? "bg-emerald-500" : "bg-violet-500"}`} />
+                          {u.username}
+                          <span className={`ml-0.5 px-1.5 py-0 rounded text-[9px] font-[700] ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500"}`}>
+                            {u.role}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUnselectUser(u.id)}
+                            className="ml-0.5 rounded-full p-0.5 hover:bg-red-100 hover:text-red-600 transition"
+                            title={`Remove ${u.username}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[14px] font-[700] text-blue-800">{checkedIds.size}</span>
-                  <span className="text-[12px] font-[500] text-blue-600 ml-1">user{checkedIds.size !== 1 ? "s" : ""} selected</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={metricsSending}
+                    onClick={handleSendMetrics}
+                    className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-white text-[12px] font-[600] transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+                      metricsSent ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"
+                    }`}
+                  >
+                    {metricsSending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : metricsSent ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
+                    {metricsSending ? "Sending…" : metricsSent ? "Sent ✓" : "Send"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setCheckedIds(new Set()); setMetricsSent(false); }}
+                    className="ml-1 p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                    title="Clear selection"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={metricsSending}
-                  onClick={handleSendMetrics}
-                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 text-white text-[12px] font-[600] hover:bg-indigo-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {metricsSending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                  {metricsSending ? "Sending…" : "Send Metrics"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCheckedIds(new Set())}
-                  className="ml-1 p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
-                  title="Clear selection"
-                >
-                  <X className="h-4 w-4" />
-                </button>
               </div>
             </div>
           </motion.div>
@@ -1895,7 +2006,7 @@ function SuperAdminMetricsPage({ onBack }) {
                   className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 text-white text-[12px] font-[600] hover:bg-indigo-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {sending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                  {sending ? "Sending…" : "Send Metrics"}
+                  {sending ? "Sending…" : "Send"}
                 </button>
                 <button
                   type="button"
@@ -6099,6 +6210,19 @@ export default function Setting() {
           </button>
         </div>
       </div>
+
+      {/* ═══ SECTION — SUPERADMIN QUICK ACCESS ═══ */}
+      {userIsSuperAdmin && (
+        <>
+          <div className="mb-2">
+            <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Quick Access</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+            <SettingCard icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600" title="Agent Management" desc="Manage AI SDR agents, switching, and parallel call limits" action={<GearBtn page="agents" />} />
+            <SettingCard icon={Users} iconBg="bg-violet-50" iconColor="text-violet-600" title="User Management" desc="Add, edit, and manage users with roles and permissions" action={<GearBtn page="users" />} />
+          </div>
+        </>
+      )}
 
       {/* ═══ SECTION 1 — CONNECTION ═══ */}
       <div className="mb-2">
