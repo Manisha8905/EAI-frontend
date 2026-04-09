@@ -164,28 +164,28 @@ const SALES_SECTIONS = [
       { href: "/campaign", label: "Campaign", img: Logs },
     ],
   },
-  {
-    key: "quote",
-    label: "Quote Automation",
-    subtitle: "Quote generation",
-    icon: QuoteIcon,
-    activeRoutes: ["/quote"],
-    links: [
-      { href: "/quote/create", label: "Create Quote", icon: QuoteIcon },
-      { href: "/quote/history", label: "Quote History", icon: QuoteIcon },
-    ],
-  },
-  {
-    key: "scraping",
-    label: "Web Scraping",
-    subtitle: "Data collection",
-    icon: ScraperIcon,
-    activeRoutes: ["/scraping"],
-    links: [
-      { href: "/scraping/jobs", label: "Scraping Jobs", icon: ScraperIcon },
-      { href: "/scraping/results", label: "Results", icon: ScraperIcon },
-    ],
-  },
+  // {
+  //   key: "quote",
+  //   label: "Quote Automation",
+  //   subtitle: "Quote generation",
+  //   icon: QuoteIcon,
+  //   activeRoutes: ["/quote"],
+  //   links: [
+  //     { href: "/quote/create", label: "Create Quote", icon: QuoteIcon },
+  //     { href: "/quote/history", label: "Quote History", icon: QuoteIcon },
+  //   ],
+  // },
+  // {
+  //   key: "scraping",
+  //   label: "Web Scraping",
+  //   subtitle: "Data collection",
+  //   icon: ScraperIcon,
+  //   activeRoutes: ["/scraping"],
+  //   links: [
+  //     { href: "/scraping/jobs", label: "Scraping Jobs", icon: ScraperIcon },
+  //     { href: "/scraping/results", label: "Results", icon: ScraperIcon },
+  //   ],
+  // },
   // {
   //   key: "analytics",
   //   label: "Sales Analytics",
@@ -213,6 +213,26 @@ const SUPPORT_SECTIONS = [
   },
 ];
 
+const SETTINGS_SECTION = [
+  {
+    key: "settings",
+    label: "Settings",
+    subtitle: "Integrations & configuration",
+    icon: SettingsIcon,
+    activeRoutes: ["/setting"],
+    links: [
+      { href: "/setting", label: "General Settings", icon: SettingsIcon, exact: true },
+      { href: "/setting/crm-configuration", label: "CRM Configuration", icon: SettingsIcon },
+      { href: "/setting/email-configuration", label: "Email Configuration", icon: EmailIcon },
+      { href: "/setting/agent-management", label: "Agent Management", icon: SettingsIcon },
+    ],
+  },
+];
+
+/* ─── All sections combined (for SUPERADMIN) ─────────────────── */
+/* Settings section is intentionally excluded — shown as a simple bottom link instead */
+const SUPERADMIN_NAV_SECTIONS = [...SALES_SECTIONS, ...SUPPORT_SECTIONS];
+
 /* ─── Role helper ─────────────────────────────────────────────── */
 const isAdmin = (role) => {
   const r = (role || "").toLowerCase().replace(/[\s_-]/g, "");
@@ -222,8 +242,8 @@ const isAdmin = (role) => {
 /* ─── Role → allowed sidebar section keys (null = all) ───────── */
 const ROLE_SECTION_KEYS = {
   SALES: ["ai", "analytics"],
-  ADMIN: null, // Admin sees all sections
-  SUPERADMIN: null, // SuperAdmin sees all sections
+  ADMIN: null,
+  SUPERADMIN: null,
 };
 
 /* ════════════════════════════════════════════════════════════════
@@ -248,7 +268,15 @@ const Sidebar = () => {
 
   /* derive visible sections based on role */
   const normalizedRole = storedRole || (auth?.role || "").toUpperCase().replace(/[\s_-]/g, "");
-  const roleSections = normalizedRole === "SUPPORT" ? SUPPORT_SECTIONS : SALES_SECTIONS;
+  const isSuperAdmin = normalizedRole === "SUPERADMIN";
+  // SUPERADMIN sees every section; plain ADMIN hides the nav (only User Management)
+  const hideNav = userIsAdmin && !isSuperAdmin;
+  const roleSections =
+    isSuperAdmin
+      ? SUPERADMIN_NAV_SECTIONS
+      : normalizedRole === "SUPPORT"
+      ? SUPPORT_SECTIONS
+      : SALES_SECTIONS;
   const allowedKeys = ROLE_SECTION_KEYS[normalizedRole] ?? null; // null = all sections
   const visibleSections = allowedKeys
     ? roleSections.filter((s) => allowedKeys.includes(s.key))
@@ -321,15 +349,19 @@ const Sidebar = () => {
       {/* ── Header ── */}
       <div className="px-5 pt-5 pb-4 border-b border-gray-100">
         <h2 className="font-poppins text-[14px] font-[700] text-[#0a0a0a]">
-          {normalizedRole === "SUPPORT" ? "Customer Support" : "Sales"}
+          {isSuperAdmin
+            ? "All Modules"
+            : normalizedRole === "SUPPORT"
+            ? "Customer Support"
+            : "Sales"}
         </h2>
         <p className="font-inter text-[12px] text-gray-500 mt-0.5">
           Available applications
         </p>
       </div>
 
-      {/* ── Nav — hidden entirely for admin ── */}
-      {!userIsAdmin && (
+      {/* ── Nav ── */}
+      {!hideNav && (
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           {visibleSections.map((sec) => {
             const isParentActive = sec.activeRoutes.some((r) =>
@@ -352,23 +384,15 @@ const Sidebar = () => {
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {SIcon && (
-                      <span
-                        className={`sb-icon ${
-                          isParentActive ? "text-blue-600" : "text-gray-400"
-                        }`}
-                      >
+                      <span className={`sb-icon ${isParentActive ? "text-blue-600" : "text-gray-400"}`}>
                         <SIcon />
                       </span>
                     )}
                     <div className="min-w-0">
-                      <p
-                        className={`text-[13px] font-[600] truncate ${isParentActive ? "text-blue-600" : "text-gray-700"}`}
-                      >
+                      <p className={`text-[13px] font-[600] truncate ${isParentActive ? "text-blue-600" : "text-gray-700"}`}>
                         {sec.label}
                       </p>
-                      <p className="text-[11px] text-gray-400 truncate">
-                        {sec.subtitle}
-                      </p>
+                      <p className="text-[11px] text-gray-400 truncate">{sec.subtitle}</p>
                     </div>
                   </div>
                   <Chevron open={isOpen} active={isParentActive} />
@@ -392,18 +416,9 @@ const Sidebar = () => {
                           }`}
                         >
                           {link.img ? (
-                            <Image
-                              src={link.img}
-                              alt={link.label}
-                              width={14}
-                              height={14}
-                            />
+                            <Image src={link.img} alt={link.label} width={14} height={14} />
                           ) : LIcon ? (
-                            <span
-                              className={`sb-icon ${
-                                linkActive ? "text-blue-500" : "text-gray-400"
-                              }`}
-                            >
+                            <span className={`sb-icon ${linkActive ? "text-blue-500" : "text-gray-400"}`}>
                               <LIcon />
                             </span>
                           ) : null}
@@ -419,13 +434,13 @@ const Sidebar = () => {
         </nav>
       )}
 
-      {/* spacer for admin so bottom section still sits at the bottom */}
-      {userIsAdmin && <div className="flex-1" />}
+      {/* spacer for plain admin so bottom section still sits at the bottom */}
+      {hideNav && <div className="flex-1" />}
 
       {/* ── Bottom ── */}
       <div className="px-3 py-4 border-t border-gray-100 space-y-0.5">
-        {/* User Management — admin only */}
-        {userIsAdmin && (
+        {/* User Management — SUPERADMIN and plain ADMIN */}
+        {userIsAdmin ||isSuperAdmin && (
           <Link
             href="/user-management"
             className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${
@@ -434,17 +449,12 @@ const Sidebar = () => {
                 : "text-gray-600 hover:bg-blue-50/50 hover:text-blue-700"
             }`}
           >
-            <Image
-              src={UserManagement}
-              alt="User Management"
-              width={14}
-              height={14}
-            />
+            <Image src={UserManagement} alt="User Management" width={14} height={14} />
             User Management
           </Link>
         )}
 
-        {/* Settings — always visible, shown after User Management */}
+        {/* Settings — all roles */}
         <Link
           href="/setting"
           className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${
@@ -453,13 +463,12 @@ const Sidebar = () => {
               : "text-gray-600 hover:bg-blue-50/50 hover:text-blue-700"
           }`}
         >
-          <span className={`sb-icon ${ pathname.startsWith("/setting") ? "text-blue-600" : "text-gray-400" }`}>
+          <span className={`sb-icon ${pathname.startsWith("/setting") ? "text-blue-600" : "text-gray-400"}`}>
             <SettingsIcon />
           </span>
           Settings
         </Link>
 
-        {/* Logout — always visible */}
         {/* <button
           type="button"
           onClick={handleLogout}

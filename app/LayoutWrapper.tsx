@@ -17,6 +17,11 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   const router = useRouter();
   const [isAuthChecked, setIsAuthChecked] = useState(false);
 
+  // Scroll to top on every route change
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [pathname]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 

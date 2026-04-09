@@ -21,11 +21,12 @@ const modules = [
      null  = all accessible  |  []   = none accessible
 ──────────────────────────────────────────────────────────────── */
 const ROLE_MODULE_PATHS = {
-  ADMIN:   [],            // Admin: no module tabs accessible
-  MANAGER: null,          // Manager: all modules accessible
-  SALES:   ["/"],         // Sales: Sales tab only
-  FINANCE: ["/finance"],  // Finance: Finance tab only
-  SUPPORT: ["/support"],  // Support: Customer Support tab only
+  ADMIN:      [],           // Admin: no module tabs accessible
+  SUPERADMIN: null,         // SuperAdmin: all modules accessible
+  MANAGER:    null,         // Manager: all modules accessible
+  SALES:      ["/"],        // Sales: Sales tab only
+  FINANCE:    ["/finance"], // Finance: Finance tab only
+  SUPPORT:    ["/support"], // Support: Customer Support tab only
 };
 
 /* Sales module is active for its own sub-paths */

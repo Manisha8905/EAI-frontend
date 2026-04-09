@@ -39,11 +39,20 @@ import {
   Phone,
   MessageCircle,
   Linkedin,
+  XCircle,
+  Power,
+  ShieldCheck,
+  ShieldOff,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const isAdminRole = (role) => {
   const normalizedRole = String(role || "").toUpperCase().replace(/[\s_-]/g, "");
   return normalizedRole === "ADMIN" || normalizedRole === "SUPERADMIN";
+};
+
+const isSuperAdminRole = (role) => {
+  return String(role || "").toUpperCase().replace(/[\s_-]/g, "") === "SUPERADMIN";
 };
 
 /* ═══════════════════════ SHARED INPUT ═══════════════════════ */
@@ -651,16 +660,20 @@ function CRMPage({ onBack, onConnectionChange }) {
 }
 
 /* ── Agent toggle — defined outside AgentsPage so React.memo prevents sibling re-renders ── */
-const AgentToggle = memo(function AgentToggle({ agentId, agentName, isOn, onRefresh, onDelete }) {
+const AgentToggle = memo(function AgentToggle({ agentId, agentName, isOn, onToggle, onRefresh, onDelete }) {
   const [loading, setLoading] = useState(false);
 
   const handleClick = async () => {
     if (loading) return;
     setLoading(true);
     try {
-      await axiosInstance.post("/switch-agent", { agent_id: agentId });
-      toast.success("Agent switched successfully.");
-      await onRefresh();
+      if (onToggle) {
+        await onToggle(agentId, isOn);
+      } else {
+        await axiosInstance.post("/switch-agent", { agent_id: [agentId] });
+        toast.success("Agent switched successfully.");
+        await onRefresh();
+      }
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to switch agent.");
     } finally {
@@ -719,6 +732,8 @@ function AgentsPage({ onBack }) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Ref keeps handleRefresh stable while always calling the latest fetchAgents
   const fetchAgentsRef = useRef(null);
@@ -760,6 +775,23 @@ function AgentsPage({ onBack }) {
     if (fetchAgentsRef.current) await fetchAgentsRef.current();
   }, []);
 
+  // Toggle a single agent: add/remove from selected set, send full array
+  const handleToggleRef = useRef(null);
+  handleToggleRef.current = async (agentId, isCurrentlyOn) => {
+    const newSelected = new Set(selectedIds);
+    if (isCurrentlyOn) {
+      newSelected.delete(agentId);
+    } else {
+      newSelected.add(agentId);
+    }
+    await axiosInstance.post("/switch-agent", { agent_id: Array.from(newSelected) });
+    toast.success("Agent switched successfully.");
+    await fetchAgents();
+  };
+  const handleToggle = useCallback(async (agentId, isCurrentlyOn) => {
+    if (handleToggleRef.current) await handleToggleRef.current(agentId, isCurrentlyOn);
+  }, []);
+
   const fetchParallelCalls = async () => {
     setPcLoading(true);
     try {
@@ -781,7 +813,52 @@ function AgentsPage({ onBack }) {
       (a.created_at !== "—" && a.created_at.toLowerCase().includes(search.toLowerCase())),
   );
 
+  const allChecked = filtered.length > 0 && filtered.every((a) => checkedIds.has(a.id));
 
+  const toggleCheckAll = () => {
+    if (allChecked) setCheckedIds(new Set());
+    else setCheckedIds(new Set(filtered.map((a) => a.id)));
+  };
+
+  const toggleCheck = (id) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkAction = async (action) => {
+    const ids = Array.from(checkedIds);
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      if (action === "delete") {
+        for (const id of ids) {
+          await axiosInstance.delete(`/delete-agent/${encodeURIComponent(id)}`);
+        }
+        toast.success(`${ids.length} agent(s) deleted.`);
+      } else {
+        const currentSelected = new Set(selectedIds);
+        if (action === "activate") {
+          ids.forEach((id) => currentSelected.add(id));
+        } else {
+          ids.forEach((id) => currentSelected.delete(id));
+        }
+        await axiosInstance.post("/switch-agent", { agent_id: Array.from(currentSelected) });
+        toast.success(`${ids.length} agent(s) ${action === "activate" ? "activated" : "deactivated"}.`);
+      }
+      setCheckedIds(new Set());
+      await fetchAgents();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Bulk action failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const [busyRowId, setBusyRowId] = useState(null);
 
   const createAgent = async () => {
     if (!newName.trim()) return;
@@ -886,10 +963,98 @@ function AgentsPage({ onBack }) {
         )}
       </div>
 
+      {/* Bulk Action Bar */}
+      <AnimatePresence>
+        {checkedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-3.5 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+                  <Users className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <span className="text-[14px] font-[700] text-blue-800">{checkedIds.size}</span>
+                  <span className="text-[12px] font-[500] text-blue-600 ml-1">agent{checkedIds.size !== 1 ? "s" : ""} selected</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => handleBulkAction("activate")}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 text-white text-[12px] font-[600] hover:bg-emerald-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkBusy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  Activate All
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => handleBulkAction("deactivate")}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-[600] hover:bg-amber-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkBusy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
+                  Deactivate All
+                </button>
+                {/* <button
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => handleBulkAction("delete")}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-500 text-white text-[12px] font-[600] hover:bg-red-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkBusy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  Delete
+                </button> */}
+                <button
+                  type="button"
+                  onClick={() => setCheckedIds(new Set())}
+                  className="ml-1 p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                  title="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Agents table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-          <span className="text-[13px] font-[600] text-gray-900">Agent List</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleCheckAll}
+              className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                allChecked
+                  ? "bg-blue-600 border-blue-600"
+                  : checkedIds.size > 0
+                  ? "bg-blue-100 border-blue-400"
+                  : "border-gray-300 hover:border-blue-400"
+              }`}
+            >
+              {allChecked ? (
+                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : checkedIds.size > 0 ? (
+                <span className="block h-0.5 w-2.5 rounded bg-blue-500" />
+              ) : null}
+            </button>
+            <span className="text-[13px] font-[600] text-gray-900">Agent List</span>
+            {checkedIds.size > 0 && (
+              <span className="text-[11px] font-[500] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                {checkedIds.size} selected
+              </span>
+            )}
+          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
             <input
@@ -906,6 +1071,9 @@ function AgentsPage({ onBack }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="px-5 py-3 w-10">
+                <span className="sr-only">Select</span>
+              </th>
               {["Agent Name", "Date", "Status", "Action"].map((h) => (
                 <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
               ))}
@@ -914,61 +1082,101 @@ function AgentsPage({ onBack }) {
           <tbody>
             {loadingAgents ? (
               <tr>
-                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">
                   Loading agents…
                 </td>
               </tr>
             ) : fetchError ? (
               <tr>
-                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-red-500">
+                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-red-500">
                   {fetchError}
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">
                   No agents found
                 </td>
               </tr>
             ) : (
-              filtered.map((a, i) => (
-                <tr
-                  key={a.id}
-                  className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
-                >
-                  <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-900">{a.name}</td>
-                  <td className="px-5 py-3.5 text-[13px] text-gray-500">{a.created_at_display}</td>
-                  <td className="px-5 py-3.5">
-                    {(() => {
-                      const isCurrent = a.is_active && a.is_current;
-                      return (
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${
-                          isCurrent
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-green-50 text-green-700 border-green-200"
+              filtered.map((a, i) => {
+                const checked = checkedIds.has(a.id);
+                const isActive = a.is_active && a.is_current;
+                const rowBusy = busyRowId === a.id;
+                return (
+                  <tr
+                    key={a.id}
+                    className={`border-b border-gray-50 transition-all duration-150 ${
+                      checked ? "bg-blue-50/70 border-l-2 border-l-blue-500" : i % 2 !== 0 ? "bg-gray-50/30" : ""
+                    } hover:bg-gray-50/70`}
+                  >
+                    <td className="px-5 py-3.5 w-10">
+                      <button
+                        type="button"
+                        onClick={() => toggleCheck(a.id)}
+                        className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                          checked
+                            ? "bg-blue-600 border-blue-600 shadow-sm"
+                            : "border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                        }`}
+                      >
+                        {checked && (
+                          <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-[12px] font-[700] ${
+                          isActive
+                            ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                            : "bg-gray-100 text-gray-500 border border-gray-200"
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isCurrent ? "bg-green-500" : "bg-green-500"}`} />
-                          {isCurrent ? "Active" : "Active"}
-                        </span>
-                      );
-                    })()}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <AgentToggle
-                      agentId={a.id}
-                      agentName={a.name}
-                      isOn={selectedIds.has(a.id)}
-                      onRefresh={handleRefresh}
-                      onDelete={setDeleteTarget}
-                    />
-                  </td>
-                </tr>
-              ))
+                          {a.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <span className="text-[13px] font-[500] text-gray-900">{a.name}</span>
+                          {a.is_current && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-[600] border border-blue-100">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-[13px] text-gray-500">{a.created_at_display}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${
+                        isActive
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-gray-100 text-gray-500 border-gray-200"
+                      }`}>
+                        {isActive
+                          ? <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                          : <ShieldOff className="h-3 w-3 text-gray-400" />
+                        }
+                        {isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <button
+                        onClick={() => setDeleteTarget({ id: a.id, name: a.name })}
+                        className="rounded-xl border border-red-100 bg-red-50 p-2 text-red-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-200 hover:shadow-md"
+                        title="Delete agent"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
         <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
-          {agents.length} agents total
+          {agents.length} agent{agents.length !== 1 ? "s" : ""} total
         </div>
       </div>
 
@@ -1017,6 +1225,806 @@ function AgentsPage({ onBack }) {
       {deleteError && (
         <p className="mt-2 text-[12px] text-red-500 font-[500]">{deleteError}</p>
       )}
+    </div>
+  );
+}
+
+/* ── User Management ── */
+const ROLE_OPTIONS = [
+  { label: "Manager",          value: "MANAGER",  color: "amber" },
+  { label: "Admin",            value: "ADMIN",    color: "blue" },
+  { label: "Sales",            value: "SALES",    color: "violet" },
+  { label: "Finance",          value: "FINANCE",  color: "green" },
+  { label: "Customer Support", value: "SUPPORT",  color: "gray" },
+];
+
+const ROLE_STYLES = {
+  MANAGER: "bg-amber-50 text-amber-700 border-amber-200",
+  ADMIN:   "bg-blue-50 text-blue-700 border-blue-200",
+  SALES:   "bg-violet-50 text-violet-700 border-violet-200",
+  FINANCE: "bg-green-50 text-green-700 border-green-200",
+  SUPPORT: "bg-gray-100 text-gray-600 border-gray-200",
+};
+
+function UsersPage({ onBack, isSuperAdmin }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  // Add user form
+  const [showAdd, setShowAdd] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", email: "", password: "", role: "" });
+  const [addErrors, setAddErrors] = useState({});
+  const [creating, setCreating] = useState(false);
+
+  // Edit user
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "", password: "", role: "" });
+  const [editErrors, setEditErrors] = useState({});
+  const [editing, setEditing] = useState(false);
+
+  // Delete
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Metrics (superadmin only)
+  const [metricsSending, setMetricsSending] = useState(false);
+
+  const handleSendMetrics = async () => {
+    const selectedEmails = users
+      .filter((u) => checkedIds.has(u.id))
+      .map((u) => u.email);
+    if (!selectedEmails.length) return;
+    setMetricsSending(true);
+    try {
+      await axiosInstance.post("/api/superadmin/metrics", { emails: selectedEmails });
+      toast.success(`Metrics sent for ${selectedEmails.length} user(s).`);
+      setCheckedIds(new Set());
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to send metrics.");
+    } finally {
+      setMetricsSending(false);
+    }
+  };
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get("/api/users");
+      const list = Array.isArray(res.data) ? res.data : (res.data?.users ?? res.data?.data ?? []);
+      setUsers(list.map((u) => ({
+        id: u.id ?? u.user_id ?? u._id,
+        username: u.username ?? u.name ?? "—",
+        email: u.email ?? u.email_address ?? "—",
+        role: (u.role ?? "").toUpperCase(),
+        created_at: u.created_at ?? "",
+        created_at_display: u.created_at
+          ? new Date(u.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          : "—",
+      })));
+    } catch {
+      toast.error("Failed to load users.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+    const matchRole = !roleFilter || u.role === roleFilter;
+    return matchSearch && matchRole;
+  });
+
+  const allChecked = filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
+  const toggleCheckAll = () => {
+    if (allChecked) setCheckedIds(new Set());
+    else setCheckedIds(new Set(filtered.map((u) => u.id)));
+  };
+  const toggleCheck = (id) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    const ids = Array.from(checkedIds);
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      const targets = users.filter((u) => checkedIds.has(u.id));
+      for (const u of targets) {
+        await axiosInstance.delete(`/admin/users/purge?target_email=${encodeURIComponent(u.email)}`);
+      }
+      toast.success(`${ids.length} user(s) deleted.`);
+      setCheckedIds(new Set());
+      await fetchUsers();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Bulk delete failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // Create user
+  const validateAdd = () => {
+    const e = {};
+    if (!addForm.name.trim()) e.name = "Required";
+    if (!addForm.email.trim()) e.email = "Required";
+    else if (!/\S+@\S+\.\S+/.test(addForm.email)) e.email = "Invalid email";
+    if (!addForm.password || addForm.password.length < 6) e.password = "Min 6 chars";
+    if (!addForm.role) e.role = "Select a role";
+    setAddErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleCreate = async () => {
+    if (!validateAdd()) return;
+    setCreating(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("username", addForm.name.trim());
+      params.append("email", addForm.email.trim());
+      params.append("password", addForm.password);
+      params.append("role", addForm.role);
+      await axiosInstance.post("/register", params, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      toast.success("User created.");
+      setShowAdd(false);
+      setAddForm({ name: "", email: "", password: "", role: "" });
+      setAddErrors({});
+      await fetchUsers();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to create user.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // Edit user
+  const openEdit = (user) => {
+    setEditTarget(user);
+    setEditForm({ name: user.username, email: user.email, password: "", role: user.role });
+    setEditErrors({});
+  };
+
+  const validateEdit = () => {
+    const e = {};
+    if (!editForm.name.trim()) e.name = "Required";
+    if (!editForm.email.trim()) e.email = "Required";
+    if (editForm.password && editForm.password.length < 6) e.password = "Min 6 chars";
+    if (!editForm.role) e.role = "Select a role";
+    setEditErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleEdit = async () => {
+    if (!validateEdit()) return;
+    setEditing(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("user_id", editTarget.id);
+      params.append("username", editForm.name.trim());
+      params.append("email", editForm.email.trim());
+      params.append("role", editForm.role);
+      if (editForm.password) params.append("password", editForm.password);
+      await axiosInstance.put(`/admin/users/update?${params.toString()}`);
+      toast.success("User updated.");
+      setEditTarget(null);
+      await fetchUsers();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to update user.");
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  // Delete single user
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await axiosInstance.delete(`/admin/users/purge?target_email=${encodeURIComponent(deleteTarget.email)}`);
+      toast.success(`User "${deleteTarget.username}" deleted.`);
+      setDeleteTarget(null);
+      await fetchUsers();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to delete user.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const RoleSelector = ({ value, onChange, error }) => (
+    <div>
+      <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Role</label>
+      <div className="flex flex-wrap gap-1.5">
+        {ROLE_OPTIONS.map((r) => (
+          <button
+            key={r.value}
+            type="button"
+            onClick={() => onChange(r.value)}
+            className={`px-2.5 py-1 rounded-full text-[11px] font-[600] border transition-all duration-150 ${
+              value === r.value
+                ? ROLE_STYLES[r.value] + " ring-2 ring-offset-1 ring-current shadow-sm"
+                : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
+            }`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+      {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+    </div>
+  );
+
+  return (
+    <div>
+      <PageHeader
+        title="User Management"
+        subtitle="Manage users, roles, and permissions"
+        onBack={onBack}
+      />
+
+      {/* Add User Form */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wider">
+            {showAdd ? "New User" : "Users"}
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAdd(!showAdd)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-[600] transition shadow-sm bg-[#0a0a0a] text-white hover:bg-gray-800"
+          >
+            {showAdd ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {showAdd ? "Cancel" : "Add User"}
+          </button>
+        </div>
+        <AnimatePresence>
+          {showAdd && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                  <input
+                    value={addForm.name}
+                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                    placeholder="Full name"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+                  />
+                  {addErrors.name && <p className="mt-1 text-[11px] text-red-500">{addErrors.name}</p>}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">Email <span className="text-red-500">*</span></label>
+                  <input
+                    value={addForm.email}
+                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                    placeholder="user@company.com"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+                  />
+                  {addErrors.email && <p className="mt-1 text-[11px] text-red-500">{addErrors.email}</p>}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">Password <span className="text-red-500">*</span></label>
+                  <input
+                    type="password"
+                    value={addForm.password}
+                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                    placeholder="Min 6 characters"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+                  />
+                  {addErrors.password && <p className="mt-1 text-[11px] text-red-500">{addErrors.password}</p>}
+                </div>
+                <RoleSelector value={addForm.role} onChange={(r) => setAddForm({ ...addForm, role: r })} error={addErrors.role} />
+              </div>
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {creating ? "Creating…" : "Create User"}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Bulk Action Bar */}
+      <AnimatePresence>
+        {checkedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-3.5 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+                  <Users className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <span className="text-[14px] font-[700] text-blue-800">{checkedIds.size}</span>
+                  <span className="text-[12px] font-[500] text-blue-600 ml-1">user{checkedIds.size !== 1 ? "s" : ""} selected</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={metricsSending}
+                  onClick={handleSendMetrics}
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 text-white text-[12px] font-[600] hover:bg-indigo-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {metricsSending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  {metricsSending ? "Sending…" : "Send Metrics"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckedIds(new Set())}
+                  className="ml-1 p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                  title="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Users Table */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-4">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleCheckAll}
+              className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                allChecked
+                  ? "bg-blue-600 border-blue-600"
+                  : checkedIds.size > 0
+                  ? "bg-blue-100 border-blue-400"
+                  : "border-gray-300 hover:border-blue-400"
+              }`}
+            >
+              {allChecked ? (
+                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : checkedIds.size > 0 ? (
+                <span className="block h-0.5 w-2.5 rounded bg-blue-500" />
+              ) : null}
+            </button>
+            <span className="text-[13px] font-[600] text-gray-900">User List</span>
+            {checkedIds.size > 0 && (
+              <span className="text-[11px] font-[500] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                {checkedIds.size} selected
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="appearance-none pl-3 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition cursor-pointer"
+              >
+                <option value="">All Roles</option>
+                {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search users…"
+                className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[170px] placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+        </div>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="px-5 py-3 w-10"><span className="sr-only">Select</span></th>
+              {["Name", "Email", "Role", "Created", ""].map((h) => (
+                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                  <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />Loading users…
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                  No users found
+                </td>
+              </tr>
+            ) : (
+              filtered.map((u, i) => {
+                const checked = checkedIds.has(u.id);
+                return (
+                  <tr
+                    key={u.id}
+                    className={`border-b border-gray-50 transition-all duration-150 ${
+                      checked ? "bg-blue-50/70 border-l-2 border-l-blue-500" : i % 2 !== 0 ? "bg-gray-50/30" : ""
+                    } hover:bg-gray-50/70`}
+                  >
+                    <td className="px-5 py-3.5 w-10">
+                      <button
+                        type="button"
+                        onClick={() => toggleCheck(u.id)}
+                        className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                          checked
+                            ? "bg-blue-600 border-blue-600 shadow-sm"
+                            : "border-gray-300 hover:border-blue-400 hover:bg-blue-50"
+                        }`}
+                      >
+                        {checked && (
+                          <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600 text-[12px] font-[700] border border-violet-100">
+                          {u.username.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-[13px] font-[500] text-gray-900">{u.username}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-[12px] text-gray-600">{u.email}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-[600] border ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                        {u.role || "—"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-[11px] text-gray-500">{u.created_at_display}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openEdit(u)}
+                          className="rounded-xl border border-gray-200 bg-gray-50 p-2 text-gray-500 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all duration-200 hover:shadow-md"
+                          title="Edit user"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(u)}
+                          className="rounded-xl border border-red-100 bg-red-50 p-2 text-red-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-200 hover:shadow-md"
+                          title="Delete user"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+        <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
+          {users.length} user{users.length !== 1 ? "s" : ""} total
+        </div>
+      </div>
+
+      {/* Edit Modal */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setEditTarget(null)}>
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[15px] font-[700] text-gray-900">Edit User</h3>
+              <button onClick={() => setEditTarget(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1">Name</label>
+                <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20" />
+                {editErrors.name && <p className="mt-1 text-[11px] text-red-500">{editErrors.name}</p>}
+              </div>
+              <div>
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1">Email</label>
+                <input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20" />
+                {editErrors.email && <p className="mt-1 text-[11px] text-red-500">{editErrors.email}</p>}
+              </div>
+              <div>
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1">Password <span className="text-[10px] text-gray-400">(leave blank to keep current)</span></label>
+                <input type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="Optional" className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20" />
+                {editErrors.password && <p className="mt-1 text-[11px] text-red-500">{editErrors.password}</p>}
+              </div>
+              <RoleSelector value={editForm.role} onChange={(r) => setEditForm({ ...editForm, role: r })} error={editErrors.role} />
+              <button
+                onClick={handleEdit}
+                disabled={editing}
+                className="mt-2 w-full rounded-xl bg-[#0a0a0a] py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {editing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                {editing ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label={deleteTarget.username}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+          loading={deleting}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Superadmin Metrics ── */
+function SuperAdminMetricsPage({ onBack }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [sending, setSending] = useState(false);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get("/api/users");
+      const list = Array.isArray(res.data) ? res.data : (res.data?.users ?? res.data?.data ?? []);
+      setUsers(list.map((u) => ({
+        id: u.id ?? u.user_id ?? u._id,
+        username: u.username ?? u.name ?? "—",
+        email: u.email ?? u.email_address ?? "—",
+        role: (u.role ?? "").toUpperCase(),
+      })));
+    } catch {
+      toast.error("Failed to load users.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+  });
+
+  const allChecked = filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
+  const toggleCheckAll = () => {
+    if (allChecked) setCheckedIds(new Set());
+    else setCheckedIds(new Set(filtered.map((u) => u.id)));
+  };
+  const toggleCheck = (id) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSendMetrics = async () => {
+    const selectedEmails = users
+      .filter((u) => checkedIds.has(u.id))
+      .map((u) => u.email);
+    if (!selectedEmails.length) {
+      toast.error("Select at least one user.");
+      return;
+    }
+    setSending(true);
+    try {
+      await axiosInstance.post("/api/superadmin/metrics", {
+        emails: selectedEmails,
+      });
+      toast.success(`Metrics sent for ${selectedEmails.length} user(s).`);
+      setCheckedIds(new Set());
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to send metrics.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title="Superadmin Metrics"
+        subtitle="Select users and send metrics data"
+        onBack={onBack}
+      />
+
+      {/* Top Action Bar */}
+      <AnimatePresence>
+        {checkedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-indigo-50 via-white to-indigo-50 rounded-2xl border border-indigo-200 shadow-sm px-5 py-3.5 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100">
+                  <Users className="h-4 w-4 text-indigo-600" />
+                </div>
+                <div>
+                  <span className="text-[14px] font-[700] text-indigo-800">{checkedIds.size}</span>
+                  <span className="text-[12px] font-[500] text-indigo-600 ml-1">user{checkedIds.size !== 1 ? "s" : ""} selected</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={handleSendMetrics}
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 text-white text-[12px] font-[600] hover:bg-indigo-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  {sending ? "Sending…" : "Send Metrics"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckedIds(new Set())}
+                  className="ml-1 p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                  title="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Users Table */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleCheckAll}
+              className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                allChecked
+                  ? "bg-indigo-600 border-indigo-600"
+                  : checkedIds.size > 0
+                  ? "bg-indigo-100 border-indigo-400"
+                  : "border-gray-300 hover:border-indigo-400"
+              }`}
+            >
+              {allChecked ? (
+                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : checkedIds.size > 0 ? (
+                <span className="block h-0.5 w-2.5 rounded bg-indigo-500" />
+              ) : null}
+            </button>
+            <span className="text-[13px] font-[600] text-gray-900">Select Users</span>
+            {checkedIds.size > 0 && (
+              <span className="text-[11px] font-[500] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                {checkedIds.size} selected
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search users…"
+              className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 focus:bg-white transition w-[170px] placeholder:text-gray-400"
+            />
+          </div>
+        </div>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="px-5 py-3 w-10"><span className="sr-only">Select</span></th>
+              {["Name", "Email", "Role"].map((h) => (
+                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                  <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />Loading users…
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                  No users found
+                </td>
+              </tr>
+            ) : (
+              filtered.map((u, i) => {
+                const checked = checkedIds.has(u.id);
+                return (
+                  <tr
+                    key={u.id}
+                    className={`border-b border-gray-50 transition-all duration-150 cursor-pointer ${
+                      checked ? "bg-indigo-50/70 border-l-2 border-l-indigo-500" : i % 2 !== 0 ? "bg-gray-50/30" : ""
+                    } hover:bg-gray-50/70`}
+                    onClick={() => toggleCheck(u.id)}
+                  >
+                    <td className="px-5 py-3.5 w-10">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleCheck(u.id); }}
+                        className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                          checked
+                            ? "bg-indigo-600 border-indigo-600 shadow-sm"
+                            : "border-gray-300 hover:border-indigo-400 hover:bg-indigo-50"
+                        }`}
+                      >
+                        {checked && (
+                          <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 text-[12px] font-[700] border border-indigo-100">
+                          {u.username.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-[13px] font-[500] text-gray-900">{u.username}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-[12px] text-gray-600">{u.email}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-[600] border ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                        {u.role || "—"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+        <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
+          {users.length} user{users.length !== 1 ? "s" : ""} total
+        </div>
+      </div>
     </div>
   );
 }
@@ -4330,6 +5338,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       groq_api_key: "",
       email_deliverability_provider: "",
     },
+    enrichment: {
+      xai_api_key: "",
+      grok_enrichment: "",
+      grok_email_style: "",
+    },
     appConfig: {
       target_mailbox_for_replies: "",
       timezone_configuration: "",
@@ -4383,7 +5396,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
     (async () => {
       setLoading(true);
-      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes] = await Promise.allSettled([
+      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes, grokEnrichRes, grokEmailRes, xaiRes] = await Promise.allSettled([
         axiosInstance.get("/api/globalsetting/twilio"),
         axiosInstance.get("/api/globalsetting/elevenlabs"),
         axiosInstance.get("/api/globalsetting/linkedin-scraping"),
@@ -4391,6 +5404,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         axiosInstance.get("/api/globalsetting/tm-own-solution"),
         axiosInstance.get("/api/globalsetting/groq"),
         axiosInstance.get("/api/globalsetting/app-config"),
+        axiosInstance.get("/api/globalsetting/grok-enrichment"),
+        axiosInstance.get("/api/globalsetting/grok-email-style"),
+        axiosInstance.get("/api/globalsetting/xai"),
       ]);
 
       setForms((prev) => {
@@ -4478,6 +5494,25 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           };
         }
 
+        // Enrichment fields
+        const enrichNext = { ...prev.enrichment };
+        if (xaiRes.status === "fulfilled") {
+          const d = xaiRes.value?.data ?? {};
+          enrichNext.xai_api_key = d.xai_api_key ?? d.XAI_API_KEY ?? d?.credentials?.xai_api_key ?? prev.enrichment.xai_api_key;
+        }
+        if (grokEnrichRes.status === "fulfilled") {
+          const d = grokEnrichRes.value?.data ?? {};
+          enrichNext.grok_enrichment = d.grok_enrichment ?? d.value ?? d.model ?? d.grok_enrichment_model ?? prev.enrichment.grok_enrichment;
+          // Also extract options for dropdown if available
+          if (Array.isArray(d.options)) enrichNext._enrichmentOptions = d.options;
+        }
+        if (grokEmailRes.status === "fulfilled") {
+          const d = grokEmailRes.value?.data ?? {};
+          enrichNext.grok_email_style = d.grok_email_style ?? d.value ?? d.style ?? d.grok_email_style_model ?? prev.enrichment.grok_email_style;
+          if (Array.isArray(d.options)) enrichNext._emailStyleOptions = d.options;
+        }
+        next.enrichment = enrichNext;
+
         return next;
       });
 
@@ -4513,6 +5548,19 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           groq_api_key: forms.groq.groq_api_key,
           email_deliverability_provider: forms.groq.email_deliverability_provider,
         });
+      }
+      if (section === "enrichment") {
+        await Promise.all([
+          axiosInstance.put("/api/globalsetting/xai", {
+            xai_api_key: forms.enrichment.xai_api_key,
+          }),
+          axiosInstance.put("/api/globalsetting/grok-enrichment", {
+            grok_enrichment: forms.enrichment.grok_enrichment,
+          }),
+          axiosInstance.put("/api/globalsetting/grok-email-style", {
+            grok_email_style: forms.enrichment.grok_email_style,
+          }),
+        ]);
       }
       if (section === "appConfig") {
         await axiosInstance.put("/api/globalsetting/app-config", {
@@ -4700,6 +5748,56 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             <Field label="Groq API Key" type="password" value={forms.groq.groq_api_key} onChange={setField("groq", "groq_api_key")} />
           </div>
 
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Database className="h-4 w-4 text-teal-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">Enrichment</h3>
+              </div>
+              <SaveBtn section="enrichment" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <Field label="xAI API Key" type="password" value={forms.enrichment.xai_api_key} onChange={setField("enrichment", "xai_api_key")} placeholder="xai-xxxxxxxxxxxxxxxx" />
+              </div>
+              <SelectField
+                label="Grok Enrichment"
+                value={forms.enrichment.grok_enrichment}
+                onChange={setField("enrichment", "grok_enrichment")}
+                options={
+                  forms.enrichment._enrichmentOptions?.length > 0
+                    ? forms.enrichment._enrichmentOptions.map((o) =>
+                        typeof o === "string" ? { label: o, value: o } : { label: o.label ?? o.name ?? o.value, value: o.value ?? o.name }
+                      )
+                    : [
+                        { label: "Select…", value: "" },
+                        { label: "grok-3", value: "grok-3" },
+                        { label: "grok-3-mini", value: "grok-3-mini" },
+                        { label: "grok-2", value: "grok-2" },
+                      ]
+                }
+              />
+              <SelectField
+                label="Grok Email Style"
+                value={forms.enrichment.grok_email_style}
+                onChange={setField("enrichment", "grok_email_style")}
+                options={
+                  forms.enrichment._emailStyleOptions?.length > 0
+                    ? forms.enrichment._emailStyleOptions.map((o) =>
+                        typeof o === "string" ? { label: o, value: o } : { label: o.label ?? o.name ?? o.value, value: o.value ?? o.name }
+                      )
+                    : [
+                        { label: "Select…", value: "" },
+                        { label: "Professional", value: "professional" },
+                        { label: "Casual", value: "casual" },
+                        { label: "Formal", value: "formal" },
+                        { label: "Friendly", value: "friendly" },
+                      ]
+                }
+              />
+            </div>
+          </div>
+
           <div className="">
             {/* <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -4777,11 +5875,13 @@ export default function Setting() {
   const [crmDisconnecting, setCrmDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userCanAccessGlobalSettings, setUserCanAccessGlobalSettings] = useState(false);
+  const [userIsSuperAdmin, setUserIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedRole = localStorage.getItem("userRole") || "";
     setUserCanAccessGlobalSettings(isAdminRole(storedRole));
+    setUserIsSuperAdmin(isSuperAdminRole(storedRole));
   }, []);
 
   // Fetch CRM OAuth status on mount — show toast if connected, silently mark disconnected
@@ -4935,6 +6035,8 @@ export default function Setting() {
   if (activePage === "smtp-providers") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><SMTPProvidersPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "leads") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><LeadsPage onBack={() => setActivePage(null)} /></div>;
   if (activePage === "mappings") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><MappingsPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "users") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><UsersPage onBack={() => setActivePage(null)} isSuperAdmin={userIsSuperAdmin} /></div>;
+  if (activePage === "superadmin-metrics") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><SuperAdminMetricsPage onBack={() => setActivePage(null)} /></div>;
 
   const SettingCard = ({ icon: Icon, iconBg, iconColor, title, desc, action }) => (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col gap-4">
@@ -5059,6 +6161,12 @@ export default function Setting() {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         <SettingCard icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600" title="Agent" desc="Manage AI SDR agents, switching, and parallel call limits" action={<GearBtn page="agents" />} />
+        {userIsSuperAdmin && (
+          <SettingCard icon={Users} iconBg="bg-violet-50" iconColor="text-violet-600" title="User Management" desc="Add, edit, and manage users with roles and permissions" action={<GearBtn page="users" />} />
+        )}
+        {/* {userIsSuperAdmin && (
+          <SettingCard icon={ShieldCheck} iconBg="bg-indigo-50" iconColor="text-indigo-600" title="Superadmin Metrics" desc="Select users and send metrics data — superadmin only" action={<GearBtn page="superadmin-metrics" />} />
+        )} */}
       </div>
 
       {/* ═══ SECTION 3 — EMAIL DELIVERY ═══ */}

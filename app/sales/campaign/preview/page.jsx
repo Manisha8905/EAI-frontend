@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, RefreshCw, Send, Users, X } from "lucide-react";
 import { toast } from "react-toastify";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import axiosInstance from "../../../Redux/axiosInstance";
 
 const toRows = (payload) => {
@@ -444,7 +445,7 @@ export default function CampaignPreviewPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-3 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
           <label className="inline-flex items-center gap-2 text-[13px] font-[600] text-gray-700">
             <input
               type="checkbox"
@@ -553,54 +554,135 @@ export default function CampaignPreviewPage() {
               </div>
 
               {/* ── Main Tab Switcher ── */}
-              <div className="flex items-end gap-0">
-                {[
-                  { key: "preview", label: "Preview Email" },
-                  { key: "enrichment", label: "Enrichment" },
-                  { key: "reprocess", label: "Reprocess" },
-                ].map((tab) => {
-                  const active = modalTab === tab.key;
-                  const clickKey = tabClickCount[tab.key] ?? 0;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => {
-                        setModalTab(tab.key);
-                        setTabClickCount((prev) => ({ ...prev, [tab.key]: (prev[tab.key] ?? 0) + 1 }));
-                      }}
-                      className={`relative px-5 py-2.5 text-[13px] tracking-wide select-none focus:outline-none transition-colors duration-200 ${
-                        active
-                          ? "font-[700] text-gray-900"
-                          : "font-[500] text-gray-400 hover:text-gray-700"
-                      }`}
-                    >
-                      <span
-                        key={`${tab.key}-${clickKey}`}
-                        className={active ? "animate-tabLift" : "inline-block"}
-                      >
-                        {tab.label}
-                      </span>
-                      <span
-                        className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-sm transition-opacity duration-200"
-                        style={{
-                          background: "linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)",
-                          opacity: active ? 1 : 0,
-                        }}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
+              <LayoutGroup id="modal-tabs">
+                <div className="relative flex items-end" style={{ minHeight: 48 }}>
+                  {(() => {
+                    const isEnrichmentActive = modalTab === "enrichment";
+                    const tabs = [
+                      { key: "preview", label: "Preview Email" },
+                      { key: "enrichment", label: "Enriched Data" },
+                      { key: "reprocess", label: "Reprocess" },
+                    ];
+                    return tabs.map((tab) => {
+                      const active = modalTab === tab.key;
+                      const isLeft = tab.key === "preview";
+                      const isRight = tab.key === "reprocess";
+                      const isCenter = tab.key === "enrichment";
+
+                      // Compute x offset: side tabs spread out when enrichment is active
+                      let xOffset = 0;
+                      if (isEnrichmentActive && isLeft) xOffset = -18;
+                      if (isEnrichmentActive && isRight) xOffset = 18;
+
+                      // Compute scale & y for enrichment tab
+                      let yOffset = active ? -2 : 0;
+                      let scale = 1;
+                      if (isCenter && isEnrichmentActive) {
+                        yOffset = -12;
+                        scale = 0.92;
+                      }
+
+                      // Opacity: fade side tabs when enrichment is active
+                      let opacity = 1;
+                      if (isEnrichmentActive && !isCenter) opacity = 0.45;
+                      if (!isEnrichmentActive && !active) opacity = 0.55;
+
+                      return (
+                        <motion.button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setModalTab(tab.key)}
+                          animate={{
+                            x: xOffset,
+                            y: yOffset,
+                            scale,
+                            opacity,
+                            color: active ? "#111827" : "#9ca3af",
+                          }}
+                          whileHover={{ color: active ? "#111827" : "#374151", opacity: Math.max(opacity, 0.75) }}
+                          transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                          className="relative px-5 py-2.5 select-none focus:outline-none origin-bottom"
+                          style={{ fontSize: active ? "13px" : "12.5px", fontWeight: active ? 700 : 500 }}
+                        >
+                          {tab.label}
+                          {active && (
+                            <motion.span
+                              layoutId="tab-underline"
+                              className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-sm"
+                              style={{ background: "linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)" }}
+                              transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                            />
+                          )}
+                        </motion.button>
+                      );
+                    });
+                  })()}
+                </div>
+              </LayoutGroup>
+
+              {/* ── Enrichment Sub-tabs (underline style) ── */}
+              <AnimatePresence>
+                {modalTab === "enrichment" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                    className="overflow-hidden"
+                  >
+                    {/* <div className="border-t border-gray-200" /> */}
+                    <LayoutGroup id="enrichment-sub">
+                      <div className="flex items-center justify-start gap-0 ">
+                        {[
+                          { key: "system", label: "Prospect Information" },
+                          { key: "ai", label: "Fetched by AI" },
+                        ].map((st) => {
+                          const subActive = enrichmentSubTab === st.key;
+                          return (
+                            <motion.button
+                              key={st.key}
+                              type="button"
+                              onClick={() => setEnrichmentSubTab(st.key)}
+                              animate={{
+                                color: subActive ? "#1d4ed8" : "#9ca3af",
+                              }}
+                              whileHover={{ color: subActive ? "#1d4ed8" : "#374151" }}
+                              transition={{ duration: 0.18 }}
+                              className="relative px-5 py-2 text-[8px] font-[600] select-none focus:outline-none whitespace-nowrap"
+                            >
+                              {st.label}
+                              {subActive && (
+                                <motion.span
+                                  layoutId="sub-underline"
+                                  className="absolute bottom-0 left-2 right-2 h-[2px] rounded-t-sm bg-blue-600"
+                                  transition={{ type: "spring", stiffness: 500, damping: 38 }}
+                                />
+                              )}
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </LayoutGroup>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
             </div>
 
             {/* ── Tab Panels ── */}
-            <div className="flex-1 overflow-y-auto bg-gray-50">
+            <div className="flex-1 overflow-y-auto bg-gray-50 relative">
+              <AnimatePresence mode="wait" initial={false}>
 
               {/* Preview Email */}
               {modalTab === "preview" && (
-                <div className="p-6 animate-fadeIn">
+                <motion.div
+                  key="preview"
+                  initial={{ opacity: 0, x: -18 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 18 }}
+                  transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                  className="p-6"
+                >
                   {/* Compact email metadata strip */}
                   <div className="mb-3 bg-white border border-gray-200 rounded-xl px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1">
                     <span className="text-[12px] text-gray-500 whitespace-nowrap">
@@ -640,141 +722,61 @@ export default function CampaignPreviewPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </motion.div>
               )}
 
               {/* Enrichment */}
               {modalTab === "enrichment" && (
-                <div className="p-5 animate-fadeIn">
+                <motion.div
+                  key="enrichment"
+                  initial={{ opacity: 0, x: 18 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -18 }}
+                  transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                  className="p-5"
+                >
 
-                  {/* ── Sub-tab segment control — centered ── */}
-                  <div className="flex justify-center mb-5">
-                    <div className="inline-flex items-center bg-white border border-gray-200 rounded-full p-1 shadow-sm gap-1">
-                      {[
-                        { key: "system", label: "Available on System" },
-                        { key: "ai",     label: "Fetched by AI" },
-                      ].map((st) => (
-                        <button
-                          key={st.key}
-                          type="button"
-                          onClick={() => setEnrichmentSubTab(st.key)}
-                          className={`px-4 py-1.5 rounded-full text-[12px] font-[600] transition-all duration-200 whitespace-nowrap ${
-                            enrichmentSubTab === st.key
-                              ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-sm"
-                              : "text-gray-400 hover:text-gray-700"
-                          }`}
-                        >
-                          {st.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {/* Sub-tab content rendered below — sub-tabs are now in the header */}
 
-                  {/* ── Available on System — dynamic key-value ── */}
-                  {enrichmentSubTab === "system" && (() => {
-                    const sys = activePreviewLead?.availableOnSystem;
-                    if (!sys || typeof sys !== "object") {
-                      return (
-                        <div className="flex items-center justify-center py-16">
-                          <p className="text-[13px] text-gray-400">No data available.</p>
-                        </div>
-                      );
-                    }
-                    const entries = Object.entries(sys);
-                    return (
-                      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-fadeIn">
-                        {entries.map(([key, val], idx) => {
-                          const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                          const isLast = idx === entries.length - 1;
-                          const renderValue = (v) => {
-                            if (Array.isArray(v)) {
-                              if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
-                              // array of objects (e.g. linkedin_recent_posts)
-                              if (typeof v[0] === "object" && v[0] !== null) {
-                                return (
-                                  <div className="flex flex-col gap-2 mt-1">
-                                    {v.map((item, i) => (
-                                      <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-[11px] text-gray-600">
-                                        {Object.entries(item).map(([k, vv]) => (
-                                          <div key={k} className="flex gap-1.5 flex-wrap">
-                                            <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
-                                            {typeof vv === "string" && vv.startsWith("http") ? (
-                                              <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
-                                            ) : (
-                                              <span className="text-gray-700">{String(vv ?? "—")}</span>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              }
-                              // array of primitives
-                              return (
-                                <div className="flex flex-wrap gap-1.5 mt-1">
-                                  {v.map((item, i) => (
-                                    <span key={i} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-[500]">{String(item)}</span>
-                                  ))}
-                                </div>
-                              );
-                            }
-                            if (typeof val === "string" && val.startsWith("http")) {
-                              return <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{val}</a>;
-                            }
-                            return <span className="text-gray-800 text-[12px]">{String(v ?? "—")}</span>;
-                          };
-                          return (
-                            <div key={key} className={`px-4 py-3 flex gap-3 ${!isLast ? "border-b border-gray-50" : ""}`}>
-                              <span className="text-[11px] font-[600] text-gray-400 w-36 flex-shrink-0 pt-0.5 capitalize">{label}</span>
-                              <div className="flex-1 min-w-0">{renderValue(val)}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+                  {/* ── Sub-tab Content with Animation ── */}
+                  <AnimatePresence mode="wait" initial={false}>
+                    {/* Available on System */}
+                    {enrichmentSubTab === "system" && (
+                      <motion.div
+                        key="system"
+                        initial={{ opacity: 0, x: -12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 12 }}
+                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                        className="bg-white rounded-xl border border-gray-200 px-4 py-1"
+                      >
+                        {(() => {
+                          const sys = activePreviewLead?.availableOnSystem;
+                          if (!sys || typeof sys !== "object") {
+                            return (
+                              <div className="flex items-center justify-center py-8">
+                                <p className="text-[13px] text-gray-400">No data available.</p>
+                              </div>
+                            );
+                          }
 
-                  {/* ── Fetched by AI — dynamic key-value ── */}
-                  {enrichmentSubTab === "ai" && (() => {
-                    const ai = activePreviewLead?.fetchedByAi;
-                    const engine = activePreviewLead?.aiEngine;
-                    if (!ai || typeof ai !== "object") {
-                      return (
-                        <div className="flex flex-col items-center justify-center py-16 gap-2">
-                          {/* {engine && (
-                            <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 text-[11px] font-[600] mb-1">
-                              Engine: {engine}
-                            </span>
-                          )} */}
-                          <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
-                        </div>
-                      );
-                    }
-                    const entries = Object.entries(ai);
-                    return (
-                      <div className="flex flex-col gap-3 animate-fadeIn">
-                        {/* {engine && (
-                          <div className="flex justify-end">
-                            <span className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-100 text-[11px] font-[600]">
-                              Engine: {engine}
-                            </span>
-                          </div>
-                        )} */}
-                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                          {entries.map(([key, val], idx) => {
+                          // Define expected keys for Available on System
+                          const expectedKeys = ["name", "email", "phone", "company", "contact_number"];
+
+                          return expectedKeys.map((key) => {
+                            const val = sys[key];
                             const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                            const isLast = idx === entries.length - 1;
                             const renderValue = (v) => {
+                              if (v === null || v === undefined) return <span className="text-gray-400 italic text-[12px]">—</span>;
                               if (Array.isArray(v)) {
                                 if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
                                 if (typeof v[0] === "object" && v[0] !== null) {
                                   return (
-                                    <div className="flex flex-col gap-2 mt-1">
+                                    <div className="flex flex-col gap-1 mt-1">
                                       {v.map((item, i) => (
-                                        <div key={i} className="bg-gray-50 rounded-lg px-3 py-2 text-[11px] text-gray-600">
+                                        <div key={i} className="bg-gray-50 rounded px-2 py-1 text-[11px] text-gray-600">
                                           {Object.entries(item).map(([k, vv]) => (
-                                            <div key={k} className="flex gap-1.5 flex-wrap">
+                                            <div key={k} className="flex gap-1 flex-wrap">
                                               <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
                                               {typeof vv === "string" && vv.startsWith("http") ? (
                                                 <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
@@ -789,36 +791,130 @@ export default function CampaignPreviewPage() {
                                   );
                                 }
                                 return (
-                                  <div className="flex flex-wrap gap-1.5 mt-1">
+                                  <div className="flex flex-wrap gap-1 mt-1">
                                     {v.map((item, i) => (
-                                      <span key={i} className="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 text-[11px] font-[500]">{String(item)}</span>
+                                      <span key={i} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-[500]">{String(item)}</span>
                                     ))}
                                   </div>
                                 );
                               }
-                              if (typeof val === "string" && val.startsWith("http")) {
-                                return <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{val}</a>;
+                              if (typeof v === "string" && v.startsWith("http")) {
+                                return <a href={v} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{v}</a>;
                               }
-                              return <span className="text-gray-800 text-[12px]">{String(v ?? "—")}</span>;
+                              return <span className="text-gray-800 text-[12px]">{String(v || "—")}</span>;
                             };
                             return (
-                              <div key={key} className={`px-4 py-3 flex gap-3 ${!isLast ? "border-b border-gray-50" : ""}`}>
-                                <span className="text-[11px] font-[600] text-gray-400 w-36 flex-shrink-0 pt-0.5 capitalize">{label}</span>
+                              <div key={key} className="flex gap-3 py-2">
+                                <span className="text-[12px] font-[600] text-gray-500 w-32 flex-shrink-0 capitalize">{label}</span>
                                 <div className="flex-1 min-w-0">{renderValue(val)}</div>
                               </div>
                             );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
+                          });
+                        })()}
+                      </motion.div>
+                    )}
 
-                </div>
+                    {/* Fetched by AI */}
+                    {enrichmentSubTab === "ai" && (
+                      <motion.div
+                        key="ai"
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -12 }}
+                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                        className="bg-white rounded-xl border border-gray-200 p-4 space-y-4"
+                      >
+                        {(() => {
+                          const ai = activePreviewLead?.fetchedByAi;
+                          if (!ai || typeof ai !== "object") {
+                            return (
+                              <div className="flex items-center justify-center py-8">
+                                <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
+                              </div>
+                            );
+                          }
+
+                          const renderSection = (title, data) => {
+                            if (!data || typeof data !== "object") return null;
+                            const entries = Object.entries(data);
+                            if (entries.length === 0) return null;
+                            return (
+                              <div>
+                                <h3 className="text-[14px] font-[700] text-gray-900 mb-2">{title}</h3>
+                                <div className="border-b border-gray-100 mb-3" />
+                                {entries.map(([key, val]) => {
+                                  const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                                  const renderValue = (v) => {
+                                    if (Array.isArray(v)) {
+                                      if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
+                                      if (typeof v[0] === "object" && v[0] !== null) {
+                                        return (
+                                          <div className="flex flex-col gap-1 mt-1">
+                                            {v.map((item, i) => (
+                                              <div key={i} className="bg-gray-50 rounded px-2 py-1 text-[11px] text-gray-600">
+                                                {Object.entries(item).map(([k, vv]) => (
+                                                  <div key={k} className="flex gap-1 flex-wrap">
+                                                    <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
+                                                    {typeof vv === "string" && vv.startsWith("http") ? (
+                                                      <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
+                                                    ) : (
+                                                      <span className="text-gray-700">{String(vv ?? "—")}</span>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      }
+                                      return (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {v.map((item, i) => (
+                                            <span key={i} className="px-2 py-0.5 rounded bg-violet-50 text-violet-700 text-[11px] font-[500]">{String(item)}</span>
+                                          ))}
+                                        </div>
+                                      );
+                                    }
+                                    if (typeof val === "string" && val.startsWith("http")) {
+                                      return <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{val}</a>;
+                                    }
+                                    return <span className="text-gray-800 text-[12px]">{String(val ?? "—")}</span>;
+                                  };
+                                  return (
+                                    <div key={key} className="flex gap-3 py-1.5">
+                                      <span className="text-[12px] font-[600] text-gray-500 w-32 flex-shrink-0 capitalize">{label}</span>
+                                      <div className="flex-1 min-w-0">{renderValue(val)}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          };
+
+                          return (
+                            <>
+                              {renderSection("Personal Details", ai.personalDetails)}
+                              {renderSection("Business Details", ai.businessDetails)}
+                            </>
+                          );
+                        })()}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                </motion.div>
               )}
 
               {/* Reprocess */}
               {modalTab === "reprocess" && (
-                <div className="p-6 animate-fadeIn flex flex-col gap-5">
+                <motion.div
+                  key="reprocess"
+                  initial={{ opacity: 0, x: 18 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -18 }}
+                  transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                  className="p-6 flex flex-col gap-5"
+                >
 
                   {/* Header */}
                   <div className="flex items-start gap-3">
@@ -927,9 +1023,10 @@ export default function CampaignPreviewPage() {
                     </div>
                   </div>
 
-                </div>
+                </motion.div>
               )}
 
+              </AnimatePresence>
             </div>
           </div>
         </div>

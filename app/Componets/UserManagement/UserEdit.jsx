@@ -7,7 +7,7 @@ import { editUser, getSingleUser } from "../../Redux/actions/authActions";
 
 /* ─── Role options ───────────────────────────────────────────── */
 const roleOptions = [
-  { label: "Manager",          value: "MANAGER", color: "amber"  },
+  { label: "Super Admin",      value: "SUPERADMIN", color: "amber"  },
   { label: "Admin",            value: "ADMIN",   color: "blue"   },
   { label: "Sales",            value: "SALES",   color: "violet" },
   { label: "Finance",          value: "FINANCE", color: "green"  },
