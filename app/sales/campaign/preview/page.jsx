@@ -536,7 +536,7 @@ export default function CampaignPreviewPage() {
           aria-label="Email preview modal"
         >
           <div
-            className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* ── Modal Header ── */}

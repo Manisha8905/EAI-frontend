@@ -25,6 +25,7 @@ import {
   Clock,
   Eye,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { fetchInboundCallHistory } from "../../Redux/actions/authActions";
 
@@ -130,6 +131,13 @@ export default function Reporting() {
   const [selectedTranscript, setSelectedTranscript] = useState<any>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    dispatch(fetchInboundCallHistory(page, PAGE_SIZE));
+    setTimeout(() => setRefreshing(false), 800);
+  };
 
   useEffect(() => {
     dispatch(fetchInboundCallHistory(page, PAGE_SIZE));
@@ -209,13 +217,15 @@ export default function Reporting() {
         </div>
       </div>
 
-      {inboundHistoryLoading && (
-        <div className="flex items-center justify-center py-24 text-gray-400 text-[14px] animate-pulse">
+      {/* Show full-page loader only on initial empty fetch — not on refresh */}
+      {inboundHistoryLoading && inboundCallHistory.length === 0 && (
+        <div className="flex items-center justify-center py-24 gap-2 text-gray-400 text-[14px]">
+          <RefreshCw className="h-4 w-4 animate-spin" />
           Loading call history...
         </div>
       )}
 
-      {!inboundHistoryLoading && (
+      {(inboundCallHistory.length > 0 || !inboundHistoryLoading) && (
         <>
           <section className="mb-5 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <KpiCard
@@ -313,6 +323,15 @@ export default function Reporting() {
                 <h3 className="text-[14px] font-semibold text-gray-900">Inbound Call History</h3>
                 <p className="text-[12px] text-gray-400 mt-0.5">{meta.total_count} records total</p>
               </div>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing || inboundHistoryLoading}
+                className="rounded-lg border border-gray-200 bg-white p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+                title="Refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing || inboundHistoryLoading ? "animate-spin" : ""}`} />
+              </button>
             </div>
 
             <div className="overflow-x-auto scrollbar-thin">

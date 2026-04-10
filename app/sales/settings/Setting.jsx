@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useCallback, memo } from "react";
+import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
 import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
 import { toast } from "react-toastify";
@@ -43,6 +43,7 @@ import {
   Power,
   ShieldCheck,
   ShieldOff,
+  FileDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -948,6 +949,16 @@ function AgentsPage({ onBack }) {
         title="Agents"
         subtitle="Manage AI SDR agents and parallel call settings"
         onBack={onBack}
+        action={
+          <button
+            onClick={handleRefresh}
+            disabled={loadingAgents}
+            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loadingAgents ? "animate-spin" : ""}`} />
+          </button>
+        }
       />
 
       {/* Create agent bar */}
@@ -1037,7 +1048,7 @@ function AgentsPage({ onBack }) {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 text-white text-[12px] font-[600] hover:bg-emerald-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {bulkBusy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                  Activate All
+                  Activate 
                 </button>
                 <button
                   type="button"
@@ -1046,7 +1057,7 @@ function AgentsPage({ onBack }) {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-[600] hover:bg-amber-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {bulkBusy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
-                  Deactivate All
+                  Deactivate
                 </button>
                 {/* <button
                   type="button"
@@ -1101,17 +1112,27 @@ function AgentsPage({ onBack }) {
               </span>
             )}
           </div>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search agents…"
-              className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg
-                           bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
-                           focus:border-blue-400 focus:bg-white transition w-[190px]
-                           placeholder:text-gray-400"
-            />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={loadingAgents}
+              className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loadingAgents ? "animate-spin" : ""}`} />
+            </button>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search agents…"
+                className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg
+                             bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30
+                             focus:border-blue-400 focus:bg-white transition w-[190px]
+                             placeholder:text-gray-400"
+              />
+            </div>
           </div>
         </div>
         <table className="w-full text-left">
@@ -1182,11 +1203,14 @@ function AgentsPage({ onBack }) {
                         }`}>
                           {a.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
+                        <div className="flex items-center gap-1.5">
                           <span className="text-[13px] font-[500] text-gray-900">{a.name}</span>
                           {a.is_current && (
-                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-[600] border border-blue-100">
-                              Current
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-[700]">
+                              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Selected
                             </span>
                           )}
                         </div>
@@ -1300,6 +1324,10 @@ function UsersPage({ onBack, isSuperAdmin }) {
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
+  // Pagination
+  const USERS_PER_PAGE = 8;
+  const [userPage, setUserPage] = useState(1);
+
   // Add user form
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", email: "", password: "", role: "" });
@@ -1356,12 +1384,50 @@ function UsersPage({ onBack, isSuperAdmin }) {
     }
   };
 
+  // Per-row Select / Unselect — same pattern as agent activate/deactivate
+  const [busyRowId, setBusyRowId] = useState(null);
+
+  const handleToggleUser = async (user, isCurrentlySelected) => {
+    if (busyRowId === user.id) return;
+    setBusyRowId(user.id);
+    setMetricsSent(false);
+    try {
+      const newChecked = new Set(checkedIds);
+      if (isCurrentlySelected) {
+        newChecked.delete(user.id);
+      } else {
+        newChecked.add(user.id);
+      }
+      setCheckedIds(newChecked);
+      const emails = users
+        .filter((u) => newChecked.has(u.id))
+        .map((u) => u.email);
+      await axiosInstance.post("/api/superadmin/metrics", { emails });
+      toast.success(
+        isCurrentlySelected
+          ? `${user.username} unselected.`
+          : `${user.username} selected.`
+      );
+      if (!isCurrentlySelected) setMetricsSent(true);
+    } catch (err) {
+      // Rollback on failure
+      setCheckedIds((prev) => {
+        const rollback = new Set(prev);
+        isCurrentlySelected ? rollback.add(user.id) : rollback.delete(user.id);
+        return rollback;
+      });
+      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to update.");
+    } finally {
+      setBusyRowId(null);
+    }
+  };
+
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const res = await axiosInstance.get("/api/users");
       const list = Array.isArray(res.data) ? res.data : (res.data?.users ?? res.data?.data ?? []);
-      setUsers(list.map((u) => ({
+      const mapped = list.map((u) => ({
         id: u.id ?? u.user_id ?? u._id,
         username: u.username ?? u.name ?? "—",
         email: u.email ?? u.email_address ?? "—",
@@ -1370,7 +1436,16 @@ function UsersPage({ onBack, isSuperAdmin }) {
         created_at_display: u.created_at
           ? new Date(u.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
           : "—",
-      })));
+        is_selected: !!(u.is_selected ?? u.selected ?? false),
+      }));
+      setUsers(mapped);
+      // Restore previously selected users from the API response field
+      const preSelected = new Set(
+        list
+          .filter((u) => u.is_selected || u.selected || u.is_active)
+          .map((u) => u.id ?? u.user_id ?? u._id)
+      );
+      if (preSelected.size > 0) setCheckedIds(preSelected);
     } catch {
       toast.error("Failed to load users.");
     } finally {
@@ -1380,6 +1455,9 @@ function UsersPage({ onBack, isSuperAdmin }) {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
+  // Reset to page 1 whenever search or role filter changes
+  useEffect(() => { setUserPage(1); }, [search, roleFilter]);
+
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
     const matchSearch = !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
@@ -1388,6 +1466,16 @@ function UsersPage({ onBack, isSuperAdmin }) {
   });
 
   const allChecked = filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
+
+  // Pagination derived values
+  const totalUserPages = Math.max(1, Math.ceil(filtered.length / USERS_PER_PAGE));
+  const safeUserPage   = Math.min(userPage, totalUserPages);
+  const pageStart      = (safeUserPage - 1) * USERS_PER_PAGE;
+  const pageUsers      = filtered.slice(pageStart, pageStart + USERS_PER_PAGE);
+  const goToUserPage   = (p) => setUserPage(Math.max(1, Math.min(totalUserPages, p)));
+  const userPageNums   = Array.from({ length: totalUserPages }, (_, i) => i + 1)
+    .filter((p) => p === 1 || p === totalUserPages || Math.abs(p - safeUserPage) <= 1);
+
   const toggleCheckAll = () => {
     setMetricsSent(false);
     if (allChecked) setCheckedIds(new Set());
@@ -1726,13 +1814,17 @@ function UsersPage({ onBack, isSuperAdmin }) {
               ) : null}
             </button>
             <span className="text-[13px] font-[600] text-gray-900">User List</span>
-            {checkedIds.size > 0 && (
-              <span className="text-[11px] font-[500] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                {checkedIds.size} selected
-              </span>
-            )}
+           
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={fetchUsers}
+              disabled={loading}
+              className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            </button>
             <div className="relative">
               <select
                 value={roleFilter}
@@ -1778,7 +1870,7 @@ function UsersPage({ onBack, isSuperAdmin }) {
                 </td>
               </tr>
             ) : (
-              filtered.map((u, i) => {
+              pageUsers.map((u, i) => {
                 const checked = checkedIds.has(u.id);
                 return (
                   <tr
@@ -1810,6 +1902,14 @@ function UsersPage({ onBack, isSuperAdmin }) {
                           {u.username.charAt(0).toUpperCase()}
                         </div>
                         <span className="text-[13px] font-[500] text-gray-900">{u.username}</span>
+                        {u.is_selected && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-[700]">
+                            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Selected
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-[12px] text-gray-600">{u.email}</td>
@@ -1819,8 +1919,28 @@ function UsersPage({ onBack, isSuperAdmin }) {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-[11px] text-gray-500">{u.created_at_display}</td>
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        {/* ── Select / Unselect toggle — same pattern as agent activate/deactivate ── */}
+                        <button
+                          type="button"
+                          disabled={busyRowId === u.id}
+                          onClick={() => handleToggleUser(u, checked)}
+                          title={checked ? `Unselect ${u.username}` : `Select ${u.username}`}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-[600] border transition-all duration-200 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed ${
+                            checked
+                              ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-500 hover:text-white hover:border-amber-500"
+                              : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-500 hover:text-white hover:border-emerald-500"
+                          }`}
+                        >
+                          {busyRowId === u.id
+                            ? <RefreshCw className="h-3 w-3 animate-spin" />
+                            : checked
+                              ? <ShieldOff className="h-3 w-3" />
+                              : <ShieldCheck className="h-3 w-3" />
+                          }
+                          {busyRowId === u.id ? "…" : checked ? "Unselect" : "Select"}
+                        </button>
                         <button
                           onClick={() => openEdit(u)}
                           className="rounded-xl border border-gray-200 bg-gray-50 p-2 text-gray-500 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all duration-200 hover:shadow-md"
@@ -1843,8 +1963,45 @@ function UsersPage({ onBack, isSuperAdmin }) {
             )}
           </tbody>
         </table>
-        <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
-          {users.length} user{users.length !== 1 ? "s" : ""} total
+        <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <span className="text-[12px] text-gray-400">
+            Showing {filtered.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + USERS_PER_PAGE, filtered.length)} of {filtered.length} user{filtered.length !== 1 ? "s" : ""}
+          </span>
+          {totalUserPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => goToUserPage(safeUserPage - 1)}
+                disabled={safeUserPage === 1}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none transition text-[13px]"
+              >
+                ‹
+              </button>
+              {userPageNums.map((p, idx, arr) => (
+                <React.Fragment key={p}>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span className="text-[12px] text-gray-400 px-1">…</span>
+                  )}
+                  <button
+                    onClick={() => goToUserPage(p)}
+                    className={`inline-flex items-center justify-center w-7 h-7 rounded-lg border text-[12px] font-[500] transition ${
+                      safeUserPage === p
+                        ? "bg-black text-white border-black"
+                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                </React.Fragment>
+              ))}
+              <button
+                onClick={() => goToUserPage(safeUserPage + 1)}
+                disabled={safeUserPage === totalUserPages}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none transition text-[13px]"
+              >
+                ›
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2052,14 +2209,24 @@ function SuperAdminMetricsPage({ onBack }) {
               </span>
             )}
           </div>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search users…"
-              className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 focus:bg-white transition w-[170px] placeholder:text-gray-400"
-            />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchUsers}
+              disabled={loading}
+              className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search users…"
+                className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 focus:bg-white transition w-[170px] placeholder:text-gray-400"
+              />
+            </div>
           </div>
         </div>
         <table className="w-full text-left">
@@ -3590,10 +3757,20 @@ function SMTPProvidersPage({ onBack }) {
         subtitle="Configure email delivery providers for campaigns"
         onBack={onBack}
         action={
-          <button onClick={openCreate}
-            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm">
-            <Plus className="h-4 w-4" />Add Provider
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchList}
+              disabled={loadingList}
+              className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${loadingList ? "animate-spin" : ""}`} />
+            </button>
+            <button onClick={openCreate}
+              className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm">
+              <Plus className="h-4 w-4" />Add Provider
+            </button>
+          </div>
         }
       />
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -3753,6 +3930,67 @@ function LeadsPage({ onBack }) {
   /* ── Upload / import ── */
   const [excelUploading, setExcelUploading] = useState(false);
   const [crmImporting, setCrmImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  /* ── Export leads to CSV ── */
+  const handleDownloadLeads = () => {
+    if (!listLeads.length) { toast.error("No leads to download."); return; }
+    setDownloading(true);
+    try {
+      const headers = ["Name","Email","Phone","Company","Title","Lead Source","Lead Status","Lead Rating","Street","City","State","Zip","Country","Website","Industry","LinkedIn","Notes","Description"];
+      // Standard escape for text fields
+      const escape = (v) => {
+        const s = String(v ?? "");
+        if (s === "") return "";
+        return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      // Force numeric-looking strings (phone, zip, IDs) to display as text in Excel — prevents E+09 scientific notation
+      const escapeNum = (v) => {
+        const s = String(v ?? "");
+        if (s === "") return "";
+        // Wrap purely numeric / phone-formatted strings with ="..." so Excel treats them as text
+        if (/^[+\d\s\-(). ]+$/.test(s) && /\d/.test(s)) return `="${s}"`;
+        return escape(s);
+      };
+      const rows = listLeads.map((l) => {
+        const ld = l.lead_data ?? l;
+        return [
+          escape(ld.name),
+          escape(ld.email_address ?? ld.email),
+          escapeNum(ld.contact_number ?? ld.phone),   // phone — prevent E notation
+          escape(ld.company),
+          escape(ld.title),
+          escape(ld.lead_source),
+          escape(ld.lead_status),
+          escape(ld.lead_rating),
+          escape(ld.address_street),
+          escape(ld.address_city),
+          escape(ld.address_state),
+          escapeNum(ld.address_zip_code),              // zip — preserve leading zeros
+          escape(ld.address_country),
+          escape(ld.website),
+          escape(ld.industry),
+          escape(ld.linkedin_url),
+          escape(ld.notes),
+          escape(ld.description),
+        ].join(",");
+      });
+      const csv = [headers.join(","), ...rows].join("\n");
+      // BOM (\uFEFF) ensures Excel opens the file with UTF-8 encoding
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${viewList?.name ?? "leads"}_leads.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Leads exported successfully.");
+    } catch {
+      toast.error("Failed to export leads.");
+    } finally {
+      setDownloading(false);
+    }
+  };
   const [deletingLeadId, setDeletingLeadId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const emptyLeadForm = {
@@ -4204,32 +4442,70 @@ function LeadsPage({ onBack }) {
                 className="hidden"
                 onChange={handleExcelUpload}
               />
+              {/* Upload Excel — icon only, expands with label on hover */}
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={excelUploading}
-                className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-[12px] font-[600] text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+                title="Upload Excel"
+                className="group flex items-center rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[12px] font-[600] text-gray-700 hover:bg-gray-50 transition-all duration-200 shadow-sm disabled:opacity-50"
               >
                 {excelUploading
-                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  : <Upload className="h-3.5 w-3.5" />}
-                {excelUploading ? "Uploading…" : "Upload Excel"}
+                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  : <Upload className="h-3.5 w-3.5 shrink-0" />}
+                <span className="overflow-hidden max-w-0 group-hover:max-w-[80px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap">
+                  Upload
+                </span>
               </button>
+              {/* CRM Import — icon only, expands on hover */}
               <button
                 onClick={handleCRMImport}
                 disabled={crmImporting}
-                className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-2 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition shadow-sm disabled:opacity-50"
+                title="Import from CRM"
+                className="group flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition-all duration-200 shadow-sm disabled:opacity-50"
               >
                 {crmImporting
-                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  : <Database className="h-3.5 w-3.5" />}
-                {crmImporting ? "Importing…" : "Import from CRM"}
+                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  : <Database className="h-3.5 w-3.5 shrink-0" />}
+                <span className="overflow-hidden max-w-0 group-hover:max-w-[80px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap">
+                  CRM Import
+                </span>
               </button>
+              {/* Refresh — icon only, expands on hover */}
+              <button
+                onClick={() => openDetail(viewList)}
+                disabled={listLeadsLoading}
+                title="Refresh leads"
+                className="group flex items-center rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all duration-200 shadow-sm disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${listLeadsLoading ? "animate-spin" : ""}`} />
+                <span className="overflow-hidden max-w-0 group-hover:max-w-[60px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap text-[12px] font-[600]">
+                  Refresh
+                </span>
+              </button>
+              {/* Download — icon only, expands on hover */}
+              <button
+                onClick={handleDownloadLeads}
+                disabled={downloading || !listLeads.length}
+                title="Download leads as CSV"
+                className="group flex items-center rounded-xl border border-teal-200 bg-teal-50 px-2.5 py-2 text-[12px] font-[600] text-teal-700 hover:bg-teal-100 transition-all duration-200 shadow-sm disabled:opacity-50"
+              >
+                {downloading
+                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  : <FileDown className="h-3.5 w-3.5 shrink-0" />}
+                <span className="overflow-hidden max-w-0 group-hover:max-w-[80px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap">
+                  Download
+                </span>
+              </button>
+              {/* Add Lead — icon only, expands on hover */}
               <button
                 onClick={openLeadCreateModal}
-                className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-[12px] font-[600] text-emerald-700 hover:bg-emerald-100 transition shadow-sm"
+                title="Add Lead"
+                className="group flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[12px] font-[600] text-emerald-700 hover:bg-emerald-100 transition-all duration-200 shadow-sm"
               >
-                <Plus className="h-3.5 w-3.5" />
-                Add Lead
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="overflow-hidden max-w-0 group-hover:max-w-[80px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap">
+                  Add Lead
+                </span>
               </button>
             </div>
           }
@@ -4749,12 +5025,22 @@ function LeadsPage({ onBack }) {
         subtitle="Manage lead sources and lists for your campaigns"
         onBack={onBack}
         action={
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
-          >
-            <Plus className="h-4 w-4" />Create
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchLists}
+              disabled={loading}
+              className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
+            >
+              <Plus className="h-4 w-4" />Create
+            </button>
+          </div>
         }
       />
 
@@ -5470,6 +5756,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const setField = (section, key) => (input) => {
     const value =
@@ -5629,7 +5916,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
       setLoading(false);
     })();
-  }, [canAccess]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, refreshTrigger]);
 
   const save = async (section) => {
     if (!canAccess) {
@@ -5715,6 +6003,16 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         title="Global Integrations"
         subtitle="Configure Twilio, ElevenLabs, LinkedIn scraping, Azure, TM solution, Groq and app-level settings"
         onBack={onBack}
+        action={
+          <button
+            onClick={() => setRefreshTrigger((t) => t + 1)}
+            disabled={loading}
+            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        }
       />
 
       {!canAccess ? (
@@ -6211,18 +6509,7 @@ export default function Setting() {
         </div>
       </div>
 
-      {/* ═══ SECTION — SUPERADMIN QUICK ACCESS ═══ */}
-      {userIsSuperAdmin && (
-        <>
-          <div className="mb-2">
-            <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Quick Access</p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-            <SettingCard icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600" title="Agent Management" desc="Manage AI SDR agents, switching, and parallel call limits" action={<GearBtn page="agents" />} />
-            <SettingCard icon={Users} iconBg="bg-violet-50" iconColor="text-violet-600" title="User Management" desc="Add, edit, and manage users with roles and permissions" action={<GearBtn page="users" />} />
-          </div>
-        </>
-      )}
+  
 
       {/* ═══ SECTION 1 — CONNECTION ═══ */}
       <div className="mb-2">

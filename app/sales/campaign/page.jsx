@@ -279,6 +279,7 @@ export default function CampaignPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
+  const [histRefreshing, setHistRefreshing] = useState(false);
   const [previewCompletedCampaignIds, setPreviewCompletedCampaignIds] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = sessionStorage.getItem("previewCompletedCampaignIds");
@@ -1062,6 +1063,17 @@ export default function CampaignPage() {
     setRefreshing(true);
     dispatch(listCampaigns(buildParams()));
     setTimeout(() => setRefreshing(false), 800);
+  };
+
+  /* ── History refresh handler (per-tab, no full-page blink) ── */
+  const handleHistoryRefresh = () => {
+    if (!selectedCampaign) return;
+    setHistRefreshing(true);
+    if (activeTab === "CALL")     dispatch(fetchCallHistory(selectedCampaign.id));
+    if (activeTab === "EMAIL")    dispatch(fetchEmailHistory(selectedCampaign.id));
+    if (activeTab === "LINKEDIN") dispatch(fetchLinkedinHistory(selectedCampaign.id));
+    if (activeTab === "WHATSAPP") dispatch(fetchWhatsappHistory(selectedCampaign.id));
+    setTimeout(() => setHistRefreshing(false), 800);
   };
 
   /* ── Fetch campaign journey (overview panel) ── */
@@ -3812,15 +3824,27 @@ export default function CampaignPage() {
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
             </button>
           </div>
-          <div className="mb-5">
-            <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
-              Call History
-            </h1>
-            <p className="text-[13px] text-gray-500 mt-0.5">
-              Detailed call logs and transcripts
-            </p>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
+                Call History
+              </h1>
+              <p className="text-[13px] text-gray-500 mt-0.5">
+                Detailed call logs and transcripts
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleHistoryRefresh}
+              disabled={histRefreshing || callHistoryLoading}
+              className="mt-0.5 rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${histRefreshing || callHistoryLoading ? "animate-spin" : ""}`} />
+            </button>
           </div>
-          {callHistoryLoading ? (
+          {/* Show full-page loader only on initial empty fetch — not on manual refresh */}
+          {callHistoryLoading && (callHistory ?? []).length === 0 ? (
             <div className="flex items-center justify-center py-16 gap-3">
               <RefreshCw className="h-5 w-5 text-violet-400 animate-spin" />
               <p className="text-[13px] text-gray-400">Loading call history…</p>
@@ -4546,13 +4570,24 @@ export default function CampaignPage() {
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
             </button>
           </div>
-          <div className="mb-5">
-            <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
-              Email History
-            </h1>
-            <p className="text-[13px] text-gray-500 mt-0.5">
-              Track all email campaign activity and responses
-            </p>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
+                Email History
+              </h1>
+              <p className="text-[13px] text-gray-500 mt-0.5">
+                Track all email campaign activity and responses
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleHistoryRefresh}
+              disabled={histRefreshing || emailHistoryLoading}
+              className="mt-0.5 rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${histRefreshing || emailHistoryLoading ? "animate-spin" : ""}`} />
+            </button>
           </div>
 
           {/* KPI strip — cards are clickable to filter the table */}
@@ -5394,13 +5429,24 @@ export default function CampaignPage() {
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
             </button>
           </div>
-          <div className="mb-5">
-            <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
-              LinkedIn Campaign History
-            </h1>
-            <p className="text-[13px] text-gray-500 mt-0.5">
-              Track all LinkedIn connection requests and messages
-            </p>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
+                LinkedIn Campaign History
+              </h1>
+              <p className="text-[13px] text-gray-500 mt-0.5">
+                Track all LinkedIn connection requests and messages
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleHistoryRefresh}
+              disabled={histRefreshing || linkedinHistoryLoading}
+              className="mt-0.5 rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${histRefreshing || linkedinHistoryLoading ? "animate-spin" : ""}`} />
+            </button>
           </div>
           {/* KPI strip */}
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
@@ -5871,13 +5917,24 @@ export default function CampaignPage() {
               <ArrowLeft className="h-4 w-4" /> Back to Campaign Activities
             </button>
           </div>
-          <div className="mb-5">
-            <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
-              WhatsApp Campaign History
-            </h1>
-            <p className="text-[13px] text-gray-500 mt-0.5">
-              Track all WhatsApp message delivery, reads, and replies
-            </p>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[17px] font-[700] text-[#0a0a0a]">
+                WhatsApp Campaign History
+              </h1>
+              <p className="text-[13px] text-gray-500 mt-0.5">
+                Track all WhatsApp message delivery, reads, and replies
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleHistoryRefresh}
+              disabled={histRefreshing || whatsappHistoryLoading}
+              className="mt-0.5 rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+              title="Refresh"
+            >
+              <RefreshCw className={`h-4 w-4 ${histRefreshing || whatsappHistoryLoading ? "animate-spin" : ""}`} />
+            </button>
           </div>
 
           {/* ── Analytics KPI Cards ── */}

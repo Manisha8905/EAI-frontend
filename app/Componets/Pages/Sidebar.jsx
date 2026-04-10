@@ -264,13 +264,15 @@ const Sidebar = () => {
     return null;
   });
   /* derive admin flag from auth — checks both role and role_display */
-  const userIsAdmin = storedRole === "ADMIN" || isAdmin(auth?.role) || isAdmin(auth?.role_display);
+  const userIsAdmin = isAdmin(storedRole) || isAdmin(auth?.role) || isAdmin(auth?.role_display);
 
-  /* derive visible sections based on role */
-  const normalizedRole = storedRole || (auth?.role || "").toUpperCase().replace(/[\s_-]/g, "");
+  /* derive visible sections based on role — normalize spaces/underscores from both sources */
+  const normalizedRole = (storedRole || (auth?.role || "")).toUpperCase().replace(/[\s_-]/g, "");
   const isSuperAdmin = normalizedRole === "SUPERADMIN";
   // SUPERADMIN sees every section; plain ADMIN hides the nav (only User Management)
   const hideNav = userIsAdmin && !isSuperAdmin;
+  // Determine active navbar module from pathname
+  const isOnSupportModule = pathname.startsWith("/support");
   const roleSections =
     isSuperAdmin
       ? SUPERADMIN_NAV_SECTIONS
@@ -278,7 +280,10 @@ const Sidebar = () => {
       ? SUPPORT_SECTIONS
       : SALES_SECTIONS;
   const allowedKeys = ROLE_SECTION_KEYS[normalizedRole] ?? null; // null = all sections
-  const visibleSections = allowedKeys
+  // For SUPERADMIN: show only the sidebar sections that belong to the active navbar tab
+  const visibleSections = isSuperAdmin
+    ? (isOnSupportModule ? SUPPORT_SECTIONS : SALES_SECTIONS)
+    : allowedKeys
     ? roleSections.filter((s) => allowedKeys.includes(s.key))
     : roleSections;
   /* Auto-open section that owns the current route */
@@ -440,7 +445,7 @@ const Sidebar = () => {
       {/* ── Bottom ── */}
       <div className="px-3 py-4 border-t border-gray-100 space-y-0.5">
         {/* User Management — SUPERADMIN and plain ADMIN */}
-        {userIsAdmin ||isSuperAdmin && (
+        {userIsAdmin && (
           <Link
             href="/user-management"
             className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${
