@@ -5739,6 +5739,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       xai_api_key: "",
       grok_enrichment: "",
       grok_email_style: "",
+      enable_grok_enrichment: false,
     },
     appConfig: {
       target_mailbox_for_replies: "",
@@ -5901,6 +5902,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         if (grokEnrichRes.status === "fulfilled") {
           const d = grokEnrichRes.value?.data ?? {};
           enrichNext.grok_enrichment = d.grok_enrichment ?? d.value ?? d.model ?? d.grok_enrichment_model ?? prev.enrichment.grok_enrichment;
+          enrichNext.enable_grok_enrichment = asBoolean(d.enable_grok_enrichment, prev.enrichment.enable_grok_enrichment);
           // Also extract options for dropdown if available
           if (Array.isArray(d.options)) enrichNext._enrichmentOptions = d.options;
         }
@@ -5955,6 +5957,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           }),
           axiosInstance.put("/api/globalsetting/grok-enrichment", {
             grok_enrichment: forms.enrichment.grok_enrichment,
+            enable_grok_enrichment: !!forms.enrichment.enable_grok_enrichment,
           }),
           axiosInstance.put("/api/globalsetting/grok-email-style", {
             grok_email_style: forms.enrichment.grok_email_style,
@@ -6171,21 +6174,14 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               </div>
               <SelectField
                 label="Grok Enrichment"
-                value={forms.enrichment.grok_enrichment}
-                onChange={setField("enrichment", "grok_enrichment")}
-                options={
-                  forms.enrichment._enrichmentOptions?.length > 0
-                    ? forms.enrichment._enrichmentOptions.map((o) =>
-                        typeof o === "string" ? { label: o, value: o } : { label: o.label ?? o.name ?? o.value, value: o.value ?? o.name }
-                      )
-                    : [
-                        { label: "Select…", value: "" },
-                        { label: "grok-3", value: "grok-3" },
-                        { label: "grok-3-mini", value: "grok-3-mini" },
-                        { label: "grok-2", value: "grok-2" },
-                      ]
-                }
+                value={String(!!forms.enrichment.enable_grok_enrichment)}
+                onChange={(e) => setForms((prev) => ({ ...prev, enrichment: { ...prev.enrichment, enable_grok_enrichment: e.target.value === "true" } }))}
+                options={[
+                  { label: "True", value: "true" },
+                  { label: "False", value: "false" },
+                ]}
               />
+          
               <SelectField
                 label="Grok Email Style"
                 value={forms.enrichment.grok_email_style}
@@ -6197,10 +6193,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                       )
                     : [
                         { label: "Select…", value: "" },
-                        { label: "Professional", value: "professional" },
-                        { label: "Casual", value: "casual" },
-                        { label: "Formal", value: "formal" },
-                        { label: "Friendly", value: "friendly" },
+                        { label: "Business", value: "business" },
+                        { label: "Personal", value: "personal" },
                       ]
                 }
               />

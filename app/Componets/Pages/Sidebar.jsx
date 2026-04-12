@@ -444,8 +444,8 @@ const Sidebar = () => {
 
       {/* ── Bottom ── */}
       <div className="px-3 py-4 border-t border-gray-100 space-y-0.5">
-        {/* User Management — SUPERADMIN and plain ADMIN */}
-        {userIsAdmin && (
+        {/* User Management — plain ADMIN only (not SUPERADMIN) */}
+        {userIsAdmin && !isSuperAdmin && (
           <Link
             href="/user-management"
             className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${
