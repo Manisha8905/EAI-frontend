@@ -48,12 +48,18 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 
 const isAdminRole = (role) => {
-  const normalizedRole = String(role || "").toUpperCase().replace(/[\s_-]/g, "");
+  const normalizedRole = String(role || "")
+    .toUpperCase()
+    .replace(/[\s_-]/g, "");
   return normalizedRole === "ADMIN" || normalizedRole === "SUPERADMIN";
 };
 
 const isSuperAdminRole = (role) => {
-  return String(role || "").toUpperCase().replace(/[\s_-]/g, "") === "SUPERADMIN";
+  return (
+    String(role || "")
+      .toUpperCase()
+      .replace(/[\s_-]/g, "") === "SUPERADMIN"
+  );
 };
 
 /* ═══════════════════════ SHARED INPUT ═══════════════════════ */
@@ -128,7 +134,14 @@ function SelectField({ label, required, value, onChange, options }) {
   );
 }
 
-function TextareaField({ label, required, placeholder, value, onChange, hint }) {
+function TextareaField({
+  label,
+  required,
+  placeholder,
+  value,
+  onChange,
+  hint,
+}) {
   return (
     <div>
       <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
@@ -190,10 +203,18 @@ function DeleteConfirmModal({ label, onCancel, onConfirm, loading }) {
             <Trash2 className="h-4 w-4" />
           </div>
           <div className="flex-1">
-            <h3 className="text-[14px] font-[700] text-gray-900">Confirm Delete</h3>
-            <p className="text-[11px] text-gray-400 mt-0.5">This action cannot be undone</p>
+            <h3 className="text-[14px] font-[700] text-gray-900">
+              Confirm Delete
+            </h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              This action cannot be undone
+            </p>
           </div>
-          <button type="button" onClick={onCancel} className="rounded-lg p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -201,13 +222,18 @@ function DeleteConfirmModal({ label, onCancel, onConfirm, loading }) {
           <div className="flex items-start gap-2.5 px-3.5 py-3 bg-red-50 border border-red-100 rounded-xl">
             <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
             <p className="text-[12px] text-red-700 leading-relaxed">
-              Are you sure you want to delete <span className="font-[700]">&quot;{label}&quot;</span>?
-              This action is <span className="font-[700]">irreversible</span>.
+              Are you sure you want to delete{" "}
+              <span className="font-[700]">&quot;{label}&quot;</span>? This
+              action is <span className="font-[700]">irreversible</span>.
             </p>
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
-          <button type="button" onClick={onCancel} className="px-4 py-2 text-[12px] font-[500] text-gray-600 border border-gray-200 rounded-lg bg-white hover:border-gray-300 hover:bg-gray-50 transition">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-[12px] font-[500] text-gray-600 border border-gray-200 rounded-lg bg-white hover:border-gray-300 hover:bg-gray-50 transition"
+          >
             Cancel
           </button>
           <button
@@ -216,7 +242,11 @@ function DeleteConfirmModal({ label, onCancel, onConfirm, loading }) {
             disabled={loading}
             className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-[600] text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 transition shadow-sm disabled:opacity-50"
           >
-            {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+            {loading ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
             {loading ? "Deleting…" : "Yes, Delete"}
           </button>
         </div>
@@ -300,7 +330,8 @@ function AnimStyles() {
 
 /* ── CRM Integration ── */
 // const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
-const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
+const OAUTH_REDIRECT_URI =
+  "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
 
 function CRMPage({ onBack, onConnectionChange }) {
   const [form, setForm] = useState({
@@ -322,7 +353,8 @@ function CRMPage({ onBack, onConnectionChange }) {
 
   /* Fetch /oauth/status silently on mount (no popup, no spinner) */
   useEffect(() => {
-    axiosInstance.get("/oauth/status")
+    axiosInstance
+      .get("/oauth/status")
       .then((res) => {
         const d = res.data;
         const isConn =
@@ -356,7 +388,8 @@ function CRMPage({ onBack, onConnectionChange }) {
         setOauthInfo(stillConn ? d : null);
         onConnectionChange?.(!stillConn ? false : true);
         if (!stillConn) toast.success("CRM disconnected successfully.");
-        else toast.error("Disconnect may not have completed. Please try again.");
+        else
+          toast.error("Disconnect may not have completed. Please try again.");
       } catch {
         setIsOAuthConnected(false);
         setOauthInfo(null);
@@ -375,7 +408,10 @@ function CRMPage({ onBack, onConnectionChange }) {
   /* Build full_oauth_url → POST all 5 fields to /auth_cred → check status → redirect if needed */
   const handleSave = async (e) => {
     e.preventDefault();
-    const userEmail = (typeof window !== "undefined" ? localStorage.getItem("userEmail") : "") || "";
+    const userEmail =
+      (typeof window !== "undefined"
+        ? localStorage.getItem("userEmail")
+        : "") || "";
     const fullOauthUrl =
       `${form.authUrl}?response_type=code` +
       `&client_id=${encodeURIComponent(form.clientId)}` +
@@ -386,10 +422,10 @@ function CRMPage({ onBack, onConnectionChange }) {
     setConnError("");
     try {
       await axiosInstance.post("/auth_cred", {
-        client_id:      form.clientId,
-        client_secret:  form.clientSecret,
-        authorize_url:  form.authUrl,
-        token_url:      form.tokenUrl,
+        client_id: form.clientId,
+        client_secret: form.clientSecret,
+        authorize_url: form.authUrl,
+        token_url: form.tokenUrl,
         full_oauth_url: fullOauthUrl,
       });
       // Check if backend already completed the connection
@@ -407,12 +443,17 @@ function CRMPage({ onBack, onConnectionChange }) {
           onConnectionChange?.(true);
           return; // already connected — no redirect needed
         }
-      } catch { /* status check failed — proceed with OAuth redirect */ }
+      } catch {
+        /* status check failed — proceed with OAuth redirect */
+      }
       // Not connected yet — redirect browser to Salesforce OAuth
       setConnected(true);
       window.location.href = fullOauthUrl;
     } catch (err) {
-      setConnError(err?.response?.data?.message || "Failed to connect. Please check your credentials.");
+      setConnError(
+        err?.response?.data?.message ||
+          "Failed to connect. Please check your credentials.",
+      );
     } finally {
       setConn(false);
     }
@@ -447,13 +488,15 @@ function CRMPage({ onBack, onConnectionChange }) {
                     <Database className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-[16px] font-[700] text-white">OAuth 2.0 Configuration</h3>
+                    <h3 className="text-[16px] font-[700] text-white">
+                      OAuth 2.0 Configuration
+                    </h3>
                     <p className="text-[12px] text-indigo-200 mt-0.5">
-                      Secure handshake — credentials are AES-256 encrypted at rest
+                      Secure handshake — credentials are AES-256 encrypted at
+                      rest
                     </p>
                   </div>
                 </div>
-
               </div>
             </div>
 
@@ -465,9 +508,12 @@ function CRMPage({ onBack, onConnectionChange }) {
                     <CheckCircle2 className="h-6 w-6 text-green-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] font-[700] text-green-800">CRM Connected</p>
+                    <p className="text-[15px] font-[700] text-green-800">
+                      CRM Connected
+                    </p>
                     <p className="text-[12px] text-green-600 mt-0.5">
-                      {oauthInfo?.message || "Your CRM is successfully connected via OAuth 2.0."}
+                      {oauthInfo?.message ||
+                        "Your CRM is successfully connected via OAuth 2.0."}
                     </p>
                     {oauthInfo?.instance_url && (
                       <p className="text-[11px] text-green-700 font-mono mt-1 truncate">
@@ -476,7 +522,8 @@ function CRMPage({ onBack, onConnectionChange }) {
                     )}
                     {oauthInfo?.token_expires_at && (
                       <p className="text-[10px] text-green-500 mt-1">
-                        Token expires: {new Date(oauthInfo.token_expires_at).toLocaleString()}
+                        Token expires:{" "}
+                        {new Date(oauthInfo.token_expires_at).toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -487,9 +534,12 @@ function CRMPage({ onBack, onConnectionChange }) {
                   <div className="flex items-start gap-3">
                     <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <p className="text-[12px] font-[700] text-red-700 mb-0.5">Disconnect CRM</p>
+                      <p className="text-[12px] font-[700] text-red-700 mb-0.5">
+                        Disconnect CRM
+                      </p>
                       <p className="text-[11px] text-red-600 leading-relaxed">
-                        This will revoke the OAuth tokens and disconnect your CRM. You will need to re-authenticate to reconnect.
+                        This will revoke the OAuth tokens and disconnect your
+                        CRM. You will need to re-authenticate to reconnect.
                       </p>
                     </div>
                   </div>
@@ -501,9 +551,15 @@ function CRMPage({ onBack, onConnectionChange }) {
                       className="action-btn flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-[600] text-white bg-red-600 hover:bg-red-700 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {disconnecting ? (
-                        <><RefreshCw className="h-4 w-4 animate-spin" />Disconnecting…</>
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          Disconnecting…
+                        </>
                       ) : (
-                        <><Link2Off className="h-4 w-4" />Disconnect CRM</>
+                        <>
+                          <Link2Off className="h-4 w-4" />
+                          Disconnect CRM
+                        </>
                       )}
                     </button>
                   </div>
@@ -573,11 +629,19 @@ function CRMPage({ onBack, onConnectionChange }) {
                       }`}
                   >
                     {connecting ? (
-                      <><RefreshCw className="h-4 w-4 animate-spin" />Connecting…</>
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Connecting…
+                      </>
                     ) : connected ? (
-                      <><CheckCircle2 className="h-4 w-4" />Connected Successfully!</>
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Connected Successfully!
+                      </>
                     ) : (
-                      <><Link2 className="h-4 w-4" />Save &amp; Connect
+                      <>
+                        <Link2 className="h-4 w-4" />
+                        Save &amp; Connect
                       </>
                     )}
                   </button>
@@ -588,15 +652,20 @@ function CRMPage({ onBack, onConnectionChange }) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className={`info-card rounded-2xl border p-5 ${
-            isOAuthConnected || connected ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50"
-            : "border-gray-100 bg-white shadow-sm"
-          }`}>
+          <div
+            className={`info-card rounded-2xl border p-5 ${
+              isOAuthConnected || connected
+                ? "border-green-200 bg-gradient-to-br from-green-50 to-emerald-50"
+                : "border-gray-100 bg-white shadow-sm"
+            }`}
+          >
             <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3">
               Connection Status
             </p>
             <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isOAuthConnected || connected ? "bg-green-100" : "bg-amber-50"}`}>
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${isOAuthConnected || connected ? "bg-green-100" : "bg-amber-50"}`}
+              >
                 {isOAuthConnected || connected ? (
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                 ) : (
@@ -604,11 +673,17 @@ function CRMPage({ onBack, onConnectionChange }) {
                 )}
               </div>
               <div>
-                <span className={`block text-[14px] font-[700] ${isOAuthConnected || connected ? "text-green-700" : "text-amber-700"}`}>
-                  {isOAuthConnected || connected ? "Connected" : "Not Connected"}
+                <span
+                  className={`block text-[14px] font-[700] ${isOAuthConnected || connected ? "text-green-700" : "text-amber-700"}`}
+                >
+                  {isOAuthConnected || connected
+                    ? "Connected"
+                    : "Not Connected"}
                 </span>
                 <span className="text-[11px] text-gray-400">
-                  {isOAuthConnected || connected ? "CRM sync active" : "Configure & connect"}
+                  {isOAuthConnected || connected
+                    ? "CRM sync active"
+                    : "Configure & connect"}
                 </span>
               </div>
             </div>
@@ -622,7 +697,9 @@ function CRMPage({ onBack, onConnectionChange }) {
 
           <div className="info-card rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
             <p className="text-[12px] font-[700] text-gray-800 mb-3 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-100 text-[10px] font-[800] text-indigo-600">?</span>
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-100 text-[10px] font-[800] text-indigo-600">
+                ?
+              </span>
               Where to find credentials
             </p>
             <ol className="space-y-2">
@@ -633,8 +710,13 @@ function CRMPage({ onBack, onConnectionChange }) {
                 "Copy Consumer Key → Client ID",
                 "Reveal Consumer Secret → Client Secret",
               ].map((step, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-[11px] text-gray-500">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-[700] text-indigo-600 mt-px">{i + 1}</span>
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 text-[11px] text-gray-500"
+                >
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-[700] text-indigo-600 mt-px">
+                    {i + 1}
+                  </span>
                   {step}
                 </li>
               ))}
@@ -647,9 +729,12 @@ function CRMPage({ onBack, onConnectionChange }) {
                 <Shield className="h-4 w-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-[12px] font-[700] text-blue-800 mb-1">Security Notice</p>
+                <p className="text-[12px] font-[700] text-blue-800 mb-1">
+                  Security Notice
+                </p>
                 <p className="text-[11px] text-blue-600 leading-relaxed">
-                  Credentials encrypted with AES-256. Never share your Client Secret. Tokens auto-refresh via OAuth 2.0 flow.
+                  Credentials encrypted with AES-256. Never share your Client
+                  Secret. Tokens auto-refresh via OAuth 2.0 flow.
                 </p>
               </div>
             </div>
@@ -661,7 +746,14 @@ function CRMPage({ onBack, onConnectionChange }) {
 }
 
 /* ── Agent toggle — defined outside AgentsPage so React.memo prevents sibling re-renders ── */
-const AgentToggle = memo(function AgentToggle({ agentId, agentName, isOn, onToggle, onRefresh, onDelete }) {
+const AgentToggle = memo(function AgentToggle({
+  agentId,
+  agentName,
+  isOn,
+  onToggle,
+  onRefresh,
+  onDelete,
+}) {
   const [loading, setLoading] = useState(false);
 
   const handleClick = async () => {
@@ -695,8 +787,8 @@ const AgentToggle = memo(function AgentToggle({ agentId, agentName, isOn, onTogg
           isOn
             ? "bg-green-500 cursor-pointer"
             : loading
-            ? "bg-indigo-400 cursor-wait"
-            : "bg-gray-300 hover:bg-indigo-500 cursor-pointer"
+              ? "bg-indigo-400 cursor-wait"
+              : "bg-gray-300 hover:bg-indigo-500 cursor-pointer"
         }`}
       >
         <span
@@ -705,7 +797,9 @@ const AgentToggle = memo(function AgentToggle({ agentId, agentName, isOn, onTogg
           }`}
         />
       </button>
-      <span className={`text-[11px] font-[600] w-16 ${isOn ? "text-green-600" : loading ? "text-indigo-500" : "text-gray-400"}`}>
+      <span
+        className={`text-[11px] font-[600] w-16 ${isOn ? "text-green-600" : loading ? "text-indigo-500" : "text-gray-400"}`}
+      >
         {isOn ? "Active" : loading ? "Switching…" : "Inactive"}
       </span>
       <button
@@ -749,9 +843,14 @@ function AgentsPage({ onBack }) {
       const normalized = list.map((a) => ({
         id: a.agent_id ?? a.id ?? a._id ?? Math.random(),
         name: a.agent_name ?? a.name ?? "—",
+        username: a.username ?? "—",
         created_at: a.created_at ?? "—",
         created_at_display: a.created_at
-          ? new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          ? new Date(a.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
           : "—",
         is_active: a.is_active ?? false,
         is_current: a.is_current ?? false,
@@ -762,13 +861,19 @@ function AgentsPage({ onBack }) {
         setSelectedIds(selectedOverrideRef.current);
         selectedOverrideRef.current = null;
       } else {
-        setSelectedIds(new Set(normalized.filter((a) => a.is_current || a.is_active).map((a) => a.id)));
+        setSelectedIds(
+          new Set(
+            normalized
+              .filter((a) => a.is_current || a.is_active)
+              .map((a) => a.id),
+          ),
+        );
       }
     } catch (err) {
       setFetchError(
         err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        "Failed to load agents."
+          err?.response?.data?.message ||
+          "Failed to load agents.",
       );
     } finally {
       setLoadingAgents(false);
@@ -776,7 +881,9 @@ function AgentsPage({ onBack }) {
   };
 
   // Keep ref up-to-date every render so handleRefresh never captures a stale closure
-  useEffect(() => { fetchAgentsRef.current = fetchAgents; });
+  useEffect(() => {
+    fetchAgentsRef.current = fetchAgents;
+  });
 
   // Stable callback passed to AgentToggle — no parent-state change during loading
   const handleRefresh = useCallback(async () => {
@@ -792,7 +899,9 @@ function AgentsPage({ onBack }) {
     } else {
       newSelected.add(agentId);
     }
-    const res = await axiosInstance.post("/switch-agent", { agent_ids: Array.from(newSelected) });
+    const res = await axiosInstance.post("/switch-agent", {
+      agent_ids: Array.from(newSelected),
+    });
     const data = res?.data;
     const freshIds = data?.selected_agent_ids?.length
       ? new Set(data.selected_agent_ids)
@@ -803,14 +912,21 @@ function AgentsPage({ onBack }) {
     await fetchAgents();
   };
   const handleToggle = useCallback(async (agentId, isCurrentlyOn) => {
-    if (handleToggleRef.current) await handleToggleRef.current(agentId, isCurrentlyOn);
+    if (handleToggleRef.current)
+      await handleToggleRef.current(agentId, isCurrentlyOn);
   }, []);
 
   const fetchParallelCalls = async () => {
     setPcLoading(true);
     try {
-      const res = await axiosInstance.get("/api/settings/global-parallel-calls");
-      const val = res.data?.global_parallel_calls ?? res.data?.value ?? res.data?.parallel_calls ?? 0;
+      const res = await axiosInstance.get(
+        "/api/settings/global-parallel-calls",
+      );
+      const val =
+        res.data?.global_parallel_calls ??
+        res.data?.value ??
+        res.data?.parallel_calls ??
+        0;
       setPC(Number(val));
     } catch {
       // silently ignore — keep default 0
@@ -819,15 +935,20 @@ function AgentsPage({ onBack }) {
     }
   };
 
-  useEffect(() => { fetchAgents(); fetchParallelCalls(); }, []);
+  useEffect(() => {
+    fetchAgents();
+    fetchParallelCalls();
+  }, []);
 
   const filtered = agents.filter(
     (a) =>
       a.name.toLowerCase().includes(search.toLowerCase()) ||
-      (a.created_at !== "—" && a.created_at.toLowerCase().includes(search.toLowerCase())),
+      (a.created_at !== "—" &&
+        a.created_at.toLowerCase().includes(search.toLowerCase())),
   );
 
-  const allChecked = filtered.length > 0 && filtered.every((a) => checkedIds.has(a.id));
+  const allChecked =
+    filtered.length > 0 && filtered.every((a) => checkedIds.has(a.id));
 
   const toggleCheckAll = () => {
     if (allChecked) setCheckedIds(new Set());
@@ -860,14 +981,19 @@ function AgentsPage({ onBack }) {
         } else {
           ids.forEach((id) => currentSelected.delete(id));
         }
-        const res = await axiosInstance.post("/switch-agent", { agent_ids: Array.from(currentSelected) });
+        const res = await axiosInstance.post("/switch-agent", {
+          agent_ids: Array.from(currentSelected),
+        });
         const data = res?.data;
         const freshIds = data?.selected_agent_ids?.length
           ? new Set(data.selected_agent_ids)
           : currentSelected;
         setSelectedIds(freshIds);
         selectedOverrideRef.current = freshIds;
-        toast.success(data?.message || `${ids.length} agent(s) ${action === "activate" ? "activated" : "deactivated"}.`);
+        toast.success(
+          data?.message ||
+            `${ids.length} agent(s) ${action === "activate" ? "activated" : "deactivated"}.`,
+        );
       }
       setCheckedIds(new Set());
       await fetchAgents();
@@ -893,7 +1019,7 @@ function AgentsPage({ onBack }) {
     } catch (err) {
       setCreateError(
         err?.response?.data?.message ||
-        "Failed to create agent. Please try again."
+          "Failed to create agent. Please try again.",
       );
     } finally {
       setCreating(false);
@@ -903,22 +1029,54 @@ function AgentsPage({ onBack }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletingAgentId, setDeletingAgentId] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+  const [editAgentTarget, setEditAgentTarget] = useState(null);
+  const [editAgentName, setEditAgentName] = useState("");
+  const [editingAgent, setEditingAgent] = useState(false);
+  const [editAgentError, setEditAgentError] = useState("");
 
   const deleteAgent = async (agent) => {
     if (!agent?.id) return;
     setDeletingAgentId(agent.id);
     setDeleteError("");
     try {
-      await axiosInstance.delete(`/delete-agent/${encodeURIComponent(agent.id)}`);
+      await axiosInstance.delete(
+        `/delete-agent/${encodeURIComponent(agent.id)}`,
+      );
       toast.success(`Agent "${agent.name}" deleted successfully.`);
       await fetchAgents();
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.response?.data?.detail || "Failed to delete agent.";
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        "Failed to delete agent.";
       setDeleteError(msg);
       toast.error(msg);
     } finally {
       setDeletingAgentId(null);
       setDeleteTarget(null);
+    }
+  };
+
+  const handleEditAgent = async () => {
+    if (!editAgentTarget?.id || !editAgentName.trim()) return;
+    setEditingAgent(true);
+    setEditAgentError("");
+    try {
+      await axiosInstance.put(`/agents/${encodeURIComponent(editAgentTarget.id)}`, {
+        agent_name: editAgentName.trim(),
+      });
+      toast.success(`Agent renamed to "${editAgentName.trim()}" successfully.`);
+      setEditAgentTarget(null);
+      await fetchAgents();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        "Failed to update agent.";
+      setEditAgentError(msg);
+      toast.error(msg);
+    } finally {
+      setEditingAgent(false);
     }
   };
 
@@ -935,8 +1093,8 @@ function AgentsPage({ onBack }) {
     } catch (err) {
       setPcError(
         err?.response?.data?.message ||
-        err?.response?.data?.detail ||
-        "Failed to save. Please try again."
+          err?.response?.data?.detail ||
+          "Failed to save. Please try again.",
       );
     } finally {
       setPcSaving(false);
@@ -956,7 +1114,9 @@ function AgentsPage({ onBack }) {
             className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
             title="Refresh"
           >
-            <RefreshCw className={`h-4 w-4 ${loadingAgents ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${loadingAgents ? "animate-spin" : ""}`}
+            />
           </button>
         }
       />
@@ -978,7 +1138,7 @@ function AgentsPage({ onBack }) {
               className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
             />
           </div>
-      
+
           <button
             onClick={createAgent}
             disabled={creating}
@@ -989,7 +1149,9 @@ function AgentsPage({ onBack }) {
           </button>
         </div>
         {createError && (
-          <p className="mt-2 text-[12px] text-red-500 font-[500]">{createError}</p>
+          <p className="mt-2 text-[12px] text-red-500 font-[500]">
+            {createError}
+          </p>
         )}
       </div>
 
@@ -1000,7 +1162,8 @@ function AgentsPage({ onBack }) {
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               <span className="text-[13px] font-[700] text-emerald-800">
-                {selectedIds.size} Active Agent{selectedIds.size !== 1 ? "s" : ""}
+                {selectedIds.size} Active Agent
+                {selectedIds.size !== 1 ? "s" : ""}
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -1036,8 +1199,12 @@ function AgentsPage({ onBack }) {
                   <Users className="h-4 w-4 text-blue-600" />
                 </div>
                 <div>
-                  <span className="text-[14px] font-[700] text-blue-800">{checkedIds.size}</span>
-                  <span className="text-[12px] font-[500] text-blue-600 ml-1">agent{checkedIds.size !== 1 ? "s" : ""} selected</span>
+                  <span className="text-[14px] font-[700] text-blue-800">
+                    {checkedIds.size}
+                  </span>
+                  <span className="text-[12px] font-[500] text-blue-600 ml-1">
+                    agent{checkedIds.size !== 1 ? "s" : ""} selected
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1047,8 +1214,12 @@ function AgentsPage({ onBack }) {
                   onClick={() => handleBulkAction("activate")}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 text-white text-[12px] font-[600] hover:bg-emerald-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {bulkBusy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                  Activate 
+                  {bulkBusy ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                  )}
+                  Activate
                 </button>
                 <button
                   type="button"
@@ -1056,7 +1227,11 @@ function AgentsPage({ onBack }) {
                   onClick={() => handleBulkAction("deactivate")}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white text-[12px] font-[600] hover:bg-amber-600 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {bulkBusy ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
+                  {bulkBusy ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ShieldOff className="h-3.5 w-3.5" />
+                  )}
                   Deactivate
                 </button>
                 {/* <button
@@ -1093,19 +1268,31 @@ function AgentsPage({ onBack }) {
                 allChecked
                   ? "bg-blue-600 border-blue-600"
                   : checkedIds.size > 0
-                  ? "bg-blue-100 border-blue-400"
-                  : "border-gray-300 hover:border-blue-400"
+                    ? "bg-blue-100 border-blue-400"
+                    : "border-gray-300 hover:border-blue-400"
               }`}
             >
               {allChecked ? (
-                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                <svg
+                  className="h-3 w-3 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               ) : checkedIds.size > 0 ? (
                 <span className="block h-0.5 w-2.5 rounded bg-blue-500" />
               ) : null}
             </button>
-            <span className="text-[13px] font-[600] text-gray-900">Agent List</span>
+            <span className="text-[13px] font-[600] text-gray-900">
+              Agent List
+            </span>
             {checkedIds.size > 0 && (
               <span className="text-[11px] font-[500] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                 {checkedIds.size} selected
@@ -1119,7 +1306,9 @@ function AgentsPage({ onBack }) {
               className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
               title="Refresh"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loadingAgents ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loadingAgents ? "animate-spin" : ""}`}
+              />
             </button>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
@@ -1141,27 +1330,41 @@ function AgentsPage({ onBack }) {
               <th className="px-5 py-3 w-10">
                 <span className="sr-only">Select</span>
               </th>
-              {["Agent Name", "Date", "Status", "Action"].map((h) => (
-                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+              {["Agent Name", "User Name", "Date", "Status", "Action"].map((h) => (
+                <th
+                  key={h}
+                  className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loadingAgents ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                <td
+                  colSpan={6}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
                   Loading agents…
                 </td>
               </tr>
             ) : fetchError ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-red-500">
+                <td
+                  colSpan={6}
+                  className="px-5 py-10 text-center text-[13px] text-red-500"
+                >
                   {fetchError}
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                <td
+                  colSpan={6}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
                   No agents found
                 </td>
               </tr>
@@ -1174,7 +1377,11 @@ function AgentsPage({ onBack }) {
                   <tr
                     key={a.id}
                     className={`border-b border-gray-50 transition-all duration-150 ${
-                      checked ? "bg-blue-50/70 border-l-2 border-l-blue-500" : i % 2 !== 0 ? "bg-gray-50/30" : ""
+                      checked
+                        ? "bg-blue-50/70 border-l-2 border-l-blue-500"
+                        : i % 2 !== 0
+                          ? "bg-gray-50/30"
+                          : ""
                     } hover:bg-gray-50/70`}
                   >
                     <td className="px-5 py-3.5 w-10">
@@ -1188,56 +1395,85 @@ function AgentsPage({ onBack }) {
                         }`}
                       >
                         {checked && (
-                          <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          <svg
+                            className="h-3 w-3 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </button>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2.5">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-[12px] font-[700] ${
-                          isActive
-                            ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-                            : "bg-gray-100 text-gray-500 border border-gray-200"
-                        }`}>
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg text-[12px] font-[700] ${
+                            isActive
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                              : "bg-gray-100 text-gray-500 border border-gray-200"
+                          }`}
+                        >
                           {a.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[13px] font-[500] text-gray-900">{a.name}</span>
-                          {a.is_current && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-[700]">
-                              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                              Selected
-                            </span>
-                          )}
+                          <span className="text-[13px] font-[500] text-gray-900">
+                            {a.name}
+                          </span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-[13px] text-gray-500">{a.created_at_display}</td>
+                    <td className="px-5 py-3.5 text-[13px] text-gray-500">
+                      {a.username}
+                    </td>
+                    <td className="px-5 py-3.5 text-[13px] text-gray-500">
+                      {a.created_at_display}
+                    </td>
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${
-                        isActive
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-gray-100 text-gray-500 border-gray-200"
-                      }`}>
-                        {isActive
-                          ? <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                          : <ShieldOff className="h-3 w-3 text-gray-400" />
-                        }
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-[600] border ${
+                          isActive
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-gray-100 text-gray-500 border-gray-200"
+                        }`}
+                      >
+                        {isActive ? (
+                          <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                        ) : (
+                          <ShieldOff className="h-3 w-3 text-gray-400" />
+                        )}
                         {isActive ? "Active" : "Inactive"}
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <button
-                        onClick={() => setDeleteTarget({ id: a.id, name: a.name })}
-                        className="rounded-xl border border-red-100 bg-red-50 p-2 text-red-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-200 hover:shadow-md"
-                        title="Delete agent"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditAgentTarget({ id: a.id, name: a.name });
+                            setEditAgentName(a.name);
+                            setEditAgentError("");
+                          }}
+                          className="rounded-xl border border-blue-100 bg-blue-50 p-2 text-blue-500 hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all duration-200 hover:shadow-md"
+                          title="Edit agent name"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setDeleteTarget({ id: a.id, name: a.name })
+                          }
+                          className="rounded-xl border border-red-100 bg-red-50 p-2 text-red-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-200 hover:shadow-md"
+                          title="Delete agent"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1257,8 +1493,12 @@ function AgentsPage({ onBack }) {
             <Zap className="h-4 w-4 text-violet-600" />
           </div>
           <div>
-            <p className="text-[13px] font-[600] text-gray-900">Global Parallel Calls</p>
-            <p className="text-[11px] text-gray-400">Max simultaneous calls across all agents</p>
+            <p className="text-[13px] font-[600] text-gray-900">
+              Global Parallel Calls
+            </p>
+            <p className="text-[11px] text-gray-400">
+              Max simultaneous calls across all agents
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1277,7 +1517,13 @@ function AgentsPage({ onBack }) {
             className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
           >
             {pcSaving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-            {pcLoading ? "Loading…" : pcSaving ? "Saving…" : pcSaved ? "✓ Saved!" : "Submit"}
+            {pcLoading
+              ? "Loading…"
+              : pcSaving
+                ? "Saving…"
+                : pcSaved
+                  ? "✓ Saved!"
+                  : "Submit"}
           </button>
         </div>
         {pcError && (
@@ -1293,7 +1539,78 @@ function AgentsPage({ onBack }) {
         />
       )}
       {deleteError && (
-        <p className="mt-2 text-[12px] text-red-500 font-[500]">{deleteError}</p>
+        <p className="mt-2 text-[12px] text-red-500 font-[500]">
+          {deleteError}
+        </p>
+      )}
+      {editAgentTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={() => setEditAgentTarget(null)}
+        >
+          <div
+            className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-[3px] w-full bg-gradient-to-r from-blue-500 to-violet-600" />
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
+                  <Pencil className="h-4 w-4 text-blue-600" />
+                </div>
+                <h3 className="text-[14px] font-[700] text-gray-900">Edit Agent Name</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditAgentTarget(null)}
+                className="rounded-lg p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-5 py-5 space-y-4">
+              <div>
+                <label className="block text-[11px] font-[600] text-gray-600 mb-1.5">
+                  Agent Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={editAgentName}
+                  onChange={(e) => setEditAgentName(e.target.value)}
+                  placeholder="Enter new agent name"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20"
+                  onKeyDown={(e) => e.key === "Enter" && handleEditAgent()}
+                />
+              </div>
+              {editAgentError && (
+                <p className="text-[12px] text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                  {editAgentError}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
+              <button
+                type="button"
+                onClick={() => setEditAgentTarget(null)}
+                className="px-4 py-2 text-[12px] font-[500] text-gray-600 border border-gray-200 rounded-lg bg-white hover:border-gray-300 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleEditAgent}
+                disabled={editingAgent || !editAgentName.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-[600] text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {editingAgent ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Pencil className="h-3.5 w-3.5" />
+                )}
+                {editingAgent ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1301,17 +1618,17 @@ function AgentsPage({ onBack }) {
 
 /* ── User Management ── */
 const ROLE_OPTIONS = [
-  { label: "Manager",          value: "MANAGER",  color: "amber" },
-  { label: "Admin",            value: "ADMIN",    color: "blue" },
-  { label: "Sales",            value: "SALES",    color: "violet" },
-  { label: "Finance",          value: "FINANCE",  color: "green" },
-  { label: "Customer Support", value: "SUPPORT",  color: "gray" },
+  { label: "Manager", value: "MANAGER", color: "amber" },
+  { label: "Admin", value: "ADMIN", color: "blue" },
+  { label: "Sales", value: "SALES", color: "violet" },
+  { label: "Finance", value: "FINANCE", color: "green" },
+  { label: "Customer Support", value: "SUPPORT", color: "gray" },
 ];
 
 const ROLE_STYLES = {
   MANAGER: "bg-amber-50 text-amber-700 border-amber-200",
-  ADMIN:   "bg-blue-50 text-blue-700 border-blue-200",
-  SALES:   "bg-violet-50 text-violet-700 border-violet-200",
+  ADMIN: "bg-blue-50 text-blue-700 border-blue-200",
+  SALES: "bg-violet-50 text-violet-700 border-violet-200",
   FINANCE: "bg-green-50 text-green-700 border-green-200",
   SUPPORT: "bg-gray-100 text-gray-600 border-gray-200",
 };
@@ -1330,13 +1647,23 @@ function UsersPage({ onBack, isSuperAdmin }) {
 
   // Add user form
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: "", email: "", password: "", role: "" });
+  const [addForm, setAddForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "",
+  });
   const [addErrors, setAddErrors] = useState({});
   const [creating, setCreating] = useState(false);
 
   // Edit user
   const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", email: "", password: "", role: "" });
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "",
+  });
   const [editErrors, setEditErrors] = useState({});
   const [editing, setEditing] = useState(false);
 
@@ -1356,11 +1683,17 @@ function UsersPage({ onBack, isSuperAdmin }) {
     setMetricsSending(true);
     setMetricsSent(false);
     try {
-      await axiosInstance.post("/api/superadmin/metrics", { emails: selectedEmails });
+      await axiosInstance.post("/api/superadmin/metrics", {
+        emails: selectedEmails,
+      });
       toast.success(`Metrics sent for ${selectedEmails.length} user(s).`);
       setMetricsSent(true);
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to send metrics.");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          "Failed to send metrics.",
+      );
     } finally {
       setMetricsSending(false);
     }
@@ -1376,10 +1709,16 @@ function UsersPage({ onBack, isSuperAdmin }) {
         .filter((u) => newChecked.has(u.id))
         .map((u) => u.email);
       try {
-        await axiosInstance.post("/api/superadmin/metrics", { emails: remainingEmails });
+        await axiosInstance.post("/api/superadmin/metrics", {
+          emails: remainingEmails,
+        });
         toast.success(`Updated selection: ${remainingEmails.length} user(s).`);
       } catch (err) {
-        toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to update selection.");
+        toast.error(
+          err?.response?.data?.message ||
+            err?.response?.data?.detail ||
+            "Failed to update selection.",
+        );
       }
     }
   };
@@ -1406,7 +1745,7 @@ function UsersPage({ onBack, isSuperAdmin }) {
       toast.success(
         isCurrentlySelected
           ? `${user.username} unselected.`
-          : `${user.username} selected.`
+          : `${user.username} selected.`,
       );
       if (!isCurrentlySelected) setMetricsSent(true);
     } catch (err) {
@@ -1416,7 +1755,11 @@ function UsersPage({ onBack, isSuperAdmin }) {
         isCurrentlySelected ? rollback.add(user.id) : rollback.delete(user.id);
         return rollback;
       });
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to update.");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          "Failed to update.",
+      );
     } finally {
       setBusyRowId(null);
     }
@@ -1426,7 +1769,9 @@ function UsersPage({ onBack, isSuperAdmin }) {
     setLoading(true);
     try {
       const res = await axiosInstance.get("/api/users");
-      const list = Array.isArray(res.data) ? res.data : (res.data?.users ?? res.data?.data ?? []);
+      const list = Array.isArray(res.data)
+        ? res.data
+        : (res.data?.users ?? res.data?.data ?? []);
       const mapped = list.map((u) => ({
         id: u.id ?? u.user_id ?? u._id,
         username: u.username ?? u.name ?? "—",
@@ -1434,7 +1779,11 @@ function UsersPage({ onBack, isSuperAdmin }) {
         role: (u.role ?? "").toUpperCase(),
         created_at: u.created_at ?? "",
         created_at_display: u.created_at
-          ? new Date(u.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+          ? new Date(u.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
           : "—",
         is_selected: !!(u.is_selected ?? u.selected ?? false),
       }));
@@ -1443,7 +1792,7 @@ function UsersPage({ onBack, isSuperAdmin }) {
       const preSelected = new Set(
         list
           .filter((u) => u.is_selected || u.selected || u.is_active)
-          .map((u) => u.id ?? u.user_id ?? u._id)
+          .map((u) => u.id ?? u.user_id ?? u._id),
       );
       if (preSelected.size > 0) setCheckedIds(preSelected);
     } catch {
@@ -1453,28 +1802,45 @@ function UsersPage({ onBack, isSuperAdmin }) {
     }
   }, []);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Reset to page 1 whenever search or role filter changes
-  useEffect(() => { setUserPage(1); }, [search, roleFilter]);
+  useEffect(() => {
+    setUserPage(1);
+  }, [search, roleFilter]);
 
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+    const matchSearch =
+      !q ||
+      u.username.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.role.toLowerCase().includes(q);
     const matchRole = !roleFilter || u.role === roleFilter;
     return matchSearch && matchRole;
   });
 
-  const allChecked = filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
+  const allChecked =
+    filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
 
   // Pagination derived values
-  const totalUserPages = Math.max(1, Math.ceil(filtered.length / USERS_PER_PAGE));
-  const safeUserPage   = Math.min(userPage, totalUserPages);
-  const pageStart      = (safeUserPage - 1) * USERS_PER_PAGE;
-  const pageUsers      = filtered.slice(pageStart, pageStart + USERS_PER_PAGE);
-  const goToUserPage   = (p) => setUserPage(Math.max(1, Math.min(totalUserPages, p)));
-  const userPageNums   = Array.from({ length: totalUserPages }, (_, i) => i + 1)
-    .filter((p) => p === 1 || p === totalUserPages || Math.abs(p - safeUserPage) <= 1);
+  const totalUserPages = Math.max(
+    1,
+    Math.ceil(filtered.length / USERS_PER_PAGE),
+  );
+  const safeUserPage = Math.min(userPage, totalUserPages);
+  const pageStart = (safeUserPage - 1) * USERS_PER_PAGE;
+  const pageUsers = filtered.slice(pageStart, pageStart + USERS_PER_PAGE);
+  const goToUserPage = (p) =>
+    setUserPage(Math.max(1, Math.min(totalUserPages, p)));
+  const userPageNums = Array.from(
+    { length: totalUserPages },
+    (_, i) => i + 1,
+  ).filter(
+    (p) => p === 1 || p === totalUserPages || Math.abs(p - safeUserPage) <= 1,
+  );
 
   const toggleCheckAll = () => {
     setMetricsSent(false);
@@ -1499,7 +1865,9 @@ function UsersPage({ onBack, isSuperAdmin }) {
     try {
       const targets = users.filter((u) => checkedIds.has(u.id));
       for (const u of targets) {
-        await axiosInstance.delete(`/admin/users/purge?target_email=${encodeURIComponent(u.email)}`);
+        await axiosInstance.delete(
+          `/admin/users/purge?target_email=${encodeURIComponent(u.email)}`,
+        );
       }
       toast.success(`${ids.length} user(s) deleted.`);
       setCheckedIds(new Set());
@@ -1517,7 +1885,8 @@ function UsersPage({ onBack, isSuperAdmin }) {
     if (!addForm.name.trim()) e.name = "Required";
     if (!addForm.email.trim()) e.email = "Required";
     else if (!/\S+@\S+\.\S+/.test(addForm.email)) e.email = "Invalid email";
-    if (!addForm.password || addForm.password.length < 6) e.password = "Min 6 chars";
+    if (!addForm.password || addForm.password.length < 6)
+      e.password = "Min 6 chars";
     if (!addForm.role) e.role = "Select a role";
     setAddErrors(e);
     return Object.keys(e).length === 0;
@@ -1541,7 +1910,11 @@ function UsersPage({ onBack, isSuperAdmin }) {
       setAddErrors({});
       await fetchUsers();
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to create user.");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          "Failed to create user.",
+      );
     } finally {
       setCreating(false);
     }
@@ -1550,7 +1923,12 @@ function UsersPage({ onBack, isSuperAdmin }) {
   // Edit user
   const openEdit = (user) => {
     setEditTarget(user);
-    setEditForm({ name: user.username, email: user.email, password: "", role: user.role });
+    setEditForm({
+      name: user.username,
+      email: user.email,
+      password: "",
+      role: user.role,
+    });
     setEditErrors({});
   };
 
@@ -1558,7 +1936,8 @@ function UsersPage({ onBack, isSuperAdmin }) {
     const e = {};
     if (!editForm.name.trim()) e.name = "Required";
     if (!editForm.email.trim()) e.email = "Required";
-    if (editForm.password && editForm.password.length < 6) e.password = "Min 6 chars";
+    if (editForm.password && editForm.password.length < 6)
+      e.password = "Min 6 chars";
     if (!editForm.role) e.role = "Select a role";
     setEditErrors(e);
     return Object.keys(e).length === 0;
@@ -1590,7 +1969,9 @@ function UsersPage({ onBack, isSuperAdmin }) {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await axiosInstance.delete(`/admin/users/purge?target_email=${encodeURIComponent(deleteTarget.email)}`);
+      await axiosInstance.delete(
+        `/admin/users/purge?target_email=${encodeURIComponent(deleteTarget.email)}`,
+      );
       toast.success(`User "${deleteTarget.username}" deleted.`);
       setDeleteTarget(null);
       await fetchUsers();
@@ -1603,7 +1984,9 @@ function UsersPage({ onBack, isSuperAdmin }) {
 
   const RoleSelector = ({ value, onChange, error }) => (
     <div>
-      <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Role</label>
+      <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">
+        Role
+      </label>
       <div className="flex flex-wrap gap-1.5">
         {ROLE_OPTIONS.map((r) => (
           <button
@@ -1612,7 +1995,8 @@ function UsersPage({ onBack, isSuperAdmin }) {
             onClick={() => onChange(r.value)}
             className={`px-2.5 py-1 rounded-full text-[11px] font-[600] border transition-all duration-150 ${
               value === r.value
-                ? ROLE_STYLES[r.value] + " ring-2 ring-offset-1 ring-current shadow-sm"
+                ? ROLE_STYLES[r.value] +
+                  " ring-2 ring-offset-1 ring-current shadow-sm"
                 : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
             }`}
           >
@@ -1634,7 +2018,7 @@ function UsersPage({ onBack, isSuperAdmin }) {
 
       {/* Add User Form */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between">
           <p className="text-[12px] font-[600] text-gray-500 uppercase tracking-wider">
             {showAdd ? "New User" : "Users"}
           </p>
@@ -1643,7 +2027,11 @@ function UsersPage({ onBack, isSuperAdmin }) {
             onClick={() => setShowAdd(!showAdd)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-[600] transition shadow-sm bg-[#0a0a0a] text-white hover:bg-gray-800"
           >
-            {showAdd ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {showAdd ? (
+              <X className="h-3.5 w-3.5" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" />
+            )}
             {showAdd ? "Cancel" : "Add User"}
           </button>
         </div>
@@ -1658,44 +2046,76 @@ function UsersPage({ onBack, isSuperAdmin }) {
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">
+                    Name <span className="text-red-500">*</span>
+                  </label>
                   <input
                     value={addForm.name}
-                    onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, name: e.target.value })
+                    }
                     placeholder="Full name"
                     className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
                   />
-                  {addErrors.name && <p className="mt-1 text-[11px] text-red-500">{addErrors.name}</p>}
+                  {addErrors.name && (
+                    <p className="mt-1 text-[11px] text-red-500">
+                      {addErrors.name}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">Email <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">
+                    Email <span className="text-red-500">*</span>
+                  </label>
                   <input
                     value={addForm.email}
-                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, email: e.target.value })
+                    }
                     placeholder="user@company.com"
                     className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
                   />
-                  {addErrors.email && <p className="mt-1 text-[11px] text-red-500">{addErrors.email}</p>}
+                  {addErrors.email && (
+                    <p className="mt-1 text-[11px] text-red-500">
+                      {addErrors.email}
+                    </p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">Password <span className="text-red-500">*</span></label>
+                  <label className="block text-[11px] font-[600] text-gray-500 mb-1">
+                    Password <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="password"
                     value={addForm.password}
-                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, password: e.target.value })
+                    }
                     placeholder="Min 6 characters"
                     className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
                   />
-                  {addErrors.password && <p className="mt-1 text-[11px] text-red-500">{addErrors.password}</p>}
+                  {addErrors.password && (
+                    <p className="mt-1 text-[11px] text-red-500">
+                      {addErrors.password}
+                    </p>
+                  )}
                 </div>
-                <RoleSelector value={addForm.role} onChange={(r) => setAddForm({ ...addForm, role: r })} error={addErrors.role} />
+                <RoleSelector
+                  value={addForm.role}
+                  onChange={(r) => setAddForm({ ...addForm, role: r })}
+                  error={addErrors.role}
+                />
               </div>
               <button
                 onClick={handleCreate}
                 disabled={creating}
                 className="rounded-xl bg-[#0a0a0a] px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {creating ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
                 {creating ? "Creating…" : "Create User"}
               </button>
             </motion.div>
@@ -1713,24 +2133,36 @@ function UsersPage({ onBack, isSuperAdmin }) {
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
-            <div className={`rounded-2xl border shadow-sm px-5 py-3.5 ${
-              metricsSent
-                ? "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200"
-                : "bg-gradient-to-r from-violet-50 to-blue-50 border-violet-200"
-            }`}>
+            <div
+              className={`rounded-2xl border shadow-sm px-5 py-3.5 ${
+                metricsSent
+                  ? "bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200"
+                  : "bg-gradient-to-r from-violet-50 to-blue-50 border-violet-200"
+              }`}
+            >
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${metricsSent ? "bg-emerald-100" : "bg-violet-100"}`}>
-                      {metricsSent
-                        ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        : <Users className="h-4 w-4 text-violet-600" />
-                      }
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg ${metricsSent ? "bg-emerald-100" : "bg-violet-100"}`}
+                    >
+                      {metricsSent ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Users className="h-4 w-4 text-violet-600" />
+                      )}
                     </div>
                     <div>
-                      <span className={`text-[14px] font-[700] ${metricsSent ? "text-emerald-800" : "text-violet-800"}`}>{checkedIds.size}</span>
-                      <span className={`text-[12px] font-[500] ml-1 ${metricsSent ? "text-emerald-600" : "text-violet-600"}`}>
-                        user{checkedIds.size !== 1 ? "s" : ""} {metricsSent ? "sent successfully" : "selected"}
+                      <span
+                        className={`text-[14px] font-[700] ${metricsSent ? "text-emerald-800" : "text-violet-800"}`}
+                      >
+                        {checkedIds.size}
+                      </span>
+                      <span
+                        className={`text-[12px] font-[500] ml-1 ${metricsSent ? "text-emerald-600" : "text-violet-600"}`}
+                      >
+                        user{checkedIds.size !== 1 ? "s" : ""}{" "}
+                        {metricsSent ? "sent successfully" : "selected"}
                       </span>
                     </div>
                   </div>
@@ -1746,9 +2178,13 @@ function UsersPage({ onBack, isSuperAdmin }) {
                               : "bg-violet-100 text-violet-700 border-violet-200"
                           }`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${metricsSent ? "bg-emerald-500" : "bg-violet-500"}`} />
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full animate-pulse ${metricsSent ? "bg-emerald-500" : "bg-violet-500"}`}
+                          />
                           {u.username}
-                          <span className={`ml-0.5 px-1.5 py-0 rounded text-[9px] font-[700] ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500"}`}>
+                          <span
+                            className={`ml-0.5 px-1.5 py-0 rounded text-[9px] font-[700] ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500"}`}
+                          >
                             {u.role}
                           </span>
                           <button
@@ -1769,15 +2205,30 @@ function UsersPage({ onBack, isSuperAdmin }) {
                     disabled={metricsSending}
                     onClick={handleSendMetrics}
                     className={`flex items-center gap-1.5 px-5 py-2 rounded-xl text-white text-[12px] font-[600] transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
-                      metricsSent ? "bg-emerald-600 hover:bg-emerald-700" : "bg-indigo-600 hover:bg-indigo-700"
+                      metricsSent
+                        ? "bg-emerald-600 hover:bg-emerald-700"
+                        : "bg-indigo-600 hover:bg-indigo-700"
                     }`}
                   >
-                    {metricsSending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : metricsSent ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
-                    {metricsSending ? "Sending…" : metricsSent ? "Sent ✓" : "Send"}
+                    {metricsSending ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : metricsSent ? (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <Zap className="h-3.5 w-3.5" />
+                    )}
+                    {metricsSending
+                      ? "Sending…"
+                      : metricsSent
+                        ? "Sent ✓"
+                        : "Send"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setCheckedIds(new Set()); setMetricsSent(false); }}
+                    onClick={() => {
+                      setCheckedIds(new Set());
+                      setMetricsSent(false);
+                    }}
                     className="ml-1 p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
                     title="Clear selection"
                   >
@@ -1801,20 +2252,31 @@ function UsersPage({ onBack, isSuperAdmin }) {
                 allChecked
                   ? "bg-blue-600 border-blue-600"
                   : checkedIds.size > 0
-                  ? "bg-blue-100 border-blue-400"
-                  : "border-gray-300 hover:border-blue-400"
+                    ? "bg-blue-100 border-blue-400"
+                    : "border-gray-300 hover:border-blue-400"
               }`}
             >
               {allChecked ? (
-                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                <svg
+                  className="h-3 w-3 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               ) : checkedIds.size > 0 ? (
                 <span className="block h-0.5 w-2.5 rounded bg-blue-500" />
               ) : null}
             </button>
-            <span className="text-[13px] font-[600] text-gray-900">User List</span>
-           
+            <span className="text-[13px] font-[600] text-gray-900">
+              User List
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1823,7 +2285,9 @@ function UsersPage({ onBack, isSuperAdmin }) {
               className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
               title="Refresh"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+              />
             </button>
             <div className="relative">
               <select
@@ -1832,7 +2296,11 @@ function UsersPage({ onBack, isSuperAdmin }) {
                 className="appearance-none pl-3 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition cursor-pointer"
               >
                 <option value="">All Roles</option>
-                {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
             </div>
@@ -1850,22 +2318,36 @@ function UsersPage({ onBack, isSuperAdmin }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="px-5 py-3 w-10"><span className="sr-only">Select</span></th>
+              <th className="px-5 py-3 w-10">
+                <span className="sr-only">Select</span>
+              </th>
               {["Name", "Email", "Role", "Created", ""].map((h) => (
-                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+                <th
+                  key={h}
+                  className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-[13px] text-gray-400">
-                  <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />Loading users…
+                <td
+                  colSpan={6}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
+                  <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />
+                  Loading users…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                <td
+                  colSpan={6}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
                   No users found
                 </td>
               </tr>
@@ -1876,7 +2358,11 @@ function UsersPage({ onBack, isSuperAdmin }) {
                   <tr
                     key={u.id}
                     className={`border-b border-gray-50 transition-all duration-150 ${
-                      checked ? "bg-blue-50/70 border-l-2 border-l-blue-500" : i % 2 !== 0 ? "bg-gray-50/30" : ""
+                      checked
+                        ? "bg-blue-50/70 border-l-2 border-l-blue-500"
+                        : i % 2 !== 0
+                          ? "bg-gray-50/30"
+                          : ""
                     } hover:bg-gray-50/70`}
                   >
                     <td className="px-5 py-3.5 w-10">
@@ -1890,8 +2376,18 @@ function UsersPage({ onBack, isSuperAdmin }) {
                         }`}
                       >
                         {checked && (
-                          <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          <svg
+                            className="h-3 w-3 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </button>
@@ -1901,24 +2397,42 @@ function UsersPage({ onBack, isSuperAdmin }) {
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600 text-[12px] font-[700] border border-violet-100">
                           {u.username.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-[13px] font-[500] text-gray-900">{u.username}</span>
-                        {u.is_selected && (
+                        <span className="text-[13px] font-[500] text-gray-900">
+                          {u.username}
+                        </span>
+                        {/* {u.is_selected && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 text-[10px] font-[700]">
-                            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            <svg
+                              className="h-2.5 w-2.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M5 13l4 4L19 7"
+                              />
                             </svg>
                             Selected
                           </span>
-                        )}
+                        )} */}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-[12px] text-gray-600">{u.email}</td>
+                    <td className="px-5 py-3.5 text-[12px] text-gray-600">
+                      {u.email}
+                    </td>
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-[600] border ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-[600] border ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500 border-gray-200"}`}
+                      >
                         {u.role || "—"}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-[11px] text-gray-500">{u.created_at_display}</td>
+                    <td className="px-5 py-3.5 text-[11px] text-gray-500">
+                      {u.created_at_display}
+                    </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1.5">
                         {/* ── Select / Unselect toggle — same pattern as agent activate/deactivate ── */}
@@ -1926,20 +2440,29 @@ function UsersPage({ onBack, isSuperAdmin }) {
                           type="button"
                           disabled={busyRowId === u.id}
                           onClick={() => handleToggleUser(u, checked)}
-                          title={checked ? `Unselect ${u.username}` : `Select ${u.username}`}
+                          title={
+                            checked
+                              ? `Unselect ${u.username}`
+                              : `Select ${u.username}`
+                          }
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-[600] border transition-all duration-200 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed ${
                             checked
                               ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-500 hover:text-white hover:border-amber-500"
                               : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-500 hover:text-white hover:border-emerald-500"
                           }`}
                         >
+                          {busyRowId === u.id ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : checked ? (
+                            <ShieldOff className="h-3 w-3" />
+                          ) : (
+                            <ShieldCheck className="h-3 w-3" />
+                          )}
                           {busyRowId === u.id
-                            ? <RefreshCw className="h-3 w-3 animate-spin" />
+                            ? "…"
                             : checked
-                              ? <ShieldOff className="h-3 w-3" />
-                              : <ShieldCheck className="h-3 w-3" />
-                          }
-                          {busyRowId === u.id ? "…" : checked ? "Unselect" : "Select"}
+                              ? "Unselect"
+                              : "Select"}
                         </button>
                         <button
                           onClick={() => openEdit(u)}
@@ -1965,7 +2488,9 @@ function UsersPage({ onBack, isSuperAdmin }) {
         </table>
         <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
           <span className="text-[12px] text-gray-400">
-            Showing {filtered.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + USERS_PER_PAGE, filtered.length)} of {filtered.length} user{filtered.length !== 1 ? "s" : ""}
+            Showing {filtered.length === 0 ? 0 : pageStart + 1}–
+            {Math.min(pageStart + USERS_PER_PAGE, filtered.length)} of{" "}
+            {filtered.length} user{filtered.length !== 1 ? "s" : ""}
           </span>
           {totalUserPages > 1 && (
             <div className="flex items-center gap-1">
@@ -2007,37 +2532,97 @@ function UsersPage({ onBack, isSuperAdmin }) {
 
       {/* Edit Modal */}
       {editTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setEditTarget(null)}>
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setEditTarget(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[15px] font-[700] text-gray-900">Edit User</h3>
-              <button onClick={() => setEditTarget(null)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition">
+              <h3 className="text-[15px] font-[700] text-gray-900">
+                Edit User
+              </h3>
+              <button
+                onClick={() => setEditTarget(null)}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="flex flex-col gap-3">
               <div>
-                <label className="block text-[11px] font-[600] text-gray-500 mb-1">Name</label>
-                <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20" />
-                {editErrors.name && <p className="mt-1 text-[11px] text-red-500">{editErrors.name}</p>}
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1">
+                  Name
+                </label>
+                <input
+                  value={editForm.name}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, name: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+                />
+                {editErrors.name && (
+                  <p className="mt-1 text-[11px] text-red-500">
+                    {editErrors.name}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-[11px] font-[600] text-gray-500 mb-1">Email</label>
-                <input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20" />
-                {editErrors.email && <p className="mt-1 text-[11px] text-red-500">{editErrors.email}</p>}
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1">
+                  Email
+                </label>
+                <input
+                  value={editForm.email}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, email: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+                />
+                {editErrors.email && (
+                  <p className="mt-1 text-[11px] text-red-500">
+                    {editErrors.email}
+                  </p>
+                )}
               </div>
               <div>
-                <label className="block text-[11px] font-[600] text-gray-500 mb-1">Password <span className="text-[10px] text-gray-400">(leave blank to keep current)</span></label>
-                <input type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="Optional" className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20" />
-                {editErrors.password && <p className="mt-1 text-[11px] text-red-500">{editErrors.password}</p>}
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1">
+                  Password{" "}
+                  <span className="text-[10px] text-gray-400">
+                    (leave blank to keep current)
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  value={editForm.password}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, password: e.target.value })
+                  }
+                  placeholder="Optional"
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-900 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
+                />
+                {editErrors.password && (
+                  <p className="mt-1 text-[11px] text-red-500">
+                    {editErrors.password}
+                  </p>
+                )}
               </div>
-              <RoleSelector value={editForm.role} onChange={(r) => setEditForm({ ...editForm, role: r })} error={editErrors.role} />
+              <RoleSelector
+                value={editForm.role}
+                onChange={(r) => setEditForm({ ...editForm, role: r })}
+                error={editErrors.role}
+              />
               <button
                 onClick={handleEdit}
                 disabled={editing}
                 className="mt-2 w-full rounded-xl bg-[#0a0a0a] py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {editing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                {editing ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Pencil className="h-3.5 w-3.5" />
+                )}
                 {editing ? "Saving…" : "Save Changes"}
               </button>
             </div>
@@ -2070,13 +2655,17 @@ function SuperAdminMetricsPage({ onBack }) {
     setLoading(true);
     try {
       const res = await axiosInstance.get("/api/users");
-      const list = Array.isArray(res.data) ? res.data : (res.data?.users ?? res.data?.data ?? []);
-      setUsers(list.map((u) => ({
-        id: u.id ?? u.user_id ?? u._id,
-        username: u.username ?? u.name ?? "—",
-        email: u.email ?? u.email_address ?? "—",
-        role: (u.role ?? "").toUpperCase(),
-      })));
+      const list = Array.isArray(res.data)
+        ? res.data
+        : (res.data?.users ?? res.data?.data ?? []);
+      setUsers(
+        list.map((u) => ({
+          id: u.id ?? u.user_id ?? u._id,
+          username: u.username ?? u.name ?? "—",
+          email: u.email ?? u.email_address ?? "—",
+          role: (u.role ?? "").toUpperCase(),
+        })),
+      );
     } catch {
       toast.error("Failed to load users.");
     } finally {
@@ -2084,14 +2673,22 @@ function SuperAdminMetricsPage({ onBack }) {
     }
   }, []);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
-    return !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+    return (
+      !q ||
+      u.username.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.role.toLowerCase().includes(q)
+    );
   });
 
-  const allChecked = filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
+  const allChecked =
+    filtered.length > 0 && filtered.every((u) => checkedIds.has(u.id));
   const toggleCheckAll = () => {
     if (allChecked) setCheckedIds(new Set());
     else setCheckedIds(new Set(filtered.map((u) => u.id)));
@@ -2121,7 +2718,11 @@ function SuperAdminMetricsPage({ onBack }) {
       toast.success(`Metrics sent for ${selectedEmails.length} user(s).`);
       setCheckedIds(new Set());
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to send metrics.");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          "Failed to send metrics.",
+      );
     } finally {
       setSending(false);
     }
@@ -2151,8 +2752,12 @@ function SuperAdminMetricsPage({ onBack }) {
                   <Users className="h-4 w-4 text-indigo-600" />
                 </div>
                 <div>
-                  <span className="text-[14px] font-[700] text-indigo-800">{checkedIds.size}</span>
-                  <span className="text-[12px] font-[500] text-indigo-600 ml-1">user{checkedIds.size !== 1 ? "s" : ""} selected</span>
+                  <span className="text-[14px] font-[700] text-indigo-800">
+                    {checkedIds.size}
+                  </span>
+                  <span className="text-[12px] font-[500] text-indigo-600 ml-1">
+                    user{checkedIds.size !== 1 ? "s" : ""} selected
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -2162,7 +2767,11 @@ function SuperAdminMetricsPage({ onBack }) {
                   onClick={handleSendMetrics}
                   className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 text-white text-[12px] font-[600] hover:bg-indigo-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {sending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  {sending ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="h-3.5 w-3.5" />
+                  )}
                   {sending ? "Sending…" : "Send"}
                 </button>
                 <button
@@ -2190,19 +2799,31 @@ function SuperAdminMetricsPage({ onBack }) {
                 allChecked
                   ? "bg-indigo-600 border-indigo-600"
                   : checkedIds.size > 0
-                  ? "bg-indigo-100 border-indigo-400"
-                  : "border-gray-300 hover:border-indigo-400"
+                    ? "bg-indigo-100 border-indigo-400"
+                    : "border-gray-300 hover:border-indigo-400"
               }`}
             >
               {allChecked ? (
-                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                <svg
+                  className="h-3 w-3 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
               ) : checkedIds.size > 0 ? (
                 <span className="block h-0.5 w-2.5 rounded bg-indigo-500" />
               ) : null}
             </button>
-            <span className="text-[13px] font-[600] text-gray-900">Select Users</span>
+            <span className="text-[13px] font-[600] text-gray-900">
+              Select Users
+            </span>
             {checkedIds.size > 0 && (
               <span className="text-[11px] font-[500] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
                 {checkedIds.size} selected
@@ -2216,7 +2837,9 @@ function SuperAdminMetricsPage({ onBack }) {
               className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
               title="Refresh"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+              />
             </button>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
@@ -2232,22 +2855,36 @@ function SuperAdminMetricsPage({ onBack }) {
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="px-5 py-3 w-10"><span className="sr-only">Select</span></th>
+              <th className="px-5 py-3 w-10">
+                <span className="sr-only">Select</span>
+              </th>
               {["Name", "Email", "Role"].map((h) => (
-                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+                <th
+                  key={h}
+                  className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
-                  <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />Loading users…
+                <td
+                  colSpan={4}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
+                  <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />
+                  Loading users…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">
+                <td
+                  colSpan={4}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
                   No users found
                 </td>
               </tr>
@@ -2258,14 +2895,21 @@ function SuperAdminMetricsPage({ onBack }) {
                   <tr
                     key={u.id}
                     className={`border-b border-gray-50 transition-all duration-150 cursor-pointer ${
-                      checked ? "bg-indigo-50/70 border-l-2 border-l-indigo-500" : i % 2 !== 0 ? "bg-gray-50/30" : ""
+                      checked
+                        ? "bg-indigo-50/70 border-l-2 border-l-indigo-500"
+                        : i % 2 !== 0
+                          ? "bg-gray-50/30"
+                          : ""
                     } hover:bg-gray-50/70`}
                     onClick={() => toggleCheck(u.id)}
                   >
                     <td className="px-5 py-3.5 w-10">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); toggleCheck(u.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCheck(u.id);
+                        }}
                         className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
                           checked
                             ? "bg-indigo-600 border-indigo-600 shadow-sm"
@@ -2273,8 +2917,18 @@ function SuperAdminMetricsPage({ onBack }) {
                         }`}
                       >
                         {checked && (
-                          <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          <svg
+                            className="h-3 w-3 text-white"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                         )}
                       </button>
@@ -2284,12 +2938,18 @@ function SuperAdminMetricsPage({ onBack }) {
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 text-[12px] font-[700] border border-indigo-100">
                           {u.username.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-[13px] font-[500] text-gray-900">{u.username}</span>
+                        <span className="text-[13px] font-[500] text-gray-900">
+                          {u.username}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-[12px] text-gray-600">{u.email}</td>
+                    <td className="px-5 py-3.5 text-[12px] text-gray-600">
+                      {u.email}
+                    </td>
                     <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-[600] border ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-[600] border ${ROLE_STYLES[u.role] || "bg-gray-100 text-gray-500 border-gray-200"}`}
+                      >
                         {u.role || "—"}
                       </span>
                     </td>
@@ -2309,41 +2969,55 @@ function SuperAdminMetricsPage({ onBack }) {
 
 /* ── Email Templates ── */
 function EmailTemplatesPage({ onBack }) {
-  const [templates, setTemplates]         = useState([]);
-  const [loading, setLoading]             = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   /* Create modal */
-  const [showModal, setShowModal]         = useState(false);
-  const [form, setForm]                   = useState({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
-  const [htmlFile, setHtmlFile]           = useState(null);
-  const [fileName, setFileName]           = useState("No file selected");
-  const [saving, setSaving]               = useState(false);
-  const fileRef                           = useRef(null);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    subject: "",
+    body: "",
+    category: "",
+    ai_tone: "",
+    ai_context: "",
+  });
+  const [htmlFile, setHtmlFile] = useState(null);
+  const [fileName, setFileName] = useState("No file selected");
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef(null);
 
   /* View modal — GET /api/email-templates/{id} */
-  const [viewModal, setViewModal]         = useState(null);   // null | template object
-  const [viewLoading, setViewLoading]     = useState(false);
-  const [viewTab, setViewTab]             = useState("rendered"); // "rendered" | "html"
-  const [htmlOnly, setHtmlOnly]           = useState("");       // raw html from GET …/preview/html
+  const [viewModal, setViewModal] = useState(null); // null | template object
+  const [viewLoading, setViewLoading] = useState(false);
+  const [viewTab, setViewTab] = useState("rendered"); // "rendered" | "html"
+  const [htmlOnly, setHtmlOnly] = useState(""); // raw html from GET …/preview/html
   const [htmlOnlyLoading, setHtmlOnlyLoading] = useState(false);
 
   /* Edit modal — PUT /api/email-templates/{id} */
-  const [editModal, setEditModal]         = useState(null);   // null | template object
-  const [editForm, setEditForm]           = useState({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
-  const [editFile, setEditFile]           = useState(null);
-  const [editFileName, setEditFileName]   = useState("No file selected");
-  const [editSaving, setEditSaving]       = useState(false);
-  const editFileRef                       = useRef(null);
+  const [editModal, setEditModal] = useState(null); // null | template object
+  const [editForm, setEditForm] = useState({
+    name: "",
+    subject: "",
+    body: "",
+    category: "",
+    ai_tone: "",
+    ai_context: "",
+  });
+  const [editFile, setEditFile] = useState(null);
+  const [editFileName, setEditFileName] = useState("No file selected");
+  const [editSaving, setEditSaving] = useState(false);
+  const editFileRef = useRef(null);
 
   /* Preview with custom fields — POST /api/email-templates/{id}/preview */
-  const [previewModal, setPreviewModal]   = useState(null);   // null | template object
-  const [previewFields, setPreviewFields] = useState({});     // { placeholder: value }
-  const [previewResult, setPreviewResult] = useState(null);   // { subject, html_content }
+  const [previewModal, setPreviewModal] = useState(null); // null | template object
+  const [previewFields, setPreviewFields] = useState({}); // { placeholder: value }
+  const [previewResult, setPreviewResult] = useState(null); // { subject, html_content }
   const [previewLoading, setPreviewLoading] = useState(false);
 
   /* Delete */
-  const [deleting, setDeleting]           = useState(null);
-  const [deleteTarget, setDeleteTarget]   = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   /* ── GET /api/email-templates ── */
   const fetchTemplates = async () => {
@@ -2351,23 +3025,25 @@ function EmailTemplatesPage({ onBack }) {
     try {
       const res = await axiosInstance.get("/api/email-templates");
       const raw = res.data ?? [];
-      const list = Array.isArray(raw) ? raw : (raw.data ?? raw.templates ?? raw.results ?? []);
+      const list = Array.isArray(raw)
+        ? raw
+        : (raw.data ?? raw.templates ?? raw.results ?? []);
       setTemplates(
         list.map((t) => ({
-          id:           t.template_id ?? t.id ?? t._id ?? Math.random(),
-          name:         t.name ?? t.template_name ?? "",
-          subject:      t.subject ?? t.email_subject ?? "",
-          body:         t.html_content ?? t.body ?? t.content ?? t.html ?? "",
+          id: t.template_id ?? t.id ?? t._id ?? Math.random(),
+          name: t.name ?? t.template_name ?? "",
+          subject: t.subject ?? t.email_subject ?? "",
+          body: t.html_content ?? t.body ?? t.content ?? t.html ?? "",
           placeholders: t.placeholders ?? [
             ...(t.standard_placeholders ?? []),
-            ...(t.ai_placeholders       ?? []),
-            ...(t.custom_placeholders   ?? []),
+            ...(t.ai_placeholders ?? []),
+            ...(t.custom_placeholders ?? []),
           ],
           originalFilename: t.original_filename ?? "",
-          category:     t.category   ?? "",
-          ai_tone:      t.ai_tone    ?? "",
-          ai_context:   t.ai_context ?? "",
-        }))
+          category: t.category ?? "",
+          ai_tone: t.ai_tone ?? "",
+          ai_context: t.ai_context ?? "",
+        })),
       );
     } catch {
       /* silently ignore */
@@ -2376,7 +3052,9 @@ function EmailTemplatesPage({ onBack }) {
     }
   };
 
-  useEffect(() => { fetchTemplates(); }, []);
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
 
   /* ── POST /api/email-templates/upload ── */
   const create = async () => {
@@ -2384,16 +3062,23 @@ function EmailTemplatesPage({ onBack }) {
     setSaving(true);
     try {
       const fd = new FormData();
-      fd.append("name",    form.name.trim());
+      fd.append("name", form.name.trim());
       fd.append("subject", form.subject.trim());
-      if (form.category.trim())   fd.append("category",   form.category.trim());
-      if (form.ai_tone.trim())    fd.append("ai_tone",    form.ai_tone.trim());
-      if (form.ai_context.trim()) fd.append("ai_context", form.ai_context.trim());
+      if (form.category.trim()) fd.append("category", form.category.trim());
+      if (form.ai_tone.trim()) fd.append("ai_tone", form.ai_tone.trim());
+      if (form.ai_context.trim())
+        fd.append("ai_context", form.ai_context.trim());
       if (htmlFile) {
         fd.append("file", htmlFile, htmlFile.name);
       } else {
-        const htmlContent = form.body.trim() || "<!DOCTYPE html><html><body><p>Email Template</p></body></html>";
-        fd.append("file", new Blob([htmlContent], { type: "text/html" }), "template.html");
+        const htmlContent =
+          form.body.trim() ||
+          "<!DOCTYPE html><html><body><p>Email Template</p></body></html>";
+        fd.append(
+          "file",
+          new Blob([htmlContent], { type: "text/html" }),
+          "template.html",
+        );
       }
       const res = await axiosInstance.post("/api/email-templates/upload", fd, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -2403,23 +3088,30 @@ function EmailTemplatesPage({ onBack }) {
       setTemplates((prev) => [
         ...prev,
         {
-          id:               r.template_id ?? Math.random(),
-          name:             r.name ?? form.name.trim(),
-          subject:          r.subject ?? form.subject.trim(),
-          body:             r.html_content ?? form.body,
-          placeholders:     r.placeholders ?? [],
-          originalFilename: r.original_filename ?? (htmlFile?.name ?? ""),
+          id: r.template_id ?? Math.random(),
+          name: r.name ?? form.name.trim(),
+          subject: r.subject ?? form.subject.trim(),
+          body: r.html_content ?? form.body,
+          placeholders: r.placeholders ?? [],
+          originalFilename: r.original_filename ?? htmlFile?.name ?? "",
         },
       ]);
-      setForm({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
+      setForm({
+        name: "",
+        subject: "",
+        body: "",
+        category: "",
+        ai_tone: "",
+        ai_context: "",
+      });
       setHtmlFile(null);
       setFileName("No file selected");
       setShowModal(false);
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
-        err?.response?.data?.message ??
-        "Failed to create template."
+          err?.response?.data?.message ??
+          "Failed to create template.",
       );
     } finally {
       setSaving(false);
@@ -2434,19 +3126,19 @@ function EmailTemplatesPage({ onBack }) {
       const raw = res.data ?? {};
       const d = raw.template ?? raw.data ?? raw;
       return {
-        id:               d.template_id  ?? d.id          ?? t.id,
-        name:             d.name         ?? d.template_name ?? t.name,
-        subject:          d.subject      ?? d.email_subject ?? t.subject,
-        body:             d.html_content ?? d.body ?? d.content ?? d.html ?? t.body ?? "",
-        placeholders:     d.placeholders ?? [
+        id: d.template_id ?? d.id ?? t.id,
+        name: d.name ?? d.template_name ?? t.name,
+        subject: d.subject ?? d.email_subject ?? t.subject,
+        body: d.html_content ?? d.body ?? d.content ?? d.html ?? t.body ?? "",
+        placeholders: d.placeholders ?? [
           ...(d.standard_placeholders ?? []),
-          ...(d.ai_placeholders       ?? []),
-          ...(d.custom_placeholders   ?? []),
+          ...(d.ai_placeholders ?? []),
+          ...(d.custom_placeholders ?? []),
         ],
         originalFilename: d.original_filename ?? t.originalFilename ?? "",
-        category:         d.category   ?? t.category   ?? "",
-        ai_tone:          d.ai_tone    ?? t.ai_tone    ?? "",
-        ai_context:       d.ai_context ?? t.ai_context ?? "",
+        category: d.category ?? t.category ?? "",
+        ai_tone: d.ai_tone ?? t.ai_tone ?? "",
+        ai_context: d.ai_context ?? t.ai_context ?? "",
       };
     } catch {
       return t; /* fallback to local data */
@@ -2469,17 +3161,22 @@ function EmailTemplatesPage({ onBack }) {
     setHtmlOnlyLoading(true);
     setHtmlOnly("");
     try {
-      const res = await axiosInstance.get(`/api/email-templates/${id}/preview/html`);
+      const res = await axiosInstance.get(
+        `/api/email-templates/${id}/preview/html`,
+      );
       const html =
         typeof res.data === "string"
           ? res.data
-          : (res.data?.html_content ?? res.data?.html ?? res.data?.content ?? "");
+          : (res.data?.html_content ??
+            res.data?.html ??
+            res.data?.content ??
+            "");
       setHtmlOnly(html);
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
-        err?.response?.data?.message ??
-        "Failed to load HTML."
+          err?.response?.data?.message ??
+          "Failed to load HTML.",
       );
     } finally {
       setHtmlOnlyLoading(false);
@@ -2493,21 +3190,21 @@ function EmailTemplatesPage({ onBack }) {
     setEditFileName("No file selected");
     setEditModal(t);
     setEditForm({
-      name:       t.name       ?? "",
-      subject:    t.subject    ?? "",
-      body:       t.body       ?? "",
-      category:   t.category   ?? "",
-      ai_tone:    t.ai_tone    ?? "",
+      name: t.name ?? "",
+      subject: t.subject ?? "",
+      body: t.body ?? "",
+      category: t.category ?? "",
+      ai_tone: t.ai_tone ?? "",
       ai_context: t.ai_context ?? "",
     });
     const full = await fetchSingle(t);
     setEditModal(full);
     setEditForm({
-      name:       full.name       ?? "",
-      subject:    full.subject    ?? "",
-      body:       full.body       ?? "",
-      category:   full.category   ?? "",
-      ai_tone:    full.ai_tone    ?? "",
+      name: full.name ?? "",
+      subject: full.subject ?? "",
+      body: full.body ?? "",
+      category: full.category ?? "",
+      ai_tone: full.ai_tone ?? "",
       ai_context: full.ai_context ?? "",
     });
   };
@@ -2517,21 +3214,30 @@ function EmailTemplatesPage({ onBack }) {
     setEditSaving(true);
     try {
       const fd = new FormData();
-      fd.append("name",    editForm.name.trim());
+      fd.append("name", editForm.name.trim());
       fd.append("subject", editForm.subject.trim());
-      if (editForm.category.trim())   fd.append("category",   editForm.category.trim());
-      if (editForm.ai_tone.trim())    fd.append("ai_tone",    editForm.ai_tone.trim());
-      if (editForm.ai_context.trim()) fd.append("ai_context", editForm.ai_context.trim());
+      if (editForm.category.trim())
+        fd.append("category", editForm.category.trim());
+      if (editForm.ai_tone.trim())
+        fd.append("ai_tone", editForm.ai_tone.trim());
+      if (editForm.ai_context.trim())
+        fd.append("ai_context", editForm.ai_context.trim());
       if (editFile) {
         fd.append("file", editFile, editFile.name);
       } else {
-        const htmlContent = editForm.body.trim() || "<!DOCTYPE html><html><body><p>Email Template</p></body></html>";
-        fd.append("file", new Blob([htmlContent], { type: "text/html" }), "template.html");
+        const htmlContent =
+          editForm.body.trim() ||
+          "<!DOCTYPE html><html><body><p>Email Template</p></body></html>";
+        fd.append(
+          "file",
+          new Blob([htmlContent], { type: "text/html" }),
+          "template.html",
+        );
       }
       const res = await axiosInstance.put(
         `/api/email-templates/${editModal.id}`,
         fd,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        { headers: { "Content-Type": "multipart/form-data" } },
       );
       const r = res.data ?? {};
       toast.success(r.message ?? "Template updated successfully.");
@@ -2540,23 +3246,23 @@ function EmailTemplatesPage({ onBack }) {
           t.id === editModal.id
             ? {
                 ...t,
-                name:       editForm.name.trim(),
-                subject:    editForm.subject.trim(),
-                body:       r.html_content ?? editForm.body,
-                category:   editForm.category.trim(),
-                ai_tone:    editForm.ai_tone.trim(),
+                name: editForm.name.trim(),
+                subject: editForm.subject.trim(),
+                body: r.html_content ?? editForm.body,
+                category: editForm.category.trim(),
+                ai_tone: editForm.ai_tone.trim(),
                 ai_context: editForm.ai_context.trim(),
                 placeholders: r.placeholders ?? t.placeholders,
               }
-            : t
-        )
+            : t,
+        ),
       );
       setEditModal(null);
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
-        err?.response?.data?.message ??
-        "Failed to update template."
+          err?.response?.data?.message ??
+          "Failed to update template.",
       );
     } finally {
       setEditSaving(false);
@@ -2578,19 +3284,29 @@ function EmailTemplatesPage({ onBack }) {
     try {
       const res = await axiosInstance.post(
         `/api/email-templates/${previewModal.id}/preview`,
-        { custom_fields: previewFields }
+        { custom_fields: previewFields },
       );
       const d = res.data ?? {};
       const preview = d.preview ?? {};
       setPreviewResult({
-        subject: preview.subject ?? d.subject ?? d.rendered_subject ?? previewModal.subject,
-        html:    preview.body_html ?? d.html_content ?? d.rendered_html ?? d.html ?? d.body ?? "",
+        subject:
+          preview.subject ??
+          d.subject ??
+          d.rendered_subject ??
+          previewModal.subject,
+        html:
+          preview.body_html ??
+          d.html_content ??
+          d.rendered_html ??
+          d.html ??
+          d.body ??
+          "",
       });
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
-        err?.response?.data?.message ??
-        "Preview failed."
+          err?.response?.data?.message ??
+          "Preview failed.",
       );
     } finally {
       setPreviewLoading(false);
@@ -2613,7 +3329,14 @@ function EmailTemplatesPage({ onBack }) {
 
   const closeCreateModal = () => {
     setShowModal(false);
-    setForm({ name: "", subject: "", body: "", category: "", ai_tone: "", ai_context: "" });
+    setForm({
+      name: "",
+      subject: "",
+      body: "",
+      category: "",
+      ai_tone: "",
+      ai_context: "",
+    });
     setHtmlFile(null);
     setFileName("No file selected");
   };
@@ -2632,7 +3355,9 @@ function EmailTemplatesPage({ onBack }) {
               className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
               title="Refresh"
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+              />
             </button>
             <button
               onClick={() => setShowModal(true)}
@@ -2656,16 +3381,30 @@ function EmailTemplatesPage({ onBack }) {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {["Name", "Subject", "Placeholders", "Actions"].map((h, i) => (
-                    <th key={i} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
-                  ))}
+                  {["Name", "Subject", "Placeholders", "Actions"].map(
+                    (h, i) => (
+                      <th
+                        key={i}
+                        className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {templates.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-5 py-12 text-center text-[13px] text-gray-400">
-                      No templates yet — click <span className="font-[600] text-gray-600">Create New</span> to add one.
+                    <td
+                      colSpan={4}
+                      className="px-5 py-12 text-center text-[13px] text-gray-400"
+                    >
+                      No templates yet — click{" "}
+                      <span className="font-[600] text-gray-600">
+                        Create New
+                      </span>{" "}
+                      to add one.
                     </td>
                   </tr>
                 ) : (
@@ -2674,18 +3413,28 @@ function EmailTemplatesPage({ onBack }) {
                       key={t.id}
                       className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                     >
-                      <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{t.name}</td>
-                      <td className="px-5 py-3.5 text-[13px] text-gray-600 max-w-[200px] truncate">{t.subject}</td>
+                      <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">
+                        {t.name}
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px] text-gray-600 max-w-[200px] truncate">
+                        {t.subject}
+                      </td>
                       <td className="px-5 py-3.5">
-                        {Array.isArray(t.placeholders) && t.placeholders.length > 0 ? (
+                        {Array.isArray(t.placeholders) &&
+                        t.placeholders.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {t.placeholders.slice(0, 3).map((p) => (
-                              <span key={p} className="inline-block rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-[600] text-violet-700">
+                              <span
+                                key={p}
+                                className="inline-block rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-[600] text-violet-700"
+                              >
                                 {`{{${p}}}`}
                               </span>
                             ))}
                             {t.placeholders.length > 3 && (
-                              <span className="text-[10px] text-gray-400">+{t.placeholders.length - 3}</span>
+                              <span className="text-[10px] text-gray-400">
+                                +{t.placeholders.length - 3}
+                              </span>
                             )}
                           </div>
                         ) : (
@@ -2710,20 +3459,24 @@ function EmailTemplatesPage({ onBack }) {
                             className="flex items-center gap-1 rounded-lg border border-amber-100 bg-amber-50 px-2.5 py-1.5 text-[11px] font-[600] text-amber-700 hover:bg-amber-100 transition"
                           >
                             <Wrench className="h-3.5 w-3.5" />
-                    
                             {/* <FileText className="h-3.5 w-3.5" /> */}
                             Edit
-                          </button> 
+                          </button>
                           {/* Delete */}
                           <button
-                            onClick={() => !deleting && setDeleteTarget({ id: t.id, name: t.name })}
+                            onClick={() =>
+                              !deleting &&
+                              setDeleteTarget({ id: t.id, name: t.name })
+                            }
                             disabled={deleting === t.id}
                             title="Delete template"
                             className="rounded-lg border border-red-100 bg-red-50 p-1.5 text-red-500 hover:bg-red-100 transition disabled:opacity-40"
                           >
-                            {deleting === t.id
-                              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                              : <Trash2 className="h-3.5 w-3.5" />}
+                            {deleting === t.id ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -2741,12 +3494,17 @@ function EmailTemplatesPage({ onBack }) {
 
       {/* ── Create Modal ── */}
       {showModal && (
-        <Modal title="Create Email Template" onClose={closeCreateModal} width="max-w-2xl">
+        <Modal
+          title="Create Email Template"
+          onClose={closeCreateModal}
+          width="max-w-2xl"
+        >
           <div className="space-y-5">
-
             {/* ── Section 1: Basic Info ── */}
             <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-4">
-              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">Basic Info</p>
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">
+                Basic Info
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field
                   label="Name"
@@ -2760,35 +3518,50 @@ function EmailTemplatesPage({ onBack }) {
                   required
                   placeholder="Email subject line…"
                   value={form.subject}
-                  onChange={(value) => setForm((f) => ({ ...f, subject: value }))}
+                  onChange={(value) =>
+                    setForm((f) => ({ ...f, subject: value }))
+                  }
                 />
               </div>
             </div>
 
             {/* ── Section 2: AI Settings ── */}
             <div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-4">
-              <p className="text-[11px] font-[700] uppercase tracking-widest text-violet-400">AI Settings <span className="normal-case font-[400] text-gray-400">(optional)</span></p>
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-violet-400">
+                AI Settings{" "}
+                <span className="normal-case font-[400] text-gray-400">
+                  (optional)
+                </span>
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field
                   label="Category"
                   placeholder="e.g. onboarding, follow-up"
                   value={form.category}
-                  onChange={(value) => setForm((f) => ({ ...f, category: value }))}
+                  onChange={(value) =>
+                    setForm((f) => ({ ...f, category: value }))
+                  }
                 />
                 <Field
                   label="AI Tone"
                   placeholder="e.g. professional, friendly"
                   value={form.ai_tone}
-                  onChange={(value) => setForm((f) => ({ ...f, ai_tone: value }))}
+                  onChange={(value) =>
+                    setForm((f) => ({ ...f, ai_tone: value }))
+                  }
                 />
               </div>
               <div>
-                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">AI Context</label>
+                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+                  AI Context
+                </label>
                 <textarea
                   rows={2}
                   placeholder="Additional context for AI personalisation…"
                   value={form.ai_context}
-                  onChange={(e) => setForm((f) => ({ ...f, ai_context: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, ai_context: e.target.value }))
+                  }
                   className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none"
                 />
               </div>
@@ -2805,15 +3578,33 @@ function EmailTemplatesPage({ onBack }) {
                 className={`flex items-center gap-3 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 transition
                   ${htmlFile ? "border-violet-300 bg-violet-50/60" : "border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50/30"}`}
               >
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${htmlFile ? "bg-violet-100" : "bg-gray-100"}`}>
-                  <Upload className={`h-4 w-4 ${htmlFile ? "text-violet-600" : "text-gray-400"}`} />
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${htmlFile ? "bg-violet-100" : "bg-gray-100"}`}
+                >
+                  <Upload
+                    className={`h-4 w-4 ${htmlFile ? "text-violet-600" : "text-gray-400"}`}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[13px] font-[500] ${htmlFile ? "text-violet-700 font-[600]" : "text-gray-700"} truncate`}>
+                  <p
+                    className={`text-[13px] font-[500] ${htmlFile ? "text-violet-700 font-[600]" : "text-gray-700"} truncate`}
+                  >
                     {htmlFile ? fileName : "Browse HTML File"}
                   </p>
-                  <p className={`text-[11px] ${htmlFile ? "text-violet-400" : "text-gray-400"}`}>
-                    {htmlFile ? "Click to change file" : <>Click to upload a <code className="bg-gray-100 px-1 rounded">.html</code> or <code className="bg-gray-100 px-1 rounded">.htm</code> file</>}
+                  <p
+                    className={`text-[11px] ${htmlFile ? "text-violet-400" : "text-gray-400"}`}
+                  >
+                    {htmlFile ? (
+                      "Click to change file"
+                    ) : (
+                      <>
+                        Click to upload a{" "}
+                        <code className="bg-gray-100 px-1 rounded">.html</code>{" "}
+                        or{" "}
+                        <code className="bg-gray-100 px-1 rounded">.htm</code>{" "}
+                        file
+                      </>
+                    )}
                   </p>
                 </div>
                 <input
@@ -2827,7 +3618,11 @@ function EmailTemplatesPage({ onBack }) {
                     setFileName(f?.name ?? "No file selected");
                     if (f) {
                       const reader = new FileReader();
-                      reader.onload = (ev) => setForm((frm) => ({ ...frm, body: ev.target.result ?? "" }));
+                      reader.onload = (ev) =>
+                        setForm((frm) => ({
+                          ...frm,
+                          body: ev.target.result ?? "",
+                        }));
                       reader.readAsText(f);
                     }
                   }}
@@ -2838,20 +3633,30 @@ function EmailTemplatesPage({ onBack }) {
               {htmlFile && (
                 <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
                   <FileText className="h-4 w-4 text-violet-500 shrink-0" />
-                  <span className="flex-1 text-[12px] font-[500] text-violet-700 truncate">{fileName}</span>
+                  <span className="flex-1 text-[12px] font-[500] text-violet-700 truncate">
+                    {fileName}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => { setHtmlFile(null); setFileName("No file selected"); setForm((f) => ({ ...f, body: "" })); if (fileRef.current) fileRef.current.value = ""; }}
+                    onClick={() => {
+                      setHtmlFile(null);
+                      setFileName("No file selected");
+                      setForm((f) => ({ ...f, body: "" }));
+                      if (fileRef.current) fileRef.current.value = "";
+                    }}
                     className="shrink-0 flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-[11px] font-[600] text-red-500 hover:bg-red-50 hover:border-red-200 transition"
                   >
-                    <X className="h-3 w-3" />Remove
+                    <X className="h-3 w-3" />
+                    Remove
                   </button>
                 </div>
               )}
 
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-[11px] text-gray-400 font-[500]">or paste HTML below</span>
+                <span className="text-[11px] text-gray-400 font-[500]">
+                  or paste HTML below
+                </span>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
@@ -2859,7 +3664,9 @@ function EmailTemplatesPage({ onBack }) {
                 rows={6}
                 placeholder="<html>…paste your email HTML here…</html>"
                 value={form.body}
-                onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, body: e.target.value }))
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[12px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none font-mono"
               />
             </div>
@@ -2877,7 +3684,17 @@ function EmailTemplatesPage({ onBack }) {
                 disabled={saving || !form.name.trim() || !form.subject.trim()}
                 className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50 shadow-sm"
               >
-                {saving ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Uploading…</> : <><Upload className="h-3.5 w-3.5" />Create Template</>}
+                {saving ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Uploading…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-3.5 w-3.5" />
+                    Create Template
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -2886,35 +3703,54 @@ function EmailTemplatesPage({ onBack }) {
 
       {/* ── View Modal — GET /api/email-templates/{id} + GET …/preview/html ── */}
       {viewModal && (
-        <Modal title={viewModal.name} onClose={() => setViewModal(null)} width="max-w-2xl">
+        <Modal
+          title={viewModal.name}
+          onClose={() => setViewModal(null)}
+          width="max-w-2xl"
+        >
           {viewLoading ? (
             <div className="flex items-center justify-center py-12 text-[13px] text-gray-400 gap-2">
-              <RefreshCw className="h-4 w-4 animate-spin text-indigo-400" />Loading template…
+              <RefreshCw className="h-4 w-4 animate-spin text-indigo-400" />
+              Loading template…
             </div>
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-1">Subject</p>
-                  <p className="text-[13px] font-[500] text-gray-800">{viewModal.subject || "—"}</p>
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-1">
+                    Subject
+                  </p>
+                  <p className="text-[13px] font-[500] text-gray-800">
+                    {viewModal.subject || "—"}
+                  </p>
                 </div>
                 <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-1">File</p>
-                  <p className="text-[13px] text-gray-600 truncate">{viewModal.originalFilename || "—"}</p>
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-1">
+                    File
+                  </p>
+                  <p className="text-[13px] text-gray-600 truncate">
+                    {viewModal.originalFilename || "—"}
+                  </p>
                 </div>
               </div>
-              {Array.isArray(viewModal.placeholders) && viewModal.placeholders.length > 0 && (
-                <div className="rounded-xl bg-violet-50 border border-violet-100 p-3">
-                  <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Placeholders</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {viewModal.placeholders.map((p) => (
-                      <span key={p} className="inline-block rounded-md bg-white border border-violet-200 px-2 py-0.5 text-[11px] font-[600] text-violet-700">
-                        {`{{${p}}}`}
-                      </span>
-                    ))}
+              {Array.isArray(viewModal.placeholders) &&
+                viewModal.placeholders.length > 0 && (
+                  <div className="rounded-xl bg-violet-50 border border-violet-100 p-3">
+                    <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                      Placeholders
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewModal.placeholders.map((p) => (
+                        <span
+                          key={p}
+                          className="inline-block rounded-md bg-white border border-violet-200 px-2 py-0.5 text-[11px] font-[600] text-violet-700"
+                        >
+                          {`{{${p}}}`}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               {/* Tabs: Rendered | HTML Source */}
               <div>
                 <div className="flex gap-1 mb-3 p-1 bg-gray-100 rounded-xl w-fit">
@@ -2926,7 +3762,11 @@ function EmailTemplatesPage({ onBack }) {
                       key={tab.key}
                       onClick={() => {
                         setViewTab(tab.key);
-                        if (tab.key === "html" && !htmlOnly && !htmlOnlyLoading) {
+                        if (
+                          tab.key === "html" &&
+                          !htmlOnly &&
+                          !htmlOnlyLoading
+                        ) {
                           loadHtmlOnly(viewModal.id);
                         }
                       }}
@@ -2951,16 +3791,15 @@ function EmailTemplatesPage({ onBack }) {
                       {viewModal.body || "(no body)"}
                     </div>
                   )
+                ) : htmlOnlyLoading ? (
+                  <div className="flex items-center justify-center py-10 text-[13px] text-gray-400 gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin text-indigo-400" />
+                    Loading HTML…
+                  </div>
                 ) : (
-                  htmlOnlyLoading ? (
-                    <div className="flex items-center justify-center py-10 text-[13px] text-gray-400 gap-2">
-                      <RefreshCw className="h-4 w-4 animate-spin text-indigo-400" />Loading HTML…
-                    </div>
-                  ) : (
-                    <pre className="rounded-xl bg-gray-900 text-green-300 p-4 text-[11px] font-mono overflow-auto max-h-[380px] whitespace-pre-wrap break-all">
-                      {htmlOnly || viewModal.body || "(empty)"}
-                    </pre>
-                  )
+                  <pre className="rounded-xl bg-gray-900 text-green-300 p-4 text-[11px] font-mono overflow-auto max-h-[380px] whitespace-pre-wrap break-all">
+                    {htmlOnly || viewModal.body || "(empty)"}
+                  </pre>
                 )}
               </div>
             </div>
@@ -2970,54 +3809,76 @@ function EmailTemplatesPage({ onBack }) {
 
       {/* ── Edit Modal — PUT /api/email-templates/{id} ── */}
       {editModal && (
-        <Modal title={`Edit Template — ${editModal.name}`} onClose={() => setEditModal(null)} width="max-w-2xl">
+        <Modal
+          title={`Edit Template — ${editModal.name}`}
+          onClose={() => setEditModal(null)}
+          width="max-w-2xl"
+        >
           <div className="space-y-5">
-
             {/* ── Basic Info ── */}
             <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-4">
-              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">Basic Info</p>
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">
+                Basic Info
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field
                   label="Name"
                   required
                   placeholder="Template name"
                   value={editForm.name}
-                  onChange={(value) => setEditForm((f) => ({ ...f, name: value }))}
+                  onChange={(value) =>
+                    setEditForm((f) => ({ ...f, name: value }))
+                  }
                 />
                 <Field
                   label="Subject"
                   required
                   placeholder="Email subject line…"
                   value={editForm.subject}
-                  onChange={(value) => setEditForm((f) => ({ ...f, subject: value }))}
+                  onChange={(value) =>
+                    setEditForm((f) => ({ ...f, subject: value }))
+                  }
                 />
               </div>
             </div>
 
             {/* ── AI Settings ── */}
             <div className="rounded-xl border border-violet-100 bg-violet-50/30 p-4 space-y-4">
-              <p className="text-[11px] font-[700] uppercase tracking-widest text-violet-400">AI Settings <span className="normal-case font-[400] text-gray-400">(optional)</span></p>
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-violet-400">
+                AI Settings{" "}
+                <span className="normal-case font-[400] text-gray-400">
+                  (optional)
+                </span>
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field
                   label="Category"
                   placeholder="e.g. onboarding, follow-up"
                   value={editForm.category}
-                  onChange={(value) => setEditForm((f) => ({ ...f, category: value }))}
+                  onChange={(value) =>
+                    setEditForm((f) => ({ ...f, category: value }))
+                  }
                 />
                 <Field
                   label="AI Tone"
                   placeholder="e.g. professional, friendly"
                   value={editForm.ai_tone}
-                  onChange={(value) => setEditForm((f) => ({ ...f, ai_tone: value }))}
+                  onChange={(value) =>
+                    setEditForm((f) => ({ ...f, ai_tone: value }))
+                  }
                 />
               </div>
               <div>
-                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">AI Context</label>
+                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+                  AI Context
+                </label>
                 <textarea
                   rows={2}
                   placeholder="Additional context for AI personalisation…"
                   value={editForm.ai_context}
-                  onChange={(e) => setEditForm((f) => ({ ...f, ai_context: e.target.value }))}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, ai_context: e.target.value }))
+                  }
                   className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none"
                 />
               </div>
@@ -3025,21 +3886,41 @@ function EmailTemplatesPage({ onBack }) {
 
             {/* ── HTML Content ── */}
             <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-3">
-              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">HTML Content</p>
+              <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400">
+                HTML Content
+              </p>
               <div
                 onClick={() => editFileRef.current?.click()}
                 className={`flex items-center gap-3 cursor-pointer rounded-xl border-2 border-dashed px-4 py-3 transition
                   ${editFile ? "border-violet-300 bg-violet-50/60" : "border-gray-200 bg-white hover:border-violet-300 hover:bg-violet-50/30"}`}
               >
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${editFile ? "bg-violet-100" : "bg-gray-100"}`}>
-                  <Upload className={`h-4 w-4 ${editFile ? "text-violet-600" : "text-gray-400"}`} />
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${editFile ? "bg-violet-100" : "bg-gray-100"}`}
+                >
+                  <Upload
+                    className={`h-4 w-4 ${editFile ? "text-violet-600" : "text-gray-400"}`}
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[13px] font-[500] ${editFile ? "text-violet-700 font-[600]" : "text-gray-700"} truncate`}>
+                  <p
+                    className={`text-[13px] font-[500] ${editFile ? "text-violet-700 font-[600]" : "text-gray-700"} truncate`}
+                  >
                     {editFile ? editFileName : "Replace HTML File"}
                   </p>
-                  <p className={`text-[11px] ${editFile ? "text-violet-400" : "text-gray-400"}`}>
-                    {editFile ? "Click to change file" : <>Click to upload a <code className="bg-gray-100 px-1 rounded">.html</code> or <code className="bg-gray-100 px-1 rounded">.htm</code> file</>}
+                  <p
+                    className={`text-[11px] ${editFile ? "text-violet-400" : "text-gray-400"}`}
+                  >
+                    {editFile ? (
+                      "Click to change file"
+                    ) : (
+                      <>
+                        Click to upload a{" "}
+                        <code className="bg-gray-100 px-1 rounded">.html</code>{" "}
+                        or{" "}
+                        <code className="bg-gray-100 px-1 rounded">.htm</code>{" "}
+                        file
+                      </>
+                    )}
                   </p>
                 </div>
                 <input
@@ -3053,7 +3934,11 @@ function EmailTemplatesPage({ onBack }) {
                     setEditFileName(f?.name ?? "No file selected");
                     if (f) {
                       const reader = new FileReader();
-                      reader.onload = (ev) => setEditForm((frm) => ({ ...frm, body: ev.target.result ?? "" }));
+                      reader.onload = (ev) =>
+                        setEditForm((frm) => ({
+                          ...frm,
+                          body: ev.target.result ?? "",
+                        }));
                       reader.readAsText(f);
                     }
                   }}
@@ -3062,26 +3947,37 @@ function EmailTemplatesPage({ onBack }) {
               {editFile && (
                 <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
                   <FileText className="h-4 w-4 text-violet-500 shrink-0" />
-                  <span className="flex-1 text-[12px] font-[500] text-violet-700 truncate">{editFileName}</span>
+                  <span className="flex-1 text-[12px] font-[500] text-violet-700 truncate">
+                    {editFileName}
+                  </span>
                   <button
                     type="button"
-                    onClick={() => { setEditFile(null); setEditFileName("No file selected"); if (editFileRef.current) editFileRef.current.value = ""; }}
+                    onClick={() => {
+                      setEditFile(null);
+                      setEditFileName("No file selected");
+                      if (editFileRef.current) editFileRef.current.value = "";
+                    }}
                     className="shrink-0 flex items-center gap-1 rounded-lg border border-violet-200 bg-white px-2 py-1 text-[11px] font-[600] text-red-500 hover:bg-red-50 hover:border-red-200 transition"
                   >
-                    <X className="h-3 w-3" />Remove
+                    <X className="h-3 w-3" />
+                    Remove
                   </button>
                 </div>
               )}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-[11px] text-gray-400 font-[500]">or paste HTML below</span>
+                <span className="text-[11px] text-gray-400 font-[500]">
+                  or paste HTML below
+                </span>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
               <textarea
                 rows={6}
                 placeholder="<html>…paste your email HTML here…</html>"
                 value={editForm.body}
-                onChange={(e) => setEditForm((f) => ({ ...f, body: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, body: e.target.value }))
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[12px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 resize-none font-mono"
               />
             </div>
@@ -3095,10 +3991,21 @@ function EmailTemplatesPage({ onBack }) {
               </button>
               <button
                 onClick={submitEdit}
-                disabled={editSaving || !editForm.name.trim() || !editForm.subject.trim()}
+                disabled={
+                  editSaving ||
+                  !editForm.name.trim() ||
+                  !editForm.subject.trim()
+                }
                 className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50 shadow-sm"
               >
-                {editSaving ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Saving…</> : <>Save Changes</>}
+                {editSaving ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>Save Changes</>
+                )}
               </button>
             </div>
           </div>
@@ -3107,12 +4014,24 @@ function EmailTemplatesPage({ onBack }) {
 
       {/* ── Preview Modal — POST /api/email-templates/{id}/preview ── */}
       {previewModal && (
-        <Modal title={`Preview — ${previewModal.name}`} onClose={() => { setPreviewModal(null); setPreviewResult(null); }} width="max-w-2xl">
+        <Modal
+          title={`Preview — ${previewModal.name}`}
+          onClose={() => {
+            setPreviewModal(null);
+            setPreviewResult(null);
+          }}
+          width="max-w-2xl"
+        >
           <div className="space-y-4">
-            {Array.isArray(previewModal.placeholders) && previewModal.placeholders.length > 0 ? (
+            {Array.isArray(previewModal.placeholders) &&
+            previewModal.placeholders.length > 0 ? (
               <>
                 <p className="text-[12px] text-gray-500">
-                  Fill in custom values for each placeholder, then click <span className="font-[600] text-gray-700">Generate Preview</span>.
+                  Fill in custom values for each placeholder, then click{" "}
+                  <span className="font-[600] text-gray-700">
+                    Generate Preview
+                  </span>
+                  .
                 </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {previewModal.placeholders.map((p) => (
@@ -3124,7 +4043,12 @@ function EmailTemplatesPage({ onBack }) {
                         type="text"
                         placeholder={`Value for ${p}`}
                         value={previewFields[p] ?? ""}
-                        onChange={(e) => setPreviewFields((prev) => ({ ...prev, [p]: e.target.value }))}
+                        onChange={(e) =>
+                          setPreviewFields((prev) => ({
+                            ...prev,
+                            [p]: e.target.value,
+                          }))
+                        }
                         className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
                       />
                     </div>
@@ -3141,17 +4065,25 @@ function EmailTemplatesPage({ onBack }) {
               disabled={previewLoading}
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0a0a0a] py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
             >
-              {previewLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+              {previewLoading && (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              )}
               {previewLoading ? "Generating…" : "Generate Preview"}
             </button>
             {previewResult && (
               <div className="space-y-3 pt-2 border-t border-gray-100">
                 <div className="rounded-xl bg-teal-50 border border-teal-100 px-4 py-2.5">
-                  <p className="text-[10px] font-[700] uppercase tracking-widest text-teal-400 mb-0.5">Subject</p>
-                  <p className="text-[13px] font-[500] text-teal-900">{previewResult.subject}</p>
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-teal-400 mb-0.5">
+                    Subject
+                  </p>
+                  <p className="text-[13px] font-[500] text-teal-900">
+                    {previewResult.subject}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-2">Rendered Email</p>
+                  <p className="text-[10px] font-[700] uppercase tracking-widest text-gray-400 mb-2">
+                    Rendered Email
+                  </p>
                   {previewResult.html && /<[a-z]/i.test(previewResult.html) ? (
                     <div
                       className="rounded-xl border border-gray-200 bg-white overflow-auto max-h-[360px] p-4 text-[13px]"
@@ -3172,7 +4104,10 @@ function EmailTemplatesPage({ onBack }) {
         <DeleteConfirmModal
           label={deleteTarget.name}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => { del(deleteTarget.id); setDeleteTarget(null); }}
+          onConfirm={() => {
+            del(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
           loading={deleting === deleteTarget?.id}
         />
       )}
@@ -3204,19 +4139,23 @@ function GraphConfigPage({ onBack }) {
         const res = await axiosInstance.get("/api/globalsetting/graph");
         /* Handle { credentials: { GRAPH_CLIENT_ID, ... } } as well as flat shapes */
         const raw = res.data ?? {};
-        const d   = raw.credentials ?? raw.data ?? raw;
+        const d = raw.credentials ?? raw.data ?? raw;
         const mapped = {
-          clientId:     d.GRAPH_CLIENT_ID     ?? d.client_id      ?? d.clientId     ?? "",
-          clientSecret: d.GRAPH_CLIENT_SECRET ?? d.client_secret  ?? d.clientSecret ?? "",
-          tenantId:     d.GRAPH_TENANT_ID     ?? d.tenant_id      ?? d.tenantId     ?? "",
-          targetEmail:  d.GRAPH_TARGET_EMAIL  ?? d.target_email   ?? d.targetEmail  ?? "",
+          clientId: d.GRAPH_CLIENT_ID ?? d.client_id ?? d.clientId ?? "",
+          clientSecret:
+            d.GRAPH_CLIENT_SECRET ?? d.client_secret ?? d.clientSecret ?? "",
+          tenantId: d.GRAPH_TENANT_ID ?? d.tenant_id ?? d.tenantId ?? "",
+          targetEmail:
+            d.GRAPH_TARGET_EMAIL ?? d.target_email ?? d.targetEmail ?? "",
         };
         setForm(mapped);
         /* Mark as loaded only if at least one field has a value */
         if (Object.values(mapped).some(Boolean)) setLoadedFromServer(true);
       } catch (err) {
-        const msg = err?.response?.data?.detail ?? err?.response?.data?.message ?? null;
-        if (err?.response?.status !== 404) setLoadError(msg || "Failed to load Graph credentials.");
+        const msg =
+          err?.response?.data?.detail ?? err?.response?.data?.message ?? null;
+        if (err?.response?.status !== 404)
+          setLoadError(msg || "Failed to load Graph credentials.");
       } finally {
         setLoading(false);
       }
@@ -3230,10 +4169,10 @@ function GraphConfigPage({ onBack }) {
     try {
       await axiosInstance.put("/api/globalsetting/graph", {
         credentials: {
-          GRAPH_CLIENT_ID:     form.clientId,
+          GRAPH_CLIENT_ID: form.clientId,
           GRAPH_CLIENT_SECRET: form.clientSecret,
-          GRAPH_TENANT_ID:     form.tenantId,
-          GRAPH_TARGET_EMAIL:  form.targetEmail,
+          GRAPH_TENANT_ID: form.tenantId,
+          GRAPH_TARGET_EMAIL: form.targetEmail,
         },
       });
       setSaved(true);
@@ -3252,9 +4191,27 @@ function GraphConfigPage({ onBack }) {
   };
 
   const services = [
-    { icon: Mail, label: "Mail Sync", desc: "Read & send emails via Graph", color: "bg-sky-50", iconColor: "text-sky-600" },
-    { icon: Globe, label: "Calendar", desc: "Calendar event read/write", color: "bg-violet-50", iconColor: "text-violet-600" },
-    { icon: Users, label: "Contacts", desc: "Sync Azure contact directory", color: "bg-teal-50", iconColor: "text-teal-600" },
+    {
+      icon: Mail,
+      label: "Mail Sync",
+      desc: "Read & send emails via Graph",
+      color: "bg-sky-50",
+      iconColor: "text-sky-600",
+    },
+    {
+      icon: Globe,
+      label: "Calendar",
+      desc: "Calendar event read/write",
+      color: "bg-violet-50",
+      iconColor: "text-violet-600",
+    },
+    {
+      icon: Users,
+      label: "Contacts",
+      desc: "Sync Azure contact directory",
+      color: "bg-teal-50",
+      iconColor: "text-teal-600",
+    },
   ];
 
   return (
@@ -3277,8 +4234,12 @@ function GraphConfigPage({ onBack }) {
                   <Shield className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-[16px] font-[700] text-white">Microsoft Azure AD App</h3>
-                  <p className="text-[12px] text-sky-200 mt-0.5">Azure Active Directory app credentials for Graph API access</p>
+                  <h3 className="text-[16px] font-[700] text-white">
+                    Microsoft Azure AD App
+                  </h3>
+                  <p className="text-[12px] text-sky-200 mt-0.5">
+                    Azure Active Directory app credentials for Graph API access
+                  </p>
                 </div>
               </div>
             </div>
@@ -3286,7 +4247,8 @@ function GraphConfigPage({ onBack }) {
             <form onSubmit={submit} className="p-7 space-y-5">
               {loadError && (
                 <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-[12px] text-red-600 flex items-center gap-2">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />{loadError}
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  {loadError}
                 </div>
               )}
               {loadedFromServer && !loadError && (
@@ -3297,31 +4259,81 @@ function GraphConfigPage({ onBack }) {
               )}
               {loading ? (
                 <div className="flex items-center justify-center py-10 text-[13px] text-gray-400 gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />Loading credentials…
+                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
+                  Loading credentials…
                 </div>
               ) : (
                 <>
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <Field label="Graph Client ID" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={form.clientId} onChange={set("clientId")} icon={Key} />
-                <Field label="Graph Client Secret" required type="password" placeholder="••••••••••••••••••" value={form.clientSecret} onChange={set("clientSecret")} icon={Shield} />
-              </div>
-              <Field label="Graph Tenant ID" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={form.tenantId} onChange={set("tenantId")} icon={Globe} hint="Azure Portal → Azure Active Directory → Overview → Directory (tenant) ID" />
-              <Field label="Graph Target Email" required type="email" placeholder="calendar-sync@yourcompany.com" value={form.targetEmail} onChange={set("targetEmail")} icon={AtSign} hint="Mailbox used for calendar and mail synchronisation." />
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <Field
+                      label="Graph Client ID"
+                      required
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      value={form.clientId}
+                      onChange={set("clientId")}
+                      icon={Key}
+                    />
+                    <Field
+                      label="Graph Client Secret"
+                      required
+                      type="password"
+                      placeholder="••••••••••••••••••"
+                      value={form.clientSecret}
+                      onChange={set("clientSecret")}
+                      icon={Shield}
+                    />
+                  </div>
+                  <Field
+                    label="Graph Tenant ID"
+                    required
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    value={form.tenantId}
+                    onChange={set("tenantId")}
+                    icon={Globe}
+                    hint="Azure Portal → Azure Active Directory → Overview → Directory (tenant) ID"
+                  />
+                  <Field
+                    label="Graph Target Email"
+                    required
+                    type="email"
+                    placeholder="calendar-sync@yourcompany.com"
+                    value={form.targetEmail}
+                    onChange={set("targetEmail")}
+                    icon={AtSign}
+                    hint="Mailbox used for calendar and mail synchronisation."
+                  />
 
-              <div className="pt-1">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className={`action-btn w-full rounded-xl py-3.5 text-[14px] font-[600] text-white flex items-center justify-center gap-2 shadow-lg
-                    ${saved ? "bg-gradient-to-r from-green-500 to-emerald-600 shadow-green-200/70"
-                      : saving ? "bg-gradient-to-r from-blue-400 to-sky-400 shadow-blue-200/60 cursor-wait"
-                      : "bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-blue-200/60"}`}
-                >
-                  {saving ? <><RefreshCw className="h-4 w-4 animate-spin" />Saving…</>
-                    : saved ? <><CheckCircle2 className="h-4 w-4" />Configuration Saved!</>
-                    : <><Zap className="h-4 w-4" />Save Configuration</>}
-                </button>
-              </div>
+                  <div className="pt-1">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className={`action-btn w-full rounded-xl py-3.5 text-[14px] font-[600] text-white flex items-center justify-center gap-2 shadow-lg
+                    ${
+                      saved
+                        ? "bg-gradient-to-r from-green-500 to-emerald-600 shadow-green-200/70"
+                        : saving
+                          ? "bg-gradient-to-r from-blue-400 to-sky-400 shadow-blue-200/60 cursor-wait"
+                          : "bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 shadow-blue-200/60"
+                    }`}
+                    >
+                      {saving ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          Saving…
+                        </>
+                      ) : saved ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Configuration Saved!
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4" />
+                          Save Configuration
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </>
               )}
             </form>
@@ -3330,18 +4342,29 @@ function GraphConfigPage({ onBack }) {
 
         <div className="flex flex-col gap-4">
           <div className="info-card rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
-            <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-4">API Permissions</p>
+            <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-4">
+              API Permissions
+            </p>
             <div className="space-y-2.5">
               {services.map(({ icon: Icon, label, desc, color, iconColor }) => (
-                <div key={label} className="svc-row flex items-center gap-3 rounded-xl border border-gray-100 p-3 cursor-default">
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color}`}>
+                <div
+                  key={label}
+                  className="svc-row flex items-center gap-3 rounded-xl border border-gray-100 p-3 cursor-default"
+                >
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${color}`}
+                  >
                     <Icon className={`h-4 w-4 ${iconColor}`} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[12px] font-[600] text-gray-800">{label}</p>
+                    <p className="text-[12px] font-[600] text-gray-800">
+                      {label}
+                    </p>
                     <p className="text-[11px] text-gray-400 truncate">{desc}</p>
                   </div>
-                  <CheckCircle2 className={`h-4 w-4 shrink-0 transition-colors duration-300 ${saved ? "text-green-500" : "text-gray-200"}`} />
+                  <CheckCircle2
+                    className={`h-4 w-4 shrink-0 transition-colors duration-300 ${saved ? "text-green-500" : "text-gray-200"}`}
+                  />
                 </div>
               ))}
             </div>
@@ -3349,7 +4372,9 @@ function GraphConfigPage({ onBack }) {
 
           <div className="info-card rounded-2xl border border-gray-100 bg-white shadow-sm p-5">
             <p className="text-[12px] font-[700] text-gray-800 mb-3 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-100 text-[10px] font-[800] text-blue-600">?</span>
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-100 text-[10px] font-[800] text-blue-600">
+                ?
+              </span>
               How to find credentials
             </p>
             <ol className="space-y-2">
@@ -3361,8 +4386,13 @@ function GraphConfigPage({ onBack }) {
                 "Certificates & secrets → New secret",
                 "Copy Directory (tenant) ID",
               ].map((step, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-[11px] text-gray-500">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-[700] text-blue-600 mt-px">{i + 1}</span>
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 text-[11px] text-gray-500"
+                >
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-[700] text-blue-600 mt-px">
+                    {i + 1}
+                  </span>
                   {step}
                 </li>
               ))}
@@ -3375,10 +4405,21 @@ function GraphConfigPage({ onBack }) {
                 <Globe className="h-4 w-4 text-sky-600" />
               </div>
               <div>
-                <p className="text-[12px] font-[700] text-sky-800 mb-1">Required API Scopes</p>
+                <p className="text-[12px] font-[700] text-sky-800 mb-1">
+                  Required API Scopes
+                </p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {["Mail.ReadWrite", "Calendars.ReadWrite", "Contacts.Read"].map((s) => (
-                    <span key={s} className="inline-block rounded-md bg-sky-100 px-2 py-0.5 text-[10px] font-[600] text-sky-700">{s}</span>
+                  {[
+                    "Mail.ReadWrite",
+                    "Calendars.ReadWrite",
+                    "Contacts.Read",
+                  ].map((s) => (
+                    <span
+                      key={s}
+                      className="inline-block rounded-md bg-sky-100 px-2 py-0.5 text-[10px] font-[600] text-sky-700"
+                    >
+                      {s}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -3393,101 +4434,439 @@ function GraphConfigPage({ onBack }) {
 /* ── SMTP Providers ── */
 /* ── SMTP provider definitions ── */
 const SMTP_PROVIDER_LIST = [
-  { value: "mailgun",       label: "Mailgun" },
-  { value: "sendgrid",      label: "SendGrid" },
-  { value: "ses",           label: "Amazon SES" },
-  { value: "gmail",         label: "Gmail" },
-  { value: "outlook",       label: "Outlook / Office365" },
-  { value: "custom",        label: "Custom SMTP" },
+  { value: "mailgun", label: "Mailgun" },
+  { value: "sendgrid", label: "SendGrid" },
+  { value: "ses", label: "Amazon SES" },
+  { value: "gmail", label: "Gmail" },
+  { value: "outlook", label: "Outlook / Office365" },
+  { value: "custom", label: "Custom SMTP" },
   { value: "outlook_graph", label: "Outlook Graph" },
-  { value: "mailercloud",   label: "Mailercloud" },
-  { value: "mailersend",    label: "MailerSend" },
-  { value: "sparkpost",     label: "SparkPost" },
-  { value: "brevo",         label: "Brevo (Sendinblue)" },
-  { value: "postmark",      label: "Postmark" },
+  { value: "mailercloud", label: "Mailercloud" },
+  { value: "mailersend", label: "MailerSend" },
+  { value: "sparkpost", label: "SparkPost" },
+  { value: "brevo", label: "Brevo (Sendinblue)" },
+  { value: "postmark", label: "Postmark" },
 ];
 
 /* Fields per provider — { key, label, placeholder, type, icon, required } */
 const SMTP_FIELDS = {
   mailgun: [
-    { key: "MAILGUN_API_KEY",    label: "API Key",     placeholder: "key-xxxxxxxxxxxx",            type: "password", icon: "key",    required: true },
-    { key: "MAILGUN_WEBHOOK_SIGNING_KEY", label: "Webhook Signing Key", placeholder: "your-webhook-signing-key", type: "password", icon: "shield", required: true },
-    { key: "MAILGUN_DOMAIN",     label: "Domain",      placeholder: "mg.yourdomain.com",           type: "text",     icon: "globe",  required: true },
-    { key: "MAILGUN_FROM_EMAIL", label: "From Email",  placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
-    { key: "MAILGUN_FROM_NAME",  label: "From Name",   placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+    {
+      key: "MAILGUN_API_KEY",
+      label: "API Key",
+      placeholder: "key-xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "MAILGUN_WEBHOOK_SIGNING_KEY",
+      label: "Webhook Signing Key",
+      placeholder: "your-webhook-signing-key",
+      type: "password",
+      icon: "shield",
+      required: true,
+    },
+    {
+      key: "MAILGUN_DOMAIN",
+      label: "Domain",
+      placeholder: "mg.yourdomain.com",
+      type: "text",
+      icon: "globe",
+      required: true,
+    },
+    {
+      key: "MAILGUN_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "MAILGUN_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   sendgrid: [
-    { key: "SENDGRID_API_KEY",    label: "API Key",    placeholder: "SG.xxxxxxxxxxxx",             type: "password", icon: "key",    required: true },
-    { key: "SENDGRID_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
-    { key: "SENDGRID_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+    {
+      key: "SENDGRID_API_KEY",
+      label: "API Key",
+      placeholder: "SG.xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "SENDGRID_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "SENDGRID_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   ses: [
-    { key: "AWS_ACCESS_KEY_ID",     label: "Access Key ID",     placeholder: "AKIAxxxxxxxxxxxx",   type: "text",     icon: "key",    required: true },
-    { key: "AWS_SECRET_ACCESS_KEY", label: "Secret Access Key", placeholder: "xxxxxxxxxxxx",       type: "password", icon: "key",    required: true },
-    { key: "AWS_REGION",            label: "AWS Region",        placeholder: "us-east-1",          type: "text",     icon: "globe",  required: true },
-    { key: "SES_FROM_EMAIL",        label: "From Email",        placeholder: "noreply@yourdomain.com", type: "email", icon: "at",    required: false },
-    { key: "SES_FROM_NAME",         label: "From Name",         placeholder: "Your Company",       type: "text",     icon: null,     required: false },
+    {
+      key: "AWS_ACCESS_KEY_ID",
+      label: "Access Key ID",
+      placeholder: "AKIAxxxxxxxxxxxx",
+      type: "text",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "AWS_SECRET_ACCESS_KEY",
+      label: "Secret Access Key",
+      placeholder: "xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "AWS_REGION",
+      label: "AWS Region",
+      placeholder: "us-east-1",
+      type: "text",
+      icon: "globe",
+      required: true,
+    },
+    {
+      key: "SES_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "SES_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   gmail: [
-    { key: "GMAIL_EMAIL",        label: "Gmail Address",   placeholder: "yourname@gmail.com",      type: "email",    icon: "at",     required: true },
-    { key: "GMAIL_APP_PASSWORD", label: "App Password",    placeholder: "xxxx xxxx xxxx xxxx",     type: "password", icon: "key",    required: true },
-    { key: "GMAIL_FROM_NAME",    label: "From Name",       placeholder: "Your Name",               type: "text",     icon: null,     required: false },
+    {
+      key: "GMAIL_EMAIL",
+      label: "Gmail Address",
+      placeholder: "yourname@gmail.com",
+      type: "email",
+      icon: "at",
+      required: true,
+    },
+    {
+      key: "GMAIL_APP_PASSWORD",
+      label: "App Password",
+      placeholder: "xxxx xxxx xxxx xxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "GMAIL_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Name",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   outlook: [
-    { key: "OUTLOOK_EMAIL",     label: "Outlook Email",   placeholder: "yourname@outlook.com",    type: "email",    icon: "at",     required: true },
-    { key: "OUTLOOK_PASSWORD",  label: "Password",        placeholder: "your-password",           type: "password", icon: "key",    required: true },
-    { key: "OUTLOOK_FROM_NAME", label: "From Name",       placeholder: "Your Name",               type: "text",     icon: null,     required: false },
+    {
+      key: "OUTLOOK_EMAIL",
+      label: "Outlook Email",
+      placeholder: "yourname@outlook.com",
+      type: "email",
+      icon: "at",
+      required: true,
+    },
+    {
+      key: "OUTLOOK_PASSWORD",
+      label: "Password",
+      placeholder: "your-password",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "OUTLOOK_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Name",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   custom: [
-    { key: "SMTP_HOST",       label: "SMTP Host",     placeholder: "smtp.yourdomain.com",         type: "text",     icon: "globe",  required: true },
-    { key: "SMTP_PORT",       label: "Port",          placeholder: "587",                         type: "text",     icon: null,     required: true },
-    { key: "SMTP_USERNAME",   label: "Username",      placeholder: "your-username",               type: "text",     icon: "at",     required: true },
-    { key: "SMTP_PASSWORD",   label: "Password",      placeholder: "your-password",               type: "password", icon: "key",    required: true },
-    { key: "SMTP_USE_TLS",    label: "Use TLS",       placeholder: "true",                        type: "text",     icon: null,     required: false },
-    { key: "SMTP_USE_SSL",    label: "Use SSL",       placeholder: "false",                       type: "text",     icon: null,     required: false },
-    { key: "SMTP_FROM_EMAIL", label: "From Email",    placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
-    { key: "SMTP_FROM_NAME",  label: "From Name",     placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+    {
+      key: "SMTP_HOST",
+      label: "SMTP Host",
+      placeholder: "smtp.yourdomain.com",
+      type: "text",
+      icon: "globe",
+      required: true,
+    },
+    {
+      key: "SMTP_PORT",
+      label: "Port",
+      placeholder: "587",
+      type: "text",
+      icon: null,
+      required: true,
+    },
+    {
+      key: "SMTP_USERNAME",
+      label: "Username",
+      placeholder: "your-username",
+      type: "text",
+      icon: "at",
+      required: true,
+    },
+    {
+      key: "SMTP_PASSWORD",
+      label: "Password",
+      placeholder: "your-password",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "SMTP_USE_TLS",
+      label: "Use TLS",
+      placeholder: "true",
+      type: "text",
+      icon: null,
+      required: false,
+    },
+    {
+      key: "SMTP_USE_SSL",
+      label: "Use SSL",
+      placeholder: "false",
+      type: "text",
+      icon: null,
+      required: false,
+    },
+    {
+      key: "SMTP_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "SMTP_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   outlook_graph: [
-    { key: "GRAPH_CLIENT_ID",     label: "Client ID",       placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", type: "text",     icon: "key",    required: true },
-    { key: "GRAPH_CLIENT_SECRET", label: "Client Secret",   placeholder: "your-client-secret",                  type: "password", icon: "key",    required: true },
-    { key: "GRAPH_TENANT_ID",     label: "Tenant ID",       placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", type: "text",     icon: "globe",  required: true },
-    { key: "GRAPH_TARGET_EMAIL",  label: "Target Mailbox",  placeholder: "mailbox@yourcompany.com",              type: "email",    icon: "at",     required: true },
-    { key: "WEBHOOK_BASE_URL",    label: "Webhook Base URL", placeholder: "https://yourapp.com",                 type: "text",     icon: "globe",  required: false },
+    {
+      key: "GRAPH_CLIENT_ID",
+      label: "Client ID",
+      placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      type: "text",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "GRAPH_CLIENT_SECRET",
+      label: "Client Secret",
+      placeholder: "your-client-secret",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "GRAPH_TENANT_ID",
+      label: "Tenant ID",
+      placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      type: "text",
+      icon: "globe",
+      required: true,
+    },
+    {
+      key: "GRAPH_TARGET_EMAIL",
+      label: "Target Mailbox",
+      placeholder: "mailbox@yourcompany.com",
+      type: "email",
+      icon: "at",
+      required: true,
+    },
+    {
+      key: "WEBHOOK_BASE_URL",
+      label: "Webhook Base URL",
+      placeholder: "https://yourapp.com",
+      type: "text",
+      icon: "globe",
+      required: false,
+    },
   ],
   mailercloud: [
-    { key: "MAILERCLOUD_API_KEY",    label: "API Key",    placeholder: "mc-xxxxxxxxxxxx",              type: "password", icon: "key",    required: true },
-    { key: "MAILERCLOUD_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
-    { key: "MAILERCLOUD_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+    {
+      key: "MAILERCLOUD_API_KEY",
+      label: "API Key",
+      placeholder: "mc-xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "MAILERCLOUD_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "MAILERCLOUD_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   mailersend: [
-    { key: "MAILERSEND_API_KEY",    label: "API Key",    placeholder: "mlsn.xxxxxxxxxxxx",            type: "password", icon: "key",    required: true },
-    { key: "MAILERSEND_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
-    { key: "MAILERSEND_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+    {
+      key: "MAILERSEND_API_KEY",
+      label: "API Key",
+      placeholder: "mlsn.xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "MAILERSEND_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "MAILERSEND_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   sparkpost: [
-    { key: "SPARKPOST_API_KEY",    label: "API Key",    placeholder: "xxxxxxxxxxxx",                 type: "password", icon: "key",    required: true },
-    { key: "SPARKPOST_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",      type: "email",    icon: "at",     required: false },
-    { key: "SPARKPOST_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                type: "text",     icon: null,     required: false },
+    {
+      key: "SPARKPOST_API_KEY",
+      label: "API Key",
+      placeholder: "xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "SPARKPOST_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "SPARKPOST_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   brevo: [
-    { key: "BREVO_API_KEY",    label: "API Key",    placeholder: "xkeysib-xxxxxxxxxxxx",             type: "password", icon: "key",    required: true },
-    { key: "BREVO_FROM_EMAIL", label: "From Email", placeholder: "noreply@yourdomain.com",          type: "email",    icon: "at",     required: false },
-    { key: "BREVO_FROM_NAME",  label: "From Name",  placeholder: "Your Company",                    type: "text",     icon: null,     required: false },
+    {
+      key: "BREVO_API_KEY",
+      label: "API Key",
+      placeholder: "xkeysib-xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "BREVO_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "BREVO_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
   postmark: [
-    { key: "POSTMARK_API_KEY",    label: "Server API Token", placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", type: "password", icon: "key",    required: true },
-    { key: "POSTMARK_FROM_EMAIL", label: "From Email",       placeholder: "noreply@yourdomain.com",              type: "email",    icon: "at",     required: false },
-    { key: "POSTMARK_FROM_NAME",  label: "From Name",        placeholder: "Your Company",                        type: "text",     icon: null,     required: false },
+    {
+      key: "POSTMARK_API_KEY",
+      label: "Server API Token",
+      placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      type: "password",
+      icon: "key",
+      required: true,
+    },
+    {
+      key: "POSTMARK_FROM_EMAIL",
+      label: "From Email",
+      placeholder: "noreply@yourdomain.com",
+      type: "email",
+      icon: "at",
+      required: false,
+    },
+    {
+      key: "POSTMARK_FROM_NAME",
+      label: "From Name",
+      placeholder: "Your Company",
+      type: "text",
+      icon: null,
+      required: false,
+    },
   ],
 };
 
 const EMPTY_SMTP_FORM = { name: "", provider: "mailgun", credentials: {} };
 
 function smtpIconFor(iconName) {
-  if (iconName === "key")   return <Key   className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />;
-  if (iconName === "globe") return <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />;
-  if (iconName === "at")    return <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />;
+  if (iconName === "key")
+    return (
+      <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+    );
+  if (iconName === "globe")
+    return (
+      <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+    );
+  if (iconName === "at")
+    return (
+      <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+    );
   return null;
 }
 
@@ -3497,7 +4876,8 @@ function CredInput({ field, value, error, onChange }) {
   return (
     <div>
       <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
-        {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
+        {field.label}
+        {field.required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       <div className="relative">
         {field.icon && smtpIconFor(field.icon)}
@@ -3514,8 +4894,11 @@ function CredInput({ field, value, error, onChange }) {
             ${isPass ? "pr-10" : ""}`}
         />
         {isPass && (
-          <button type="button" onClick={() => setShow((s) => !s)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
             <Eye className="h-3.5 w-3.5" />
           </button>
         )}
@@ -3526,7 +4909,7 @@ function CredInput({ field, value, error, onChange }) {
 }
 
 function SMTPProvidersPage({ onBack }) {
-  const [list, setList] = useState([]);          // available/configured providers (table)
+  const [list, setList] = useState([]); // available/configured providers (table)
   const [allProviderOpts, setAllProviderOpts] = useState([]); // all supported types (modal dropdown)
   const [configuredMap, setConfiguredMap] = useState({}); // provider key → configured record
   const [loadingList, setLoadingList] = useState(false);
@@ -3545,7 +4928,9 @@ function SMTPProvidersPage({ onBack }) {
         axiosInstance.get("/api/smtp/saved-providers"),
       ]);
 
-      const labelMap = Object.fromEntries(SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]));
+      const labelMap = Object.fromEntries(
+        SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]),
+      );
 
       const rawSaved =
         savedRes.status === "fulfilled"
@@ -3563,14 +4948,19 @@ function SMTPProvidersPage({ onBack }) {
       const normalizedSaved = rawSaved.map((p) => {
         const providerKey = String(
           p.provider ??
-          p.provider_name ??
-          p.smtp_provider_name ??
-          p.type ??
-          p.name ??
-          "",
+            p.provider_name ??
+            p.smtp_provider_name ??
+            p.type ??
+            p.name ??
+            "",
         ).trim();
         return {
-          id: p.credential_id ?? p.id ?? p.provider_id ?? p.config_id ?? providerKey,
+          id:
+            p.credential_id ??
+            p.id ??
+            p.provider_id ??
+            p.config_id ??
+            providerKey,
           provider: providerKey,
           name:
             p.display_name ??
@@ -3578,7 +4968,14 @@ function SMTPProvidersPage({ onBack }) {
             p.configuration_name ??
             labelMap[providerKey] ??
             providerKey,
-          is_current: !!(p.is_current ?? p.is_active ?? p.selected ?? p.is_default ?? p.default ?? false),
+          is_current: !!(
+            p.is_current ??
+            p.is_active ??
+            p.selected ??
+            p.is_default ??
+            p.default ??
+            false
+          ),
           raw: p,
         };
       });
@@ -3598,20 +4995,22 @@ function SMTPProvidersPage({ onBack }) {
                   ? d.results
                   : [];
 
-        const opts = rawProviders.map((p) => {
-          const key =
-            typeof p === "string"
-              ? p
-              : (p.name ?? p.provider ?? p.value ?? p.provider_name ?? "");
-          return {
-            value: key,
-            label:
-              labelMap[key] ??
-              (typeof p === "string"
+        const opts = rawProviders
+          .map((p) => {
+            const key =
+              typeof p === "string"
                 ? p
-                : (p.display_name ?? p.label ?? p.name ?? p.provider ?? key)),
-          };
-        }).filter((p) => p.value);
+                : (p.name ?? p.provider ?? p.value ?? p.provider_name ?? "");
+            return {
+              value: key,
+              label:
+                labelMap[key] ??
+                (typeof p === "string"
+                  ? p
+                  : (p.display_name ?? p.label ?? p.name ?? p.provider ?? key)),
+            };
+          })
+          .filter((p) => p.value);
 
         setAllProviderOpts(opts);
       }
@@ -3639,7 +5038,9 @@ function SMTPProvidersPage({ onBack }) {
       setLoadingList(false);
     }
   };
-  useEffect(() => { fetchList(); }, []);
+  useEffect(() => {
+    fetchList();
+  }, []);
 
   const setCred = (key, val) =>
     setForm((f) => ({ ...f, credentials: { ...f.credentials, [key]: val } }));
@@ -3650,7 +5051,9 @@ function SMTPProvidersPage({ onBack }) {
     try {
       const res = await axiosInstance.get("/api/smtp/providers");
       const d = res.data;
-      const labelMap = Object.fromEntries(SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]));
+      const labelMap = Object.fromEntries(
+        SMTP_PROVIDER_LIST.map((p) => [p.value, p.label]),
+      );
       const rawProviders = Array.isArray(d)
         ? d
         : Array.isArray(d?.providers)
@@ -3716,7 +5119,10 @@ function SMTPProvidersPage({ onBack }) {
         provider: form.provider,
         credentials: { ...form.credentials },
       };
-      const res = await axiosInstance.post("/api/smtp/validate-and-save-credentials", payload);
+      const res = await axiosInstance.post(
+        "/api/smtp/validate-and-save-credentials",
+        payload,
+      );
       const msg = res?.data?.message || "SMTP credentials validated and saved.";
       toast.success(msg);
       setShow(false);
@@ -3735,20 +5141,35 @@ function SMTPProvidersPage({ onBack }) {
 
   const del = async (providerKey) => {
     const cfg = configuredMap[providerKey?.toLowerCase()];
-    const apiId = cfg?.credential_id ?? cfg?.id ?? cfg?.provider_id ?? cfg?.config_id ?? cfg?.provider ?? providerKey;
+    const apiId =
+      cfg?.credential_id ??
+      cfg?.id ??
+      cfg?.provider_id ??
+      cfg?.config_id ??
+      cfg?.provider ??
+      providerKey;
     try {
       await axiosInstance.delete(`/api/smtp/saved-providers/${apiId}`);
-      setConfiguredMap((m) => { const n = { ...m }; delete n[providerKey?.toLowerCase()]; return n; });
+      setConfiguredMap((m) => {
+        const n = { ...m };
+        delete n[providerKey?.toLowerCase()];
+        return n;
+      });
       toast.success("Provider removed.");
     } catch {
-      setConfiguredMap((m) => { const n = { ...m }; delete n[providerKey?.toLowerCase()]; return n; });
+      setConfiguredMap((m) => {
+        const n = { ...m };
+        delete n[providerKey?.toLowerCase()];
+        return n;
+      });
     }
   };
 
   const fields = SMTP_FIELDS[form.provider] ?? [];
   /* group fields in pairs for 2-col grid */
   const fieldRows = [];
-  for (let i = 0; i < fields.length; i += 2) fieldRows.push(fields.slice(i, i + 2));
+  for (let i = 0; i < fields.length; i += 2)
+    fieldRows.push(fields.slice(i, i + 2));
 
   return (
     <div>
@@ -3764,11 +5185,16 @@ function SMTPProvidersPage({ onBack }) {
               className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
               title="Refresh"
             >
-              <RefreshCw className={`h-4 w-4 ${loadingList ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${loadingList ? "animate-spin" : ""}`}
+              />
             </button>
-            <button onClick={openCreate}
-              className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm">
-              <Plus className="h-4 w-4" />Add Provider
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              Add Provider
             </button>
           </div>
         }
@@ -3778,36 +5204,76 @@ function SMTPProvidersPage({ onBack }) {
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
               {["Provider", "Name", "Status", "Actions"].map((h) => (
-                <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500">{h}</th>
+                <th
+                  key={h}
+                  className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loadingList ? (
-              <tr><td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">Loading…</td></tr>
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
+                  Loading…
+                </td>
+              </tr>
             ) : list.length === 0 ? (
-              <tr><td colSpan={4} className="px-5 py-10 text-center text-[13px] text-gray-400">No SMTP providers available</td></tr>
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-5 py-10 text-center text-[13px] text-gray-400"
+                >
+                  No SMTP providers available
+                </td>
+              </tr>
             ) : (
               list.map((s, i) => {
                 const provKey = (s.provider ?? s.name ?? "").toLowerCase();
                 const cfgEntry = configuredMap[provKey];
                 const isConfigured = Boolean(cfgEntry) || s.ready;
                 return (
-                  <tr key={s.provider ?? i} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
+                  <tr
+                    key={s.provider ?? i}
+                    className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}
+                  >
                     <td className="px-5 py-3.5">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-indigo-50 text-[11px] font-[600] text-indigo-700">{s.provider}</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-indigo-50 text-[11px] font-[600] text-indigo-700">
+                        {s.provider}
+                      </span>
                     </td>
-                    <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{s.name}</td>
+                    <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">
+                      {s.name}
+                    </td>
                     <td className="px-5 py-3.5">
                       {isConfigured ? (
-                        <span className="inline-flex items-center gap-1.5 text-[12px] font-[600] text-green-700"><CheckCircle2 className="h-4 w-4 text-green-500" />Configured</span>
+                        <span className="inline-flex items-center gap-1.5 text-[12px] font-[600] text-green-700">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          Configured
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 text-[12px] text-gray-400"><Circle className="h-4 w-4" />Not configured</span>
+                        <span className="inline-flex items-center gap-1.5 text-[12px] text-gray-400">
+                          <Circle className="h-4 w-4" />
+                          Not configured
+                        </span>
                       )}
                     </td>
                     <td className="px-5 py-3.5">
                       {isConfigured && (
-                        <button onClick={() => setDeleteTarget({ key: s.provider ?? s.name, name: s.name ?? s.provider })} className="text-red-400 hover:text-red-600 transition">
+                        <button
+                          onClick={() =>
+                            setDeleteTarget({
+                              key: s.provider ?? s.name,
+                              name: s.name ?? s.provider,
+                            })
+                          }
+                          className="text-red-400 hover:text-red-600 transition"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -3819,37 +5285,65 @@ function SMTPProvidersPage({ onBack }) {
           </tbody>
         </table>
         <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">
-          {list.length} provider{list.length !== 1 ? "s" : ""} available · {Object.keys(configuredMap).length} configured
+          {list.length} provider{list.length !== 1 ? "s" : ""} available ·{" "}
+          {Object.keys(configuredMap).length} configured
         </div>
       </div>
 
       {showModal && (
-        <Modal title="Create SMTP Configuration" onClose={() => setShow(false)} width="max-w-xl">
+        <Modal
+          title="Create SMTP Configuration"
+          onClose={() => setShow(false)}
+          width="max-w-xl"
+        >
           <div className="space-y-4">
             {/* Config name */}
             <div>
-              <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">Configuration Name<span className="text-red-500 ml-0.5">*</span></label>
+              <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+                Configuration Name<span className="text-red-500 ml-0.5">*</span>
+              </label>
               <input
                 placeholder="e.g. Mailgun Production"
                 value={form.name}
-                onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setErrors((e2) => ({ ...e2, name: undefined })); }}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, name: e.target.value }));
+                  setErrors((e2) => ({ ...e2, name: undefined }));
+                }}
                 className={`w-full rounded-xl border px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-400 outline-none transition focus:ring-2 focus:ring-violet-400/20
                   ${errors.name ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 bg-gray-50/60 focus:border-violet-400 focus:bg-white"}`}
               />
-              {errors.name && <p className="mt-1 text-[11px] text-red-500">{errors.name}</p>}
+              {errors.name && (
+                <p className="mt-1 text-[11px] text-red-500">{errors.name}</p>
+              )}
             </div>
             {/* Provider selector — populated from available-providers API */}
             <div>
-              <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">Provider</label>
+              <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+                Provider
+              </label>
               {/* Provider selector — populated from /providers API (all supported types) */}
               <div className="relative">
                 <select
                   value={form.provider}
-                  onChange={(e) => setForm({ name: form.name, provider: e.target.value, credentials: {} })}
+                  onChange={(e) =>
+                    setForm({
+                      name: form.name,
+                      provider: e.target.value,
+                      credentials: {},
+                    })
+                  }
                   className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
                 >
-                  {(allProviderOpts.length > 0 ? allProviderOpts : SMTP_PROVIDER_LIST.map((p) => ({ value: p.value, label: p.label }))).map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
+                  {(allProviderOpts.length > 0
+                    ? allProviderOpts
+                    : SMTP_PROVIDER_LIST.map((p) => ({
+                        value: p.value,
+                        label: p.label,
+                      }))
+                  ).map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
                   ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
@@ -3857,7 +5351,10 @@ function SMTPProvidersPage({ onBack }) {
             </div>
             {/* Dynamic credential fields */}
             {fieldRows.map((row, ri) => (
-              <div key={ri} className={row.length === 2 ? "grid grid-cols-2 gap-3" : ""}>
+              <div
+                key={ri}
+                className={row.length === 2 ? "grid grid-cols-2 gap-3" : ""}
+              >
                 {row.map((field) => (
                   <CredInput
                     key={field.key}
@@ -3870,9 +5367,17 @@ function SMTPProvidersPage({ onBack }) {
               </div>
             ))}
             <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-              <button onClick={() => setShow(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSubmit} disabled={saving}
-                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 flex items-center gap-2">
+              <button
+                onClick={() => setShow(false)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={saving}
+                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60 flex items-center gap-2"
+              >
                 {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
                 {saving ? "Validating & Saving…" : "Validate & Save"}
               </button>
@@ -3884,7 +5389,10 @@ function SMTPProvidersPage({ onBack }) {
         <DeleteConfirmModal
           label={deleteTarget.name}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => { del(deleteTarget.key); setDeleteTarget(null); }}
+          onConfirm={() => {
+            del(deleteTarget.key);
+            setDeleteTarget(null);
+          }}
         />
       )}
     </div>
@@ -3893,10 +5401,30 @@ function SMTPProvidersPage({ onBack }) {
 
 /* ── Leads page channel definitions ── */
 const LEAD_CHANNELS = [
-  { key: "call_enabled",     label: "Call",     icon: Phone,          pillClass: "bg-violet-600 text-white border-violet-700" },
-  { key: "email_enabled",    label: "Email",    icon: Mail,           pillClass: "bg-sky-500 text-white border-sky-600" },
-  { key: "linkedin_enabled", label: "LinkedIn", icon: Linkedin,       pillClass: "bg-blue-800 text-white border-blue-900" },
-  { key: "whatsapp_enabled", label: "WhatsApp", icon: MessageCircle,  pillClass: "bg-green-600 text-white border-green-700" },
+  {
+    key: "call_enabled",
+    label: "Call",
+    icon: Phone,
+    pillClass: "bg-violet-600 text-white border-violet-700",
+  },
+  {
+    key: "email_enabled",
+    label: "Email",
+    icon: Mail,
+    pillClass: "bg-sky-500 text-white border-sky-600",
+  },
+  {
+    key: "linkedin_enabled",
+    label: "LinkedIn",
+    icon: Linkedin,
+    pillClass: "bg-blue-800 text-white border-blue-900",
+  },
+  {
+    key: "whatsapp_enabled",
+    label: "WhatsApp",
+    icon: MessageCircle,
+    pillClass: "bg-green-600 text-white border-green-700",
+  },
 ];
 
 /* ── Leads ── */
@@ -3904,18 +5432,21 @@ function LeadsPage({ onBack }) {
   const fileRef = useRef(null);
 
   /* ── All lists ── */
+  const LISTS_PER_PAGE = 10;
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [listsPage, setListsPage] = useState(1);
+  const [listsTotal, setListsTotal] = useState(0);
 
   /* ── Create list wizard ── */
   const wizardFileRef = useRef(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", sourceType: "" });
   const [creating, setCreating] = useState(false);
-  const [wizardStep, setWizardStep] = useState(1);   // 1 = name+source, 2 = upload
+  const [wizardStep, setWizardStep] = useState(1); // 1 = name+source, 2 = upload
   const [createdListId, setCreatedListId] = useState(null);
-  const [wizardExcelFile, setWizardExcelFile] = useState(null);  // selected file (not yet uploaded)
+  const [wizardExcelFile, setWizardExcelFile] = useState(null); // selected file (not yet uploaded)
   const [wizardExcelUploading, setWizardExcelUploading] = useState(false);
   const [wizardCrmImporting, setWizardCrmImporting] = useState(false);
 
@@ -3932,17 +5463,49 @@ function LeadsPage({ onBack }) {
   const [crmImporting, setCrmImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
+  /* ── List-level selection & download (lists view) ── */
+  const [checkedListIds, setCheckedListIds] = useState(new Set());
+  const [downloadingListId, setDownloadingListId] = useState(null);
+
+  /* ── Lead-level selection & download (detail view) ── */
+  const [checkedLeadIds, setCheckedLeadIds] = useState(new Set());
+  const [downloadingLeads, setDownloadingLeads] = useState(false);
+
   /* ── Export leads to CSV ── */
   const handleDownloadLeads = () => {
-    if (!listLeads.length) { toast.error("No leads to download."); return; }
+    if (!listLeads.length) {
+      toast.error("No leads to download.");
+      return;
+    }
     setDownloading(true);
     try {
-      const headers = ["Name","Email","Phone","Company","Title","Lead Source","Lead Status","Lead Rating","Street","City","State","Zip","Country","Website","Industry","LinkedIn","Notes","Description"];
+      const headers = [
+        "Name",
+        "Email",
+        "Phone",
+        "Company",
+        "Title",
+        "Lead Source",
+        "Lead Status",
+        "Lead Rating",
+        "Street",
+        "City",
+        "State",
+        "Zip",
+        "Country",
+        "Website",
+        "Industry",
+        "LinkedIn",
+        "Notes",
+        "Description",
+      ];
       // Standard escape for text fields
       const escape = (v) => {
         const s = String(v ?? "");
         if (s === "") return "";
-        return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+        return s.includes(",") || s.includes('"') || s.includes("\n")
+          ? `"${s.replace(/"/g, '""')}"`
+          : s;
       };
       // Force numeric-looking strings (phone, zip, IDs) to display as text in Excel — prevents E+09 scientific notation
       const escapeNum = (v) => {
@@ -3957,7 +5520,7 @@ function LeadsPage({ onBack }) {
         return [
           escape(ld.name),
           escape(ld.email_address ?? ld.email),
-          escapeNum(ld.contact_number ?? ld.phone),   // phone — prevent E notation
+          escapeNum(ld.contact_number ?? ld.phone), // phone — prevent E notation
           escape(ld.company),
           escape(ld.title),
           escape(ld.lead_source),
@@ -3966,7 +5529,7 @@ function LeadsPage({ onBack }) {
           escape(ld.address_street),
           escape(ld.address_city),
           escape(ld.address_state),
-          escapeNum(ld.address_zip_code),              // zip — preserve leading zeros
+          escapeNum(ld.address_zip_code), // zip — preserve leading zeros
           escape(ld.address_country),
           escape(ld.website),
           escape(ld.industry),
@@ -3977,7 +5540,9 @@ function LeadsPage({ onBack }) {
       });
       const csv = [headers.join(","), ...rows].join("\n");
       // BOM (\uFEFF) ensures Excel opens the file with UTF-8 encoding
-      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -3991,6 +5556,31 @@ function LeadsPage({ onBack }) {
       setDownloading(false);
     }
   };
+
+  /* ── GET /lead-lists/{list_id}/download ── */
+  const handleApiDownload = async (listId, leadIds = [], selectAll = false) => {
+    try {
+      const res = await axiosInstance.get(`/lead-lists/${listId}/download`, {
+        data: { lead_ids: leadIds, select_all: selectAll },
+        responseType: "blob",
+      });
+      const blob = new Blob([res.data]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers?.["content-disposition"] ?? "";
+      const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      const filename =
+        match?.[1]?.replace(/['"]/g, "") ?? `leads_${listId}.csv`;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Leads downloaded successfully.");
+    } catch {
+      toast.error("Failed to download leads.");
+    }
+  };
+
   const [deletingLeadId, setDeletingLeadId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const emptyLeadForm = {
@@ -4036,23 +5626,31 @@ function LeadsPage({ onBack }) {
       setLists((p) => p.filter((l) => l.id !== listId));
       toast.success("Lead list deleted.");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to delete lead list.");
+      toast.error(
+        err?.response?.data?.message || "Failed to delete lead list.",
+      );
     } finally {
       setDeletingListId(null);
     }
   };
 
   /* ── GET /lead-lists ── */
-  const fetchLists = async () => {
+  const fetchLists = async (page = 1) => {
     setLoading(true);
     try {
-      const res = await axiosInstance.get("/lead-lists");
+      const res = await axiosInstance.get("/lead-lists", {
+        params: { page, page_size: LISTS_PER_PAGE },
+      });
       const d = res.data;
-      const raw = Array.isArray(d) ? d
-        : Array.isArray(d?.lists) ? d.lists
-        : Array.isArray(d?.data)  ? d.data
-        : [];
+      const raw = Array.isArray(d)
+        ? d
+        : Array.isArray(d?.lists)
+          ? d.lists
+          : Array.isArray(d?.data)
+            ? d.data
+            : [];
       setLists(raw);
+      setListsTotal(d?.total ?? raw.length);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load lead lists.");
     } finally {
@@ -4060,7 +5658,9 @@ function LeadsPage({ onBack }) {
     }
   };
 
-  useEffect(() => { fetchLists(); }, []);
+  useEffect(() => {
+    fetchLists(listsPage);
+  }, [listsPage]);
 
   /* ── Wizard helpers ── */
   const closeWizard = () => {
@@ -4081,12 +5681,15 @@ function LeadsPage({ onBack }) {
         name: form.name.trim(),
         source_type: form.sourceType,
       });
-      const id = res.data?.id ?? res.data?.list_id ?? res.data?.data?.id ?? null;
+      const id =
+        res.data?.id ?? res.data?.list_id ?? res.data?.data?.id ?? null;
       setCreatedListId(id);
       toast.success("Lead list created.");
       setWizardStep(2); // always advance to step 2; user clicks Create there
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to create lead list.");
+      toast.error(
+        err?.response?.data?.message || "Failed to create lead list.",
+      );
     } finally {
       setCreating(false);
     }
@@ -4099,9 +5702,13 @@ function LeadsPage({ onBack }) {
     try {
       const fd = new FormData();
       fd.append("file", wizardExcelFile);
-      await axiosInstance.post(`/lead-lists/${createdListId}/upload-excel`, fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await axiosInstance.post(
+        `/lead-lists/${createdListId}/upload-excel`,
+        fd,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
       toast.success("Leads uploaded successfully.");
       closeWizard();
       fetchLists();
@@ -4140,12 +5747,17 @@ function LeadsPage({ onBack }) {
       // Actual API: { list: {...}, leads: [...], total_leads, page, page_size }
       // Update viewList with the richer detail response (has total_leads, etc.)
       if (d?.list && typeof d.list === "object") setViewList(d.list);
-      const raw = Array.isArray(d?.leads)   ? d.leads
-        : Array.isArray(d?.data)            ? d.data
-        : Array.isArray(d?.items)           ? d.items
-        : Array.isArray(d?.results)         ? d.results
-        : Array.isArray(d)                  ? d
-        : [];
+      const raw = Array.isArray(d?.leads)
+        ? d.leads
+        : Array.isArray(d?.data)
+          ? d.data
+          : Array.isArray(d?.items)
+            ? d.items
+            : Array.isArray(d?.results)
+              ? d.results
+              : Array.isArray(d)
+                ? d
+                : [];
       setListLeads(raw);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load leads.");
@@ -4196,7 +5808,9 @@ function LeadsPage({ onBack }) {
     setDeletingLeadId(leadId);
     try {
       await axiosInstance.delete(`/lead-lists/${viewList.id}/leads/${leadId}`);
-      setListLeads((p) => p.filter((l) => (l.id ?? l._id ?? l.list_lead_id) !== leadId));
+      setListLeads((p) =>
+        p.filter((l) => (l.id ?? l._id ?? l.list_lead_id) !== leadId),
+      );
       toast.success("Lead removed from list.");
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to remove lead.");
@@ -4250,11 +5864,19 @@ function LeadsPage({ onBack }) {
   };
 
   const openLeadCreateModal = () => {
-    setLeadCreateModal({ open: true, saving: false, data: { ...emptyLeadForm } });
+    setLeadCreateModal({
+      open: true,
+      saving: false,
+      data: { ...emptyLeadForm },
+    });
   };
 
   const closeLeadCreateModal = () => {
-    setLeadCreateModal({ open: false, saving: false, data: { ...emptyLeadForm } });
+    setLeadCreateModal({
+      open: false,
+      saving: false,
+      data: { ...emptyLeadForm },
+    });
   };
 
   const saveLeadCreate = async () => {
@@ -4327,7 +5949,10 @@ function LeadsPage({ onBack }) {
     };
 
     try {
-      await axiosInstance.patch(`/lead-lists/${viewList.id}/leads/${leadId}`, payload);
+      await axiosInstance.patch(
+        `/lead-lists/${viewList.id}/leads/${leadId}`,
+        payload,
+      );
 
       setListLeads((prev) =>
         prev.map((l) => {
@@ -4363,7 +5988,9 @@ function LeadsPage({ onBack }) {
       toast.success("Lead details updated successfully.");
       closeLeadEditor();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to save lead details.");
+      toast.error(
+        err?.response?.data?.message || "Failed to save lead details.",
+      );
     } finally {
       setLeadEditModal((s) => ({ ...s, saving: false }));
     }
@@ -4377,12 +6004,14 @@ function LeadsPage({ onBack }) {
     const tKey = `${leadId}_${channelKey}`;
     setTogglingChannel((s) => new Set([...s, tKey]));
     // Capture current channel flags before optimistic update
-    const currentLead = listLeads.find((l) => (l.id ?? l._id ?? l.list_lead_id) === leadId);
+    const currentLead = listLeads.find(
+      (l) => (l.id ?? l._id ?? l.list_lead_id) === leadId,
+    );
     const newFlags = {
-      call_enabled:     !!(currentLead?.call_enabled),
-      email_enabled:    !!(currentLead?.email_enabled),
-      linkedin_enabled: !!(currentLead?.linkedin_enabled),
-      whatsapp_enabled: !!(currentLead?.whatsapp_enabled),
+      call_enabled: !!currentLead?.call_enabled,
+      email_enabled: !!currentLead?.email_enabled,
+      linkedin_enabled: !!currentLead?.linkedin_enabled,
+      whatsapp_enabled: !!currentLead?.whatsapp_enabled,
       [channelKey]: !currentValue,
     };
     // Optimistic update
@@ -4390,12 +6019,12 @@ function LeadsPage({ onBack }) {
       prev.map((l) => {
         const id = l.id ?? l._id ?? l.list_lead_id;
         return id === leadId ? { ...l, [channelKey]: !currentValue } : l;
-      })
+      }),
     );
     try {
       await axiosInstance.put(
         `/lead-lists/${viewList.id}/leads/${leadId}/channel-flags`,
-        newFlags
+        newFlags,
       );
     } catch (err) {
       // Revert on failure
@@ -4403,16 +6032,22 @@ function LeadsPage({ onBack }) {
         prev.map((l) => {
           const id = l.id ?? l._id ?? l.list_lead_id;
           return id === leadId ? { ...l, [channelKey]: currentValue } : l;
-        })
+        }),
       );
-      toast.error(err?.response?.data?.message || "Failed to update channel flags.");
+      toast.error(
+        err?.response?.data?.message || "Failed to update channel flags.",
+      );
     } finally {
-      setTogglingChannel((s) => { const ns = new Set(s); ns.delete(tKey); return ns; });
+      setTogglingChannel((s) => {
+        const ns = new Set(s);
+        ns.delete(tKey);
+        return ns;
+      });
     }
   };
 
   const filteredLists = lists.filter((l) =>
-    (l.name ?? "").toLowerCase().includes(search.toLowerCase())
+    (l.name ?? "").toLowerCase().includes(search.toLowerCase()),
   );
   const filteredLeads = listLeads.filter((l) => {
     const q = leadSearch.toLowerCase();
@@ -4432,7 +6067,13 @@ function LeadsPage({ onBack }) {
         <PageHeader
           title={viewList.name ?? "Lead List"}
           subtitle={`${viewList.total_leads ?? listLeads.length} lead${(viewList.total_leads ?? listLeads.length) !== 1 ? "s" : ""}`}
-          onBack={() => { setViewList(null); setListLeads([]); setLeadSearch(""); setLeadsPage(1); }}
+          onBack={() => {
+            setViewList(null);
+            setListLeads([]);
+            setLeadSearch("");
+            setLeadsPage(1);
+            setCheckedLeadIds(new Set());
+          }}
           action={
             <div className="flex items-center gap-2">
               <input
@@ -4449,9 +6090,11 @@ function LeadsPage({ onBack }) {
                 title="Upload Excel"
                 className="group flex items-center rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-[12px] font-[600] text-gray-700 hover:bg-gray-50 transition-all duration-200 shadow-sm disabled:opacity-50"
               >
-                {excelUploading
-                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
-                  : <Upload className="h-3.5 w-3.5 shrink-0" />}
+                {excelUploading ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5 shrink-0" />
+                )}
                 <span className="overflow-hidden max-w-0 group-hover:max-w-[80px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap">
                   Upload
                 </span>
@@ -4463,9 +6106,11 @@ function LeadsPage({ onBack }) {
                 title="Import from CRM"
                 className="group flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-[12px] font-[600] text-indigo-700 hover:bg-indigo-100 transition-all duration-200 shadow-sm disabled:opacity-50"
               >
-                {crmImporting
-                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
-                  : <Database className="h-3.5 w-3.5 shrink-0" />}
+                {crmImporting ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <Database className="h-3.5 w-3.5 shrink-0" />
+                )}
                 <span className="overflow-hidden max-w-0 group-hover:max-w-[80px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap">
                   CRM Import
                 </span>
@@ -4477,21 +6122,29 @@ function LeadsPage({ onBack }) {
                 title="Refresh leads"
                 className="group flex items-center rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-all duration-200 shadow-sm disabled:opacity-50"
               >
-                <RefreshCw className={`h-3.5 w-3.5 shrink-0 ${listLeadsLoading ? "animate-spin" : ""}`} />
+                <RefreshCw
+                  className={`h-3.5 w-3.5 shrink-0 ${listLeadsLoading ? "animate-spin" : ""}`}
+                />
                 <span className="overflow-hidden max-w-0 group-hover:max-w-[60px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap text-[12px] font-[600]">
                   Refresh
                 </span>
               </button>
               {/* Download — icon only, expands on hover */}
               <button
-                onClick={handleDownloadLeads}
+                onClick={async () => {
+                  setDownloading(true);
+                  await handleApiDownload(viewList.id, [], true);
+                  setDownloading(false);
+                }}
                 disabled={downloading || !listLeads.length}
-                title="Download leads as CSV"
+                title=""
                 className="group flex items-center rounded-xl border border-teal-200 bg-teal-50 px-2.5 py-2 text-[12px] font-[600] text-teal-700 hover:bg-teal-100 transition-all duration-200 shadow-sm disabled:opacity-50"
               >
-                {downloading
-                  ? <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
-                  : <FileDown className="h-3.5 w-3.5 shrink-0" />}
+                {downloading ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <FileDown className="h-3.5 w-3.5 shrink-0" />
+                )}
                 <span className="overflow-hidden max-w-0 group-hover:max-w-[80px] opacity-0 group-hover:opacity-100 ml-0 group-hover:ml-1.5 transition-all duration-200 whitespace-nowrap">
                   Download
                 </span>
@@ -4512,13 +6165,114 @@ function LeadsPage({ onBack }) {
         />
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Lead selection bulk bar */}
+          <AnimatePresence>
+            {checkedLeadIds.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -8, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, y: -8, height: 0 }}
+                transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="bg-gradient-to-r from-teal-50 via-white to-teal-50 border-b border-teal-200 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-100">
+                      <FileDown className="h-3.5 w-3.5 text-teal-600" />
+                    </div>
+                    <span className="text-[13px] font-[700] text-teal-800">
+                      {checkedLeadIds.size}
+                    </span>
+                    <span className="text-[12px] font-[500] text-teal-600">
+                      lead{checkedLeadIds.size !== 1 ? "s" : ""} selected
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={downloadingLeads}
+                      onClick={async () => {
+                        setDownloadingLeads(true);
+                        await handleApiDownload(
+                          viewList.id,
+                          Array.from(checkedLeadIds),
+                          false,
+                        );
+                        setDownloadingLeads(false);
+                        setCheckedLeadIds(new Set());
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-2.5 rounded-xl bg-teal-600 text-white text-[12px] font-[600] hover:bg-teal-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {downloadingLeads ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <FileDown className="h-3.5 w-3.5" />
+                      )}
+                      {downloadingLeads ? "" : ""}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCheckedLeadIds(new Set())}
+                      className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                      title="Clear selection"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-            <span className="text-[13px] font-[600] text-gray-900">Leads in &quot;{viewList.name}&quot;</span>
+            <div className="flex items-center gap-3">
+              {/* Select all checkbox */}
+              <button
+                type="button"
+                onClick={() => {
+                  const allIds = filteredLeads.map(
+                    (l) => l.id ?? l._id ?? l.list_lead_id,
+                  );
+                  const allChecked =
+                    allIds.length > 0 &&
+                    allIds.every((id) => checkedLeadIds.has(id));
+                  if (allChecked) setCheckedLeadIds(new Set());
+                  else setCheckedLeadIds(new Set(allIds));
+                }}
+                className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                  filteredLeads.length > 0 &&
+                  filteredLeads.every((l) =>
+                    checkedLeadIds.has(l.id ?? l._id ?? l.list_lead_id),
+                  )
+                    ? "bg-teal-600 border-teal-600"
+                    : checkedLeadIds.size > 0
+                      ? "bg-teal-100 border-teal-400"
+                      : "border-gray-300 hover:border-teal-400"
+                }`}
+              >
+                {filteredLeads.length > 0 &&
+                filteredLeads.every((l) =>
+                  checkedLeadIds.has(l.id ?? l._id ?? l.list_lead_id),
+                ) ? (
+                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : checkedLeadIds.size > 0 ? (
+                  <span className="block h-0.5 w-2.5 rounded bg-teal-500" />
+                ) : null}
+              </button>
+              <span className="text-[13px] font-[600] text-gray-900">
+                Leads in &quot;{viewList.name}&quot;
+              </span>
+            </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <input
                 value={leadSearch}
-                onChange={(e) => { setLeadSearch(e.target.value); setLeadsPage(1); }}
+                onChange={(e) => {
+                  setLeadSearch(e.target.value);
+                  setLeadsPage(1);
+                }}
                 placeholder="Search leads…"
                 className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400"
               />
@@ -4526,162 +6280,281 @@ function LeadsPage({ onBack }) {
           </div>
 
           {listLeadsLoading ? (
-            <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">Loading leads…</div>
+            <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">
+              Loading leads…
+            </div>
           ) : (
             <>
               <div className="overflow-x-auto scrollbar-thin">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      {["#", "Name", "Email", "Phone", "Company", "Status", "Channels", "Actions"].map((h) => (
-                        <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
+                      <th className="px-5 py-3 w-10">
+                        <span className="sr-only">Select</span>
+                      </th>
+                      {[
+                        "#",
+                        "Name",
+                        "Email",
+                        "Phone",
+                        "Company",
+                        "Status",
+                        "Channels",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap"
+                        >
+                          {h}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLeads.length === 0 ? (
-                      <tr><td colSpan={8} className="px-5 py-12 text-center text-[13px] text-gray-400">No leads found</td></tr>
+                      <tr>
+                        <td
+                          colSpan={9}
+                          className="px-5 py-12 text-center text-[13px] text-gray-400"
+                        >
+                          No leads found
+                        </td>
+                      </tr>
                     ) : (
-                      filteredLeads.slice((leadsPage - 1) * LEADS_PER_PAGE, leadsPage * LEADS_PER_PAGE).map((lead, i) => {
-                        const leadId = lead.id ?? lead._id ?? lead.list_lead_id ?? i;
-                        const ld = lead.lead_data ?? {};
-                        const fullName = ld.name ?? "—";
-                        const email   = ld.email_address ?? "—";
-                        const phone   = ld.contact_number ?? "—";
-                        const company = ld.company ?? "—";
-                        const status  = ld.lead_status ?? ld.lead_rating ?? null;
-                        const normalizedStatus = String(status ?? "").trim().toLowerCase().replace(/\s+/g, "_");
-                        // Keep this status compact in badges.
-                        const statusLabel =
-                          normalizedStatus === "open_not_contacted"
-                            ? "Not Contacted"
-                            : status
-                              ? String(status)
-                                  .replace(/[_-]+/g, " ")
-                                  .split(" ")
-                                  .filter(Boolean)
-                                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                                  .join(" ")
-                              : null;
-                        const statusCls =
-                          normalizedStatus === "dead"      ? "bg-red-50 text-red-600 border-red-200" :
-                          normalizedStatus === "active"    ? "bg-green-50 text-green-700 border-green-200" :
-                          normalizedStatus === "converted" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                          "bg-gray-100 text-gray-600 border-gray-200";
-                        return (
-                          <tr key={leadId} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
-                            <td className="px-5 py-3.5 text-[12px] text-gray-400">{(leadsPage - 1) * LEADS_PER_PAGE + i + 1}</td>
-                            <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-800 whitespace-nowrap max-w-[160px]">
-                              <div className="relative group/name inline-block max-w-full">
-                                <span className="block truncate cursor-default max-w-[150px]">{fullName}</span>
-                                {fullName !== "—" && (
-                                  <div className="pointer-events-none absolute bottom-full left-0 mb-1.5 z-50
+                      filteredLeads
+                        .slice(
+                          (leadsPage - 1) * LEADS_PER_PAGE,
+                          leadsPage * LEADS_PER_PAGE,
+                        )
+                        .map((lead, i) => {
+                          const leadId =
+                            lead.id ?? lead._id ?? lead.list_lead_id ?? i;
+                          const ld = lead.lead_data ?? {};
+                          const fullName = ld.name ?? "—";
+                          const email = ld.email_address ?? "—";
+                          const phone = ld.contact_number ?? "—";
+                          const company = ld.company ?? "—";
+                          const status =
+                            ld.lead_status ?? ld.lead_rating ?? null;
+                          const normalizedStatus = String(status ?? "")
+                            .trim()
+                            .toLowerCase()
+                            .replace(/\s+/g, "_");
+                          // Keep this status compact in badges.
+                          const statusLabel =
+                            normalizedStatus === "open_not_contacted"
+                              ? "Not Contacted"
+                              : status
+                                ? String(status)
+                                    .replace(/[_-]+/g, " ")
+                                    .split(" ")
+                                    .filter(Boolean)
+                                    .map(
+                                      (w) =>
+                                        w.charAt(0).toUpperCase() + w.slice(1),
+                                    )
+                                    .join(" ")
+                                : null;
+                          const statusCls =
+                            normalizedStatus === "dead"
+                              ? "bg-red-50 text-red-600 border-red-200"
+                              : normalizedStatus === "active"
+                                ? "bg-green-50 text-green-700 border-green-200"
+                                : normalizedStatus === "converted"
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-gray-100 text-gray-600 border-gray-200";
+                          return (
+                            <tr
+                              key={leadId}
+                              className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${
+                                checkedLeadIds.has(leadId)
+                                  ? "bg-teal-50/60 border-l-2 border-l-teal-500"
+                                  : i % 2 !== 0
+                                    ? "bg-gray-50/30"
+                                    : ""
+                              }`}
+                            >
+                              <td className="px-5 py-3.5 w-10">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCheckedLeadIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(leadId)) next.delete(leadId);
+                                      else next.add(leadId);
+                                      return next;
+                                    })
+                                  }
+                                  className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                                    checkedLeadIds.has(leadId)
+                                      ? "bg-teal-600 border-teal-600 shadow-sm"
+                                      : "border-gray-300 hover:border-teal-400 hover:bg-teal-50"
+                                  }`}
+                                >
+                                  {checkedLeadIds.has(leadId) && (
+                                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </td>
+                              <td className="px-5 py-3.5 text-[12px] text-gray-400">
+                                {(leadsPage - 1) * LEADS_PER_PAGE + i + 1}
+                              </td>
+                              <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-800 whitespace-nowrap max-w-[160px]">
+                                <div className="relative group/name inline-block max-w-full">
+                                  <span className="block truncate cursor-default max-w-[150px]">
+                                    {fullName}
+                                  </span>
+                                  {fullName !== "—" && (
+                                    <div
+                                      className="pointer-events-none absolute bottom-full left-0 mb-1.5 z-50
                                                   hidden group-hover/name:flex
                                                   items-center gap-1.5 px-2.5 py-1.5
                                                   bg-gray-900 text-white text-[11px] font-[500]
-                                                  rounded-lg shadow-lg whitespace-nowrap">
-                                    {fullName}
-                                    <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap max-w-[160px]">
-                              <div className="relative group/email inline-block max-w-full">
-                                <span className="block truncate cursor-default max-w-[150px]">{email}</span>
-                                {email !== "—" && (
-                                  <div className="pointer-events-none absolute bottom-full left-0 mb-1.5 z-50
+                                                  rounded-lg shadow-lg whitespace-nowrap"
+                                    >
+                                      {fullName}
+                                      <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap max-w-[160px]">
+                                <div className="relative group/email inline-block max-w-full">
+                                  <span className="block truncate cursor-default max-w-[150px]">
+                                    {email}
+                                  </span>
+                                  {email !== "—" && (
+                                    <div
+                                      className="pointer-events-none absolute bottom-full left-0 mb-1.5 z-50
                                                   hidden group-hover/email:flex
                                                   items-center gap-1.5 px-2.5 py-1.5
                                                   bg-gray-900 text-white text-[11px] font-[500]
-                                                  rounded-lg shadow-lg whitespace-nowrap">
-                                    <Mail className="h-3 w-3 text-gray-400 shrink-0" />
-                                    {email}
-                                    <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                                  </div>
+                                                  rounded-lg shadow-lg whitespace-nowrap"
+                                    >
+                                      <Mail className="h-3 w-3 text-gray-400 shrink-0" />
+                                      {email}
+                                      <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-3.5 text-[12px] text-gray-600 font-mono whitespace-nowrap">
+                                {phone}
+                              </td>
+                              <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">
+                                {company}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                {status ? (
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded-full font-[700] capitalize border ${
+                                      statusLabel === "Not Contacted"
+                                        ? "text-[9px]"
+                                        : "text-[10px]"
+                                    } ${statusCls}`}
+                                  >
+                                    {statusLabel}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-300">—</span>
                                 )}
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5 text-[12px] text-gray-600 font-mono whitespace-nowrap">{phone}</td>
-                            <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">{company}</td>
-                            <td className="px-5 py-3.5">
-                              {status ? (
-                                <span
-                                  className={`inline-flex items-center px-2 py-0.5 rounded-full font-[700] capitalize border ${
-                                    statusLabel === "Not Contacted" ? "text-[9px]" : "text-[10px]"
-                                  } ${statusCls}`}
-                                >
-                                  {statusLabel}
-                                </span>
-                              ) : <span className="text-gray-300">—</span>}
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-1.5">
-                                {/* Show all channels so disabled ones can be enabled quickly */}
-                                {LEAD_CHANNELS.map(({ key, label, icon: Icon, pillClass }) => {
-                                  const tKey = `${leadId}_${key}`;
-                                  const busy = togglingChannel.has(tKey);
-                                  const isEnabled = !!lead[key];
-                                  return (
-                                    <div key={key} className="relative group/ch">
-                                      <button
-                                        disabled={busy}
-                                        onClick={() => handleToggleLeadChannel(leadId, key, isEnabled)}
-                                        className={`inline-flex items-center justify-center h-6 w-6 rounded-full border transition disabled:opacity-60 hover:scale-110 hover:shadow-md ${
-                                          isEnabled
-                                            ? pillClass
-                                            : "bg-white text-gray-400 border-gray-300"
-                                        }`}
-                                      >
-                                        {busy
-                                          ? <RefreshCw className="h-3 w-3 animate-spin" />
-                                          : <Icon className="h-3 w-3" />}
-                                      </button>
-                                      {/* Custom tooltip */}
-                                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-1.5">
+                                  {/* Show all channels so disabled ones can be enabled quickly */}
+                                  {LEAD_CHANNELS.map(
+                                    ({ key, label, icon: Icon, pillClass }) => {
+                                      const tKey = `${leadId}_${key}`;
+                                      const busy = togglingChannel.has(tKey);
+                                      const isEnabled = !!lead[key];
+                                      return (
+                                        <div
+                                          key={key}
+                                          className="relative group/ch"
+                                        >
+                                          <button
+                                            disabled={busy}
+                                            onClick={() =>
+                                              handleToggleLeadChannel(
+                                                leadId,
+                                                key,
+                                                isEnabled,
+                                              )
+                                            }
+                                            className={`inline-flex items-center justify-center h-6 w-6 rounded-full border transition disabled:opacity-60 hover:scale-110 hover:shadow-md ${
+                                              isEnabled
+                                                ? pillClass
+                                                : "bg-white text-gray-400 border-gray-300"
+                                            }`}
+                                          >
+                                            {busy ? (
+                                              <RefreshCw className="h-3 w-3 animate-spin" />
+                                            ) : (
+                                              <Icon className="h-3 w-3" />
+                                            )}
+                                          </button>
+                                          {/* Custom tooltip */}
+                                          <div
+                                            className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
                                                       hidden group-hover/ch:flex
                                                       items-center px-2 py-1
                                                       bg-gray-900 text-white text-[10px] font-[600]
-                                                      rounded-md shadow-lg whitespace-nowrap">
-                                        {isEnabled ? `Disable ${label}` : `Enable ${label}`}
-                                        <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => openLeadEditor(lead)}
-                                  className="text-blue-500 hover:text-blue-700 transition"
-                                  title="Edit lead details"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => !deletingLeadId && setDeleteTarget({ id: leadId, name: fullName })}
-                                  disabled={deletingLeadId === leadId}
-                                  className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
-                                  title="Remove lead from list"
-                                >
-                                  {deletingLeadId === leadId
-                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                    : <Trash2 className="h-4 w-4" />}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+                                                      rounded-md shadow-lg whitespace-nowrap"
+                                          >
+                                            {isEnabled
+                                              ? `Disable ${label}`
+                                              : `Enable ${label}`}
+                                            <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                          </div>
+                                        </div>
+                                      );
+                                    },
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => openLeadEditor(lead)}
+                                    className="text-blue-500 hover:text-blue-700 transition"
+                                    title="Edit lead details"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      !deletingLeadId &&
+                                      setDeleteTarget({
+                                        id: leadId,
+                                        name: fullName,
+                                      })
+                                    }
+                                    disabled={deletingLeadId === leadId}
+                                    className="text-red-400 hover:text-red-600 transition disabled:opacity-40"
+                                    title="Remove lead from list"
+                                  >
+                                    {deletingLeadId === leadId ? (
+                                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
                     )}
                   </tbody>
                 </table>
               </div>
               <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
                 <span className="text-[12px] text-gray-400">
-                  {filteredLeads.length} of {viewList.total_leads ?? listLeads.length} leads
+                  {filteredLeads.length} of{" "}
+                  {viewList.total_leads ?? listLeads.length} leads
                 </span>
                 {Math.ceil(filteredLeads.length / LEADS_PER_PAGE) > 1 && (
                   <div className="flex items-center gap-1">
@@ -4692,7 +6565,14 @@ function LeadsPage({ onBack }) {
                     >
                       ‹ Prev
                     </button>
-                    {Array.from({ length: Math.ceil(filteredLeads.length / LEADS_PER_PAGE) }, (_, idx) => idx + 1).map((pg) => (
+                    {Array.from(
+                      {
+                        length: Math.ceil(
+                          filteredLeads.length / LEADS_PER_PAGE,
+                        ),
+                      },
+                      (_, idx) => idx + 1,
+                    ).map((pg) => (
                       <button
                         key={pg}
                         onClick={() => setLeadsPage(pg)}
@@ -4706,8 +6586,18 @@ function LeadsPage({ onBack }) {
                       </button>
                     ))}
                     <button
-                      onClick={() => setLeadsPage((p) => Math.min(Math.ceil(filteredLeads.length / LEADS_PER_PAGE), p + 1))}
-                      disabled={leadsPage === Math.ceil(filteredLeads.length / LEADS_PER_PAGE)}
+                      onClick={() =>
+                        setLeadsPage((p) =>
+                          Math.min(
+                            Math.ceil(filteredLeads.length / LEADS_PER_PAGE),
+                            p + 1,
+                          ),
+                        )
+                      }
+                      disabled={
+                        leadsPage ===
+                        Math.ceil(filteredLeads.length / LEADS_PER_PAGE)
+                      }
                       className="px-2.5 py-1 rounded-lg border border-gray-200 text-[11px] font-[600] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                     >
                       Next ›
@@ -4718,306 +6608,537 @@ function LeadsPage({ onBack }) {
             </>
           )}
         </div>
-      {deleteTarget && (
-        <DeleteConfirmModal
-          label={deleteTarget.name}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => { handleDeleteLead(deleteTarget.id); setDeleteTarget(null); }}
-          loading={deletingLeadId === deleteTarget?.id}
-        />
-      )}
-      {leadEditModal.open && (
-        <Modal title="Edit Lead Details" onClose={closeLeadEditor} width="max-w-2xl">
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field
-                label="Name"
-                type="text"
-                placeholder="Enter lead name"
-                value={leadEditModal.data.name}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, name: value }
-                }))}
+        {deleteTarget && (
+          <DeleteConfirmModal
+            label={deleteTarget.name}
+            onCancel={() => setDeleteTarget(null)}
+            onConfirm={() => {
+              handleDeleteLead(deleteTarget.id);
+              setDeleteTarget(null);
+            }}
+            loading={deletingLeadId === deleteTarget?.id}
+          />
+        )}
+        {leadEditModal.open && (
+          <Modal
+            title="Edit Lead Details"
+            onClose={closeLeadEditor}
+            width="max-w-2xl"
+          >
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field
+                  label="Name"
+                  type="text"
+                  placeholder="Enter lead name"
+                  value={leadEditModal.data.name}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, name: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Email Address"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={leadEditModal.data.email_address}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, email_address: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Contact Number"
+                  type="text"
+                  placeholder="Enter phone number"
+                  value={leadEditModal.data.contact_number}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, contact_number: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Company"
+                  type="text"
+                  placeholder="Enter company name"
+                  value={leadEditModal.data.company}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, company: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Title"
+                  type="text"
+                  placeholder="Enter job title"
+                  value={leadEditModal.data.title}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, title: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Lead Source"
+                  type="text"
+                  placeholder="Enter lead source"
+                  value={leadEditModal.data.lead_source}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, lead_source: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Lead Status"
+                  type="text"
+                  placeholder="Enter lead status"
+                  value={leadEditModal.data.lead_status}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, lead_status: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Lead Rating"
+                  type="text"
+                  placeholder="Enter lead rating"
+                  value={leadEditModal.data.lead_rating}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, lead_rating: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address Street"
+                  type="text"
+                  placeholder="Enter street address"
+                  value={leadEditModal.data.address_street}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_street: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address City"
+                  type="text"
+                  placeholder="Enter city"
+                  value={leadEditModal.data.address_city}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_city: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address State"
+                  type="text"
+                  placeholder="Enter state"
+                  value={leadEditModal.data.address_state}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_state: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address Zip Code"
+                  type="text"
+                  placeholder="Enter zip code"
+                  value={leadEditModal.data.address_zip_code}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_zip_code: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address Country"
+                  type="text"
+                  placeholder="Enter country"
+                  value={leadEditModal.data.address_country}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_country: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Website"
+                  type="url"
+                  placeholder="Enter website URL"
+                  value={leadEditModal.data.website}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, website: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Industry"
+                  type="text"
+                  placeholder="Enter industry"
+                  value={leadEditModal.data.industry}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, industry: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="LinkedIn URL"
+                  type="url"
+                  placeholder="Enter LinkedIn URL"
+                  value={leadEditModal.data.linkedin_url}
+                  onChange={(value) =>
+                    setLeadEditModal((s) => ({
+                      ...s,
+                      data: { ...s.data, linkedin_url: value },
+                    }))
+                  }
+                />
+              </div>
+              <TextareaField
+                label="Notes"
+                placeholder="Enter notes"
+                value={leadEditModal.data.notes}
+                onChange={(value) =>
+                  setLeadEditModal((s) => ({
+                    ...s,
+                    data: { ...s.data, notes: value },
+                  }))
+                }
               />
-              <Field
-                label="Email Address"
-                type="email"
-                placeholder="Enter email address"
-                value={leadEditModal.data.email_address}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, email_address: value }
-                }))}
-              />
-              <Field
-                label="Contact Number"
-                type="text"
-                placeholder="Enter phone number"
-                value={leadEditModal.data.contact_number}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, contact_number: value }
-                }))}
-              />
-              <Field
-                label="Company"
-                type="text"
-                placeholder="Enter company name"
-                value={leadEditModal.data.company}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, company: value }
-                }))}
-              />
-              <Field
-                label="Title"
-                type="text"
-                placeholder="Enter job title"
-                value={leadEditModal.data.title}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, title: value }
-                }))}
-              />
-              <Field
-                label="Lead Source"
-                type="text"
-                placeholder="Enter lead source"
-                value={leadEditModal.data.lead_source}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, lead_source: value }
-                }))}
-              />
-              <Field
-                label="Lead Status"
-                type="text"
-                placeholder="Enter lead status"
-                value={leadEditModal.data.lead_status}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, lead_status: value }
-                }))}
-              />
-              <Field
-                label="Lead Rating"
-                type="text"
-                placeholder="Enter lead rating"
-                value={leadEditModal.data.lead_rating}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, lead_rating: value }
-                }))}
-              />
-              <Field
-                label="Address Street"
-                type="text"
-                placeholder="Enter street address"
-                value={leadEditModal.data.address_street}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, address_street: value }
-                }))}
-              />
-              <Field
-                label="Address City"
-                type="text"
-                placeholder="Enter city"
-                value={leadEditModal.data.address_city}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, address_city: value }
-                }))}
-              />
-              <Field
-                label="Address State"
-                type="text"
-                placeholder="Enter state"
-                value={leadEditModal.data.address_state}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, address_state: value }
-                }))}
-              />
-              <Field
-                label="Address Zip Code"
-                type="text"
-                placeholder="Enter zip code"
-                value={leadEditModal.data.address_zip_code}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, address_zip_code: value }
-                }))}
-              />
-              <Field
-                label="Address Country"
-                type="text"
-                placeholder="Enter country"
-                value={leadEditModal.data.address_country}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, address_country: value }
-                }))}
-              />
-              <Field
-                label="Website"
-                type="url"
-                placeholder="Enter website URL"
-                value={leadEditModal.data.website}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, website: value }
-                }))}
-              />
-              <Field
-                label="Industry"
-                type="text"
-                placeholder="Enter industry"
-                value={leadEditModal.data.industry}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, industry: value }
-                }))}
-              />
-              <Field
-                label="LinkedIn URL"
-                type="url"
-                placeholder="Enter LinkedIn URL"
-                value={leadEditModal.data.linkedin_url}
-                onChange={(value) => setLeadEditModal((s) => ({
-                  ...s,
-                  data: { ...s.data, linkedin_url: value }
-                }))}
+              <TextareaField
+                label="Description"
+                placeholder="Enter description"
+                value={leadEditModal.data.description}
+                onChange={(value) =>
+                  setLeadEditModal((s) => ({
+                    ...s,
+                    data: { ...s.data, description: value },
+                  }))
+                }
               />
             </div>
-            <TextareaField
-              label="Notes"
-              placeholder="Enter notes"
-              value={leadEditModal.data.notes}
-              onChange={(value) => setLeadEditModal((s) => ({
-                ...s,
-                data: { ...s.data, notes: value }
-              }))}
-            />
-            <TextareaField
-              label="Description"
-              placeholder="Enter description"
-              value={leadEditModal.data.description}
-              onChange={(value) => setLeadEditModal((s) => ({
-                ...s,
-                data: { ...s.data, description: value }
-              }))}
-            />
-          </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={closeLeadEditor}
-              className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveLeadEditor}
-              disabled={leadEditModal.saving}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-[600] text-white hover:bg-blue-700 disabled:opacity-50 transition"
-            >
-              {leadEditModal.saving ? (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </button>
-          </div>
-        </Modal>
-      )}
-      {leadCreateModal.open && (
-        <Modal title="Add Lead" onClose={closeLeadCreateModal} width="max-w-2xl">
-          <div className="space-y-4 max-h-96 overflow-y-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field
-                label="Name"
-                required
-                type="text"
-                placeholder="Enter lead name"
-                value={leadCreateModal.data.name}
-                onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, name: value } }))}
-              />
-              <Field
-                label="Email Address"
-                required
-                type="email"
-                placeholder="Enter email address"
-                value={leadCreateModal.data.email_address}
-                onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, email_address: value } }))}
-              />
-              <Field
-                label="Contact Number"
-                required
-                type="text"
-                placeholder="Enter phone number"
-                value={leadCreateModal.data.contact_number}
-                onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, contact_number: value } }))}
-              />
-              <Field label="Company" type="text" placeholder="Enter company name" value={leadCreateModal.data.company} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, company: value } }))} />
-              <Field label="Title" type="text" placeholder="Enter job title" value={leadCreateModal.data.title} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, title: value } }))} />
-              <Field label="Lead Source" type="text" placeholder="Enter lead source" value={leadCreateModal.data.lead_source} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_source: value } }))} />
-              <Field label="Lead Status" type="text" placeholder="Enter lead status" value={leadCreateModal.data.lead_status} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_status: value } }))} />
-              <Field label="Lead Rating" type="text" placeholder="Enter lead rating" value={leadCreateModal.data.lead_rating} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_rating: value } }))} />
-              <Field label="Address Street" type="text" placeholder="Enter street address" value={leadCreateModal.data.address_street} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_street: value } }))} />
-              <Field label="Address City" type="text" placeholder="Enter city" value={leadCreateModal.data.address_city} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_city: value } }))} />
-              <Field label="Address State" type="text" placeholder="Enter state" value={leadCreateModal.data.address_state} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_state: value } }))} />
-              <Field label="Address Zip Code" type="text" placeholder="Enter zip code" value={leadCreateModal.data.address_zip_code} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_zip_code: value } }))} />
-              <Field label="Address Country" type="text" placeholder="Enter country" value={leadCreateModal.data.address_country} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_country: value } }))} />
-              <Field label="Website" type="url" placeholder="Enter website URL" value={leadCreateModal.data.website} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, website: value } }))} />
-              <Field label="Industry" type="text" placeholder="Enter industry" value={leadCreateModal.data.industry} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, industry: value } }))} />
-              <Field label="LinkedIn URL" type="url" placeholder="Enter LinkedIn URL" value={leadCreateModal.data.linkedin_url} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, linkedin_url: value } }))} />
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={closeLeadEditor}
+                className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveLeadEditor}
+                disabled={leadEditModal.saving}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-[600] text-white hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {leadEditModal.saving ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </button>
             </div>
-            <TextareaField
-              label="Notes"
-              placeholder="Enter notes"
-              value={leadCreateModal.data.notes}
-              onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, notes: value } }))}
-            />
-            <TextareaField
-              label="Description"
-              placeholder="Enter description"
-              value={leadCreateModal.data.description}
-              onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, description: value } }))}
-            />
-          </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={closeLeadCreateModal}
-              className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveLeadCreate}
-              disabled={leadCreateModal.saving}
-              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-[13px] font-[600] text-white hover:bg-emerald-700 disabled:opacity-50 transition"
-            >
-              {leadCreateModal.saving ? (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                "Add Lead"
-              )}
-            </button>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        )}
+        {leadCreateModal.open && (
+          <Modal
+            title="Add Lead"
+            onClose={closeLeadCreateModal}
+            width="max-w-2xl"
+          >
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field
+                  label="Name"
+                  required
+                  type="text"
+                  placeholder="Enter lead name"
+                  value={leadCreateModal.data.name}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, name: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Email Address"
+                  required
+                  type="email"
+                  placeholder="Enter email address"
+                  value={leadCreateModal.data.email_address}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, email_address: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Contact Number"
+                  required
+                  type="text"
+                  placeholder="Enter phone number"
+                  value={leadCreateModal.data.contact_number}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, contact_number: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Company"
+                  type="text"
+                  placeholder="Enter company name"
+                  value={leadCreateModal.data.company}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, company: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Title"
+                  type="text"
+                  placeholder="Enter job title"
+                  value={leadCreateModal.data.title}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, title: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Lead Source"
+                  type="text"
+                  placeholder="Enter lead source"
+                  value={leadCreateModal.data.lead_source}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, lead_source: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Lead Status"
+                  type="text"
+                  placeholder="Enter lead status"
+                  value={leadCreateModal.data.lead_status}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, lead_status: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Lead Rating"
+                  type="text"
+                  placeholder="Enter lead rating"
+                  value={leadCreateModal.data.lead_rating}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, lead_rating: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address Street"
+                  type="text"
+                  placeholder="Enter street address"
+                  value={leadCreateModal.data.address_street}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_street: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address City"
+                  type="text"
+                  placeholder="Enter city"
+                  value={leadCreateModal.data.address_city}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_city: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address State"
+                  type="text"
+                  placeholder="Enter state"
+                  value={leadCreateModal.data.address_state}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_state: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address Zip Code"
+                  type="text"
+                  placeholder="Enter zip code"
+                  value={leadCreateModal.data.address_zip_code}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_zip_code: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Address Country"
+                  type="text"
+                  placeholder="Enter country"
+                  value={leadCreateModal.data.address_country}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, address_country: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Website"
+                  type="url"
+                  placeholder="Enter website URL"
+                  value={leadCreateModal.data.website}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, website: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="Industry"
+                  type="text"
+                  placeholder="Enter industry"
+                  value={leadCreateModal.data.industry}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, industry: value },
+                    }))
+                  }
+                />
+                <Field
+                  label="LinkedIn URL"
+                  type="url"
+                  placeholder="Enter LinkedIn URL"
+                  value={leadCreateModal.data.linkedin_url}
+                  onChange={(value) =>
+                    setLeadCreateModal((s) => ({
+                      ...s,
+                      data: { ...s.data, linkedin_url: value },
+                    }))
+                  }
+                />
+              </div>
+              <TextareaField
+                label="Notes"
+                placeholder="Enter notes"
+                value={leadCreateModal.data.notes}
+                onChange={(value) =>
+                  setLeadCreateModal((s) => ({
+                    ...s,
+                    data: { ...s.data, notes: value },
+                  }))
+                }
+              />
+              <TextareaField
+                label="Description"
+                placeholder="Enter description"
+                value={leadCreateModal.data.description}
+                onChange={(value) =>
+                  setLeadCreateModal((s) => ({
+                    ...s,
+                    data: { ...s.data, description: value },
+                  }))
+                }
+              />
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={closeLeadCreateModal}
+                className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveLeadCreate}
+                disabled={leadCreateModal.saving}
+                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-[13px] font-[600] text-white hover:bg-emerald-700 disabled:opacity-50 transition"
+              >
+                {leadCreateModal.saving ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Add Lead"
+                )}
+              </button>
+            </div>
+          </Modal>
+        )}
       </div>
     );
   }
 
   /* ════ LISTS VIEW ════ */
+  const allListsChecked =
+    filteredLists.length > 0 &&
+    filteredLists.every((l) => checkedListIds.has(l.id));
+  const toggleCheckAllLists = () => {
+    if (allListsChecked) setCheckedListIds(new Set());
+    else setCheckedListIds(new Set(filteredLists.map((l) => l.id)));
+  };
+  const toggleCheckList = (id) => {
+    setCheckedListIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div>
       <PageHeader
@@ -5032,29 +7153,121 @@ function LeadsPage({ onBack }) {
               className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
               title="Refresh"
             >
-              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+              />
             </button>
             <button
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
             >
-              <Plus className="h-4 w-4" />Create
+              <Plus className="h-4 w-4" />
+              Create
             </button>
           </div>
         }
       />
 
+      {/* ── Bulk Download Bar ── */}
+      <AnimatePresence>
+        {checkedListIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, y: -10, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-teal-50 via-white to-teal-50 rounded-2xl border border-teal-200 shadow-sm px-5 py-3.5 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100">
+                  <FileDown className="h-4 w-4 text-teal-600" />
+                </div>
+                <div>
+                  <span className="text-[14px] font-[700] text-teal-800">
+                    {checkedListIds.size}
+                  </span>
+                  <span className="text-[12px] font-[500] text-teal-600 ml-1">
+                    list{checkedListIds.size !== 1 ? "s" : ""} selected
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={downloadingListId !== null}
+                  onClick={async () => {
+                    for (const lid of checkedListIds) {
+                      setDownloadingListId(lid);
+                      await handleApiDownload(lid, [], true);
+                      setDownloadingListId(null);
+                    }
+                    setCheckedListIds(new Set());
+                  }}
+                  className="flex items-center gap-1.5 px-2 py-2 rounded-xl bg-teal-600 text-white text-[12px] font-[600] hover:bg-teal-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {downloadingListId !== null ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <FileDown className="h-3.5 w-3.5" />
+                  )}
+                  {downloadingListId !== null ? "" : ""}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckedListIds(new Set())}
+                  className="ml-1 p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                  title="Clear selection"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-          <span className="text-[13px] font-[600] text-gray-900">All Lead Lists</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleCheckAllLists}
+              className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                allListsChecked
+                  ? "bg-teal-600 border-teal-600"
+                  : checkedListIds.size > 0
+                    ? "bg-teal-100 border-teal-400"
+                    : "border-gray-300 hover:border-teal-400"
+              }`}
+            >
+              {allListsChecked ? (
+                <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : checkedListIds.size > 0 ? (
+                <span className="block h-0.5 w-2.5 rounded bg-teal-500" />
+              ) : null}
+            </button>
+            <span className="text-[13px] font-[600] text-gray-900">
+              All Lead Lists
+            </span>
+            {checkedListIds.size > 0 && (
+              <span className="text-[11px] font-[500] text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
+                {checkedListIds.size} selected
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchLists}
+              onClick={() => fetchLists(listsPage)}
               disabled={loading}
               className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
               title="Refresh"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+              />
             </button>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
@@ -5069,62 +7282,193 @@ function LeadsPage({ onBack }) {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">Loading lead lists…</div>
+          <div className="flex items-center justify-center py-20 text-[13px] text-gray-400 animate-pulse">
+            Loading lead lists…
+          </div>
         ) : (
           <>
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-5 py-3 w-10">
+                    <span className="sr-only">Select</span>
+                  </th>
                   {["Name", "Total Leads", "Created", "Action"].map((h) => (
-                    <th key={h} className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
+                    <th
+                      key={h}
+                      className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredLists.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-12 text-center text-[13px] text-gray-400">No lead lists found</td></tr>
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-5 py-12 text-center text-[13px] text-gray-400"
+                    >
+                      No lead lists found
+                    </td>
+                  </tr>
                 ) : (
                   filteredLists.map((l, i) => {
-                    const totalLeads = l.total_leads ?? l.total ?? l.lead_count ?? l.count ?? 0;
+                    const totalLeads =
+                      l.total_leads ?? l.total ?? l.lead_count ?? l.count ?? 0;
+                    const checked = checkedListIds.has(l.id);
                     return (
-                      <tr key={l.id ?? i} className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
-                        <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">{l.name}</td>
+                      <tr
+                        key={l.id ?? i}
+                        className={`border-b border-gray-50 hover:bg-gray-50/60 transition ${
+                          checked
+                            ? "bg-teal-50/60 border-l-2 border-l-teal-500"
+                            : i % 2 !== 0
+                              ? "bg-gray-50/30"
+                              : ""
+                        }`}
+                      >
+                        <td className="px-5 py-3.5 w-10">
+                          <button
+                            type="button"
+                            onClick={() => toggleCheckList(l.id)}
+                            className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-150 ${
+                              checked
+                                ? "bg-teal-600 border-teal-600 shadow-sm"
+                                : "border-gray-300 hover:border-teal-400 hover:bg-teal-50"
+                            }`}
+                          >
+                            {checked && (
+                              <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-5 py-3.5 text-[13px] font-[600] text-gray-900">
+                          {l.name}
+                        </td>
                         <td className="px-5 py-3.5 text-[13px] font-[700] text-indigo-700">
                           {totalLeads.toLocaleString()}
                         </td>
                         <td className="px-5 py-3.5 text-[12px] text-gray-500">
                           {l.created_at
-                            ? new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                            ? new Date(l.created_at).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )
                             : "—"}
                         </td>
                         <td className="px-5 py-3.5 flex items-center gap-2">
                           <button
                             onClick={() => openDetail(l)}
-                            className="flex items-center gap-1 text-[12px] font-[500] text-indigo-600 hover:text-indigo-800 transition"
+                            className="rounded-lg p-1.5 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition"
+                            title="View leads"
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </button>
-                            <button
-                            onClick={() => setDeleteListTarget({ id: l.id, name: l.name })}
+                          <button
+                            onClick={async () => {
+                              setDownloadingListId(l.id);
+                              await handleApiDownload(l.id, [], true);
+                              setDownloadingListId(null);
+                            }}
+                            disabled={downloadingListId === l.id}
+                            className="rounded-lg p-1.5 text-teal-500 hover:text-teal-700 hover:bg-teal-50 transition disabled:opacity-40"
+                            title=""
+                          >
+                            {downloadingListId === l.id ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <FileDown className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() =>
+                              setDeleteListTarget({ id: l.id, name: l.name })
+                            }
                             disabled={deletingListId === l.id}
-                            className="text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg p-1.5 transition disabled:opacity-40"
+                            className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-40"
                             title="Delete list"
                           >
-                            {deletingListId === l.id
-                              ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                              : <Trash2 className="h-3.5 w-3.5" />}
+                            {deletingListId === l.id ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
                           </button>
                         </td>
-                        {/* <td className="px-5 py-3.5 text-center">
-                        
-                        </td> */}
                       </tr>
                     );
                   })
                 )}
               </tbody>
             </table>
-            <div className="px-5 py-3 border-t border-gray-100 text-[12px] text-gray-400">{lists.length} lists</div>
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-3">
+              <span className="text-[12px] text-gray-400">
+                {listsTotal === 0
+                  ? "0 lists"
+                  : `Showing ${
+                      (listsPage - 1) * LISTS_PER_PAGE + 1
+                    }–${Math.min(listsPage * LISTS_PER_PAGE, listsTotal)} of ${listsTotal} list${
+                      listsTotal !== 1 ? "s" : ""
+                    }`}
+              </span>
+              {Math.ceil(listsTotal / LISTS_PER_PAGE) > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setListsPage((p) => Math.max(1, p - 1))}
+                    disabled={listsPage === 1}
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none transition text-[13px]"
+                  >
+                    ‹
+                  </button>
+                  {Array.from(
+                    { length: Math.ceil(listsTotal / LISTS_PER_PAGE) },
+                    (_, i) => i + 1,
+                  )
+                    .filter(
+                      (p) =>
+                        p === 1 ||
+                        p === Math.ceil(listsTotal / LISTS_PER_PAGE) ||
+                        Math.abs(p - listsPage) <= 1,
+                    )
+                    .map((p, idx, arr) => (
+                      <React.Fragment key={p}>
+                        {idx > 0 && arr[idx - 1] !== p - 1 && (
+                          <span className="text-[12px] text-gray-400 px-1">…</span>
+                        )}
+                        <button
+                          onClick={() => setListsPage(p)}
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-lg border text-[12px] font-[500] transition ${
+                            listsPage === p
+                              ? "bg-black text-white border-black"
+                              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                  <button
+                    onClick={() =>
+                      setListsPage((p) =>
+                        Math.min(Math.ceil(listsTotal / LISTS_PER_PAGE), p + 1),
+                      )
+                    }
+                    disabled={listsPage === Math.ceil(listsTotal / LISTS_PER_PAGE)}
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none transition text-[13px]"
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -5133,28 +7477,46 @@ function LeadsPage({ onBack }) {
         <DeleteConfirmModal
           label={deleteListTarget.name}
           onCancel={() => setDeleteListTarget(null)}
-          onConfirm={() => { handleDeleteList(deleteListTarget.id); setDeleteListTarget(null); }}
+          onConfirm={() => {
+            handleDeleteList(deleteListTarget.id);
+            setDeleteListTarget(null);
+          }}
           loading={deletingListId === deleteListTarget?.id}
         />
       )}
 
       {showCreate && (
         <Modal
-          title={wizardStep === 1 ? "Create Lead List" : form.sourceType === "excel" ? "Upload Excel" : "Import from CRM"}
+          title={
+            wizardStep === 1
+              ? "Create Lead List"
+              : form.sourceType === "excel"
+                ? "Upload Excel"
+                : "Import from CRM"
+          }
           onClose={closeWizard}
         >
           {/* ── Step indicator ── */}
           <div className="flex items-center gap-2 mb-5">
-            {["Details", form.sourceType === "crm" ? "Import CRM" : "Upload Excel"].map((label, i) => (
+            {[
+              "Details",
+              form.sourceType === "crm" ? "Import CRM" : "Upload Excel",
+            ].map((label, i) => (
               <div key={i} className="flex items-center gap-2">
-                {i > 0 && <div className={`h-px w-8 ${wizardStep > i ? "bg-indigo-400" : "bg-gray-200"}`} />}
-                <div className={`flex items-center gap-1.5 text-[11px] font-[600] px-2.5 py-1 rounded-full border transition ${
-                  wizardStep === i + 1
-                    ? "bg-[#6366f1] text-white border-[#6366f1]"
-                    : wizardStep > i + 1
-                    ? "bg-green-50 text-green-700 border-green-200"
-                    : "bg-gray-100 text-gray-400 border-gray-200"
-                }`}>
+                {i > 0 && (
+                  <div
+                    className={`h-px w-8 ${wizardStep > i ? "bg-indigo-400" : "bg-gray-200"}`}
+                  />
+                )}
+                <div
+                  className={`flex items-center gap-1.5 text-[11px] font-[600] px-2.5 py-1 rounded-full border transition ${
+                    wizardStep === i + 1
+                      ? "bg-[#6366f1] text-white border-[#6366f1]"
+                      : wizardStep > i + 1
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-gray-100 text-gray-400 border-gray-200"
+                  }`}
+                >
                   <span>{i + 1}</span> <span>{label}</span>
                 </div>
               </div>
@@ -5165,7 +7527,8 @@ function LeadsPage({ onBack }) {
           {wizardStep === 1 && (
             <div className="space-y-4">
               <Field
-                label="List Name" required
+                label="List Name"
+                required
                 placeholder="e.g. Q2 Enterprise Targets"
                 value={form.name}
                 onChange={(val) => setForm((f) => ({ ...f, name: val }))}
@@ -5176,23 +7539,40 @@ function LeadsPage({ onBack }) {
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { value: "excel", label: "Excel / CSV", icon: Upload, desc: "Upload a spreadsheet file" },
-                    { value: "crm",   label: "CRM",         icon: Database, desc: "Import directly from CRM" },
+                    {
+                      value: "excel",
+                      label: "Excel / CSV",
+                      icon: Upload,
+                      desc: "Upload a spreadsheet file",
+                    },
+                    {
+                      value: "crm",
+                      label: "CRM",
+                      icon: Database,
+                      desc: "Import directly from CRM",
+                    },
                   ].map(({ value, label, icon: Icon, desc }) => (
                     <button
                       key={value}
                       type="button"
-                      onClick={() => setForm((f) => ({ ...f, sourceType: value }))}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, sourceType: value }))
+                      }
                       className={`flex flex-col items-start gap-1 rounded-xl border-2 px-4 py-3.5 text-left transition ${
                         form.sourceType === value
                           ? "border-[#6366f1] bg-[#6366f1]/5"
                           : "border-gray-200 bg-gray-50/60 hover:border-gray-300 hover:bg-gray-50"
                       }`}
                     >
-                      <div className={`flex items-center gap-2 font-[700] text-[13px] ${
-                        form.sourceType === value ? "text-[#6366f1]" : "text-gray-800"
-                      }`}>
-                        <Icon className="h-4 w-4" />{label}
+                      <div
+                        className={`flex items-center gap-2 font-[700] text-[13px] ${
+                          form.sourceType === value
+                            ? "text-[#6366f1]"
+                            : "text-gray-800"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
                       </div>
                       <p className="text-[11px] text-gray-400">{desc}</p>
                     </button>
@@ -5211,7 +7591,9 @@ function LeadsPage({ onBack }) {
                   disabled={creating || !form.name.trim() || !form.sourceType}
                   className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
                 >
-                  {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
+                  {creating ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
                   {creating ? "Creating…" : "Continue →"}
                 </button>
               </div>
@@ -5222,8 +7604,13 @@ function LeadsPage({ onBack }) {
           {wizardStep === 2 && form.sourceType === "excel" && (
             <div className="space-y-5">
               <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/60 p-6">
-                <p className="text-[13px] font-[600] text-gray-700 mb-1 text-center">Select your Excel / CSV file</p>
-                <p className="text-[11px] text-gray-400 mb-4 text-center">.xlsx, .xls or .csv — leads will be imported into <span className="font-[600] text-gray-600">{form.name}</span></p>
+                <p className="text-[13px] font-[600] text-gray-700 mb-1 text-center">
+                  Select your Excel / CSV file
+                </p>
+                <p className="text-[11px] text-gray-400 mb-4 text-center">
+                  .xlsx, .xls or .csv — leads will be imported into{" "}
+                  <span className="font-[600] text-gray-600">{form.name}</span>
+                </p>
                 <input
                   ref={wizardFileRef}
                   type="file"
@@ -5246,14 +7633,20 @@ function LeadsPage({ onBack }) {
                   {wizardExcelFile && (
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                      <span className="text-[12px] font-[500] text-green-700 truncate max-w-[220px]">{wizardExcelFile.name}</span>
+                      <span className="text-[12px] font-[500] text-green-700 truncate max-w-[220px]">
+                        {wizardExcelFile.name}
+                      </span>
                     </div>
                   )}
                 </div>
               </div>
               <div className="flex justify-between items-center pt-1 border-t border-gray-100">
                 <button
-                  onClick={() => { setWizardStep(1); setWizardExcelFile(null); if (wizardFileRef.current) wizardFileRef.current.value = ""; }}
+                  onClick={() => {
+                    setWizardStep(1);
+                    setWizardExcelFile(null);
+                    if (wizardFileRef.current) wizardFileRef.current.value = "";
+                  }}
                   className="text-[12px] text-gray-500 hover:text-gray-700 transition"
                 >
                   ← Back
@@ -5271,9 +7664,17 @@ function LeadsPage({ onBack }) {
                     disabled={wizardExcelUploading || !wizardExcelFile}
                     className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
                   >
-                    {wizardExcelUploading
-                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Uploading…</>
-                      : <><Plus className="h-3.5 w-3.5" />Import</>}
+                    {wizardExcelUploading ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5" />
+                        Import
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -5285,7 +7686,9 @@ function LeadsPage({ onBack }) {
             <div className="space-y-5">
               <div className="rounded-xl border border-gray-100 bg-indigo-50/60 p-6 text-center">
                 <Database className="mx-auto h-8 w-8 text-indigo-300 mb-3" />
-                <p className="text-[13px] font-[600] text-gray-700 mb-1">Import from CRM</p>
+                <p className="text-[13px] font-[600] text-gray-700 mb-1">
+                  Import from CRM
+                </p>
                 <p className="text-[11px] text-gray-400">
                   All CRM contacts will be pulled into{" "}
                   <span className="font-[600] text-gray-600">{form.name}</span>
@@ -5313,9 +7716,17 @@ function LeadsPage({ onBack }) {
                     disabled={wizardCrmImporting}
                     className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
                   >
-                    {wizardCrmImporting
-                      ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Importing…</>
-                      : <><Plus className="h-3.5 w-3.5" />Import</>}
+                    {wizardCrmImporting ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        Importing…
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3.5 w-3.5" />
+                        Import
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -5329,50 +7740,53 @@ function LeadsPage({ onBack }) {
 
 /* ── Mappings ── */
 const SYSTEM_FIELD_KEYS = [
-  { key: "name",                      label: "Name" },
-  { key: "contact_number",            label: "Contact Number" },
-  { key: "email_address",             label: "Email Address" },
-  { key: "company",                   label: "Company" },
-  { key: "title",                     label: "Title" },
-  { key: "lead_status",               label: "Lead Status" },
-  { key: "lead_rating",               label: "Lead Rating" },
-  { key: "lead_source",               label: "Lead Source" },
-  { key: "lead_owner_email",          label: "Lead Owner Email" },
-  { key: "notes",                     label: "Notes" },
-  { key: "description",              label: "Description" },
-  { key: "activities",               label: "Activities" },
-  { key: "comments",                 label: "Comments" },
-  { key: "attachments",              label: "Attachments" },
-  { key: "tasks",                    label: "Tasks" },
-  { key: "address_street",           label: "Address Street" },
-  { key: "address_city",             label: "Address City" },
-  { key: "address_state",            label: "Address State" },
-  { key: "address_zip_code",         label: "Address Zip Code" },
-  { key: "address_country",          label: "Address Country" },
-  { key: "client_type",              label: "Client Type" },
-  { key: "business_area",            label: "Business Area" },
-  { key: "reason_not_interested",    label: "Reason Not Interested" },
-  { key: "reason_not_interested_other", label: "Reason Not Interested (Other)" },
-  { key: "project_name",             label: "Project Name" },
-  { key: "project_type",             label: "Project Type" },
-  { key: "website",                  label: "Website" },
-  { key: "industry",                 label: "Industry" },
-  { key: "no_of_employees",          label: "No. of Employees" },
-  { key: "annual_revenue",           label: "Annual Revenue" },
-  { key: "add_prompt",               label: "Add Prompt" },
-  { key: "last_follow_up_date",      label: "Last Follow-up Date" },
-  { key: "last_modified_date",       label: "Last Modified Date" },
-  { key: "linkedin_url",             label: "LinkedIn URL" },
+  { key: "name", label: "Name" },
+  { key: "contact_number", label: "Contact Number" },
+  { key: "email_address", label: "Email Address" },
+  { key: "company", label: "Company" },
+  { key: "title", label: "Title" },
+  { key: "lead_status", label: "Lead Status" },
+  { key: "lead_rating", label: "Lead Rating" },
+  { key: "lead_source", label: "Lead Source" },
+  { key: "lead_owner_email", label: "Lead Owner Email" },
+  { key: "notes", label: "Notes" },
+  { key: "description", label: "Description" },
+  { key: "activities", label: "Activities" },
+  { key: "comments", label: "Comments" },
+  { key: "attachments", label: "Attachments" },
+  { key: "tasks", label: "Tasks" },
+  { key: "address_street", label: "Address Street" },
+  { key: "address_city", label: "Address City" },
+  { key: "address_state", label: "Address State" },
+  { key: "address_zip_code", label: "Address Zip Code" },
+  { key: "address_country", label: "Address Country" },
+  { key: "client_type", label: "Client Type" },
+  { key: "business_area", label: "Business Area" },
+  { key: "reason_not_interested", label: "Reason Not Interested" },
+  {
+    key: "reason_not_interested_other",
+    label: "Reason Not Interested (Other)",
+  },
+  { key: "project_name", label: "Project Name" },
+  { key: "project_type", label: "Project Type" },
+  { key: "website", label: "Website" },
+  { key: "industry", label: "Industry" },
+  { key: "no_of_employees", label: "No. of Employees" },
+  { key: "annual_revenue", label: "Annual Revenue" },
+  { key: "add_prompt", label: "Add Prompt" },
+  { key: "last_follow_up_date", label: "Last Follow-up Date" },
+  { key: "last_modified_date", label: "Last Modified Date" },
+  { key: "linkedin_url", label: "LinkedIn URL" },
 ];
 
 function MappingsPage({ onBack }) {
-  const [loading, setLoading]         = useState(false);
-  const [saving,  setSaving]          = useState(false);
-  const [saved,   setSaved]           = useState(false);
-  const [saveError, setSaveError]     = useState("");
-  const [search,  setSearch]          = useState("");
-  const [showAdd, setShowAdd]         = useState(false);
-  const [newMap,  setNewMap]          = useState({ sysKey: "", crmField: "" });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [newMap, setNewMap] = useState({ sysKey: "", crmField: "" });
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   /* Integration URL config */
@@ -5389,36 +7803,50 @@ function MappingsPage({ onBack }) {
      apiKey  = system key used in POST payload (e.g. "name")
      crmField = what the CRM calls this field (editable, e.g. "first_name") */
   const [mappings, setMappings] = useState(
-    SYSTEM_FIELD_KEYS.map((f) => ({ id: f.key, apiKey: f.key, label: f.label, crmField: "", isCustom: false }))
+    SYSTEM_FIELD_KEYS.map((f) => ({
+      id: f.key,
+      apiKey: f.key,
+      label: f.label,
+      crmField: "",
+      isCustom: false,
+    })),
   );
 
   /* ── Load existing config on mount ── */
   useEffect(() => {
     setLoading(true);
-    axiosInstance.get("/get-integration-config")
+    axiosInstance
+      .get("/get-integration-config")
       .then((res) => {
         const d = res.data ?? {};
         setConfig({
           integration_mode: d.integration_mode ?? "rest",
-          crm_type:         d.crm_type         ?? "",
-          fetch_leads_url:    d.fetch_leads_url    ?? "",
-          fetch_details_url:  d.fetch_details_url  ?? "",
+          crm_type: d.crm_type ?? "",
+          fetch_leads_url: d.fetch_leads_url ?? "",
+          fetch_details_url: d.fetch_details_url ?? "",
           update_results_url: d.update_results_url ?? "",
-          send_email_url:     d.send_email_url     ?? "",
+          send_email_url: d.send_email_url ?? "",
         });
         const fm = d.field_mappings ?? {};
         /* Populate predefined rows with API values */
         setMappings((prev) =>
           prev.map((m) => ({
             ...m,
-            crmField: fm[m.apiKey] !== undefined ? String(fm[m.apiKey]) : m.crmField,
-          }))
+            crmField:
+              fm[m.apiKey] !== undefined ? String(fm[m.apiKey]) : m.crmField,
+          })),
         );
         /* Append any extra custom keys from API not in predefined list */
         const knownKeys = new Set(SYSTEM_FIELD_KEYS.map((f) => f.key));
         const extras = Object.entries(fm)
           .filter(([k]) => !knownKeys.has(k))
-          .map(([k, v]) => ({ id: k, apiKey: k, label: k, crmField: String(v ?? ""), isCustom: true }));
+          .map(([k, v]) => ({
+            id: k,
+            apiKey: k,
+            label: k,
+            crmField: String(v ?? ""),
+            isCustom: true,
+          }));
         if (extras.length > 0) setMappings((prev) => [...prev, ...extras]);
       })
       .catch(() => {}) /* silently ignore — user fills manually */
@@ -5426,7 +7854,9 @@ function MappingsPage({ onBack }) {
   }, []);
 
   const updateCrmField = (id, val) =>
-    setMappings((p) => p.map((m) => (m.id === id ? { ...m, crmField: val } : m)));
+    setMappings((p) =>
+      p.map((m) => (m.id === id ? { ...m, crmField: val } : m)),
+    );
 
   const remove = (id) => setMappings((p) => p.filter((m) => m.id !== id));
 
@@ -5435,7 +7865,13 @@ function MappingsPage({ onBack }) {
     const key = newMap.sysKey.trim();
     setMappings((p) => [
       ...p,
-      { id: `custom_${Date.now()}`, apiKey: key, label: key, crmField: newMap.crmField.trim(), isCustom: true },
+      {
+        id: `custom_${Date.now()}`,
+        apiKey: key,
+        label: key,
+        crmField: newMap.crmField.trim(),
+        isCustom: true,
+      },
     ]);
     setNewMap({ sysKey: "", crmField: "" });
     setShowAdd(false);
@@ -5447,13 +7883,19 @@ function MappingsPage({ onBack }) {
     setSaveError("");
     try {
       const field_mappings = {};
-      mappings.forEach((m) => { field_mappings[m.apiKey] = m.crmField; });
-      await axiosInstance.post("/save-integration-config", { ...config, field_mappings });
+      mappings.forEach((m) => {
+        field_mappings[m.apiKey] = m.crmField;
+      });
+      await axiosInstance.post("/save-integration-config", {
+        ...config,
+        field_mappings,
+      });
       setSaved(true);
       toast.success("Integration config saved.");
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
-      const msg = err?.response?.data?.message || "Failed to save. Please try again.";
+      const msg =
+        err?.response?.data?.message || "Failed to save. Please try again.";
       setSaveError(msg);
       toast.error(msg);
     } finally {
@@ -5475,14 +7917,17 @@ function MappingsPage({ onBack }) {
         subtitle="Map CRM fields to system fields for data sync"
         onBack={onBack}
         action={
-          <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm">
-            <Plus className="h-4 w-4" />Add Field
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Add Field
           </button>
         }
       />
 
       <form onSubmit={submit} className="flex flex-col flex-1 gap-4">
-
         {/* ── Integration Config Section ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <h2 className="text-[13px] font-[700] text-gray-800 mb-4 flex items-center gap-2">
@@ -5491,11 +7936,18 @@ function MappingsPage({ onBack }) {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Integration Mode</label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                Integration Mode
+              </label>
               <div className="relative">
                 <select
                   value={config.integration_mode}
-                  onChange={(e) => setConfig((p) => ({ ...p, integration_mode: e.target.value }))}
+                  onChange={(e) =>
+                    setConfig((p) => ({
+                      ...p,
+                      integration_mode: e.target.value,
+                    }))
+                  }
                   className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 appearance-none cursor-pointer"
                 >
                   <option value="rest">REST</option>
@@ -5506,46 +7958,72 @@ function MappingsPage({ onBack }) {
               </div>
             </div>
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">CRM Type</label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                CRM Type
+              </label>
               <input
                 value={config.crm_type}
-                onChange={(e) => setConfig((p) => ({ ...p, crm_type: e.target.value }))}
+                onChange={(e) =>
+                  setConfig((p) => ({ ...p, crm_type: e.target.value }))
+                }
                 placeholder="e.g. salesforce, hubspot, zoho"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Fetch Leads URL</label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                Fetch Leads URL
+              </label>
               <input
                 value={config.fetch_leads_url}
-                onChange={(e) => setConfig((p) => ({ ...p, fetch_leads_url: e.target.value }))}
+                onChange={(e) =>
+                  setConfig((p) => ({ ...p, fetch_leads_url: e.target.value }))
+                }
                 placeholder="https://your-crm.com/api/leads"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Fetch Details URL</label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                Fetch Details URL
+              </label>
               <input
                 value={config.fetch_details_url}
-                onChange={(e) => setConfig((p) => ({ ...p, fetch_details_url: e.target.value }))}
+                onChange={(e) =>
+                  setConfig((p) => ({
+                    ...p,
+                    fetch_details_url: e.target.value,
+                  }))
+                }
                 placeholder="https://your-crm.com/api/leads/{id}"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Update Results URL</label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                Update Results URL
+              </label>
               <input
                 value={config.update_results_url}
-                onChange={(e) => setConfig((p) => ({ ...p, update_results_url: e.target.value }))}
+                onChange={(e) =>
+                  setConfig((p) => ({
+                    ...p,
+                    update_results_url: e.target.value,
+                  }))
+                }
                 placeholder="https://your-crm.com/api/leads/{id}/update"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">Send Email URL</label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                Send Email URL
+              </label>
               <input
                 value={config.send_email_url}
-                onChange={(e) => setConfig((p) => ({ ...p, send_email_url: e.target.value }))}
+                onChange={(e) =>
+                  setConfig((p) => ({ ...p, send_email_url: e.target.value }))
+                }
                 placeholder="https://your-crm.com/api/send-email"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
               />
@@ -5557,14 +8035,26 @@ function MappingsPage({ onBack }) {
         <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden w-full">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-[13px] font-[600] text-gray-800">All Mappings</span>
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-[600] text-gray-500">{mappings.length} fields</span>
-              {loading && <span className="text-[11px] text-violet-400 animate-pulse">Loading…</span>}
+              <span className="text-[13px] font-[600] text-gray-800">
+                All Mappings
+              </span>
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-[600] text-gray-500">
+                {mappings.length} fields
+              </span>
+              {loading && (
+                <span className="text-[11px] text-violet-400 animate-pulse">
+                  Loading…
+                </span>
+              )}
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fields…"
-                className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search fields…"
+                className="pl-7 pr-7 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400"
+              />
             </div>
           </div>
 
@@ -5579,34 +8069,64 @@ function MappingsPage({ onBack }) {
               </colgroup>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">#</th>
                   <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">
-                    <span className="flex items-center gap-1.5"><Database className="h-3 w-3" />CRM Field</span>
+                    #
+                  </th>
+                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">
+                    <span className="flex items-center gap-1.5">
+                      <Database className="h-3 w-3" />
+                      CRM Field
+                    </span>
                   </th>
                   <th className="px-2 py-3" />
-                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">System Field</th>
-                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400 text-center">Del</th>
+                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400">
+                    System Field
+                  </th>
+                  <th className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-400 text-center">
+                    Del
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-14 text-center text-[13px] text-gray-400">
-                      {search ? "No matching fields." : 'No mappings found.'}
+                    <td
+                      colSpan={5}
+                      className="px-5 py-14 text-center text-[13px] text-gray-400"
+                    >
+                      {search ? "No matching fields." : "No mappings found."}
                     </td>
                   </tr>
                 ) : (
                   filtered.map((m, i) => (
-                    <tr key={m.id} className="border-b border-gray-50 hover:bg-violet-50/40 transition-colors group">
-                      <td className="px-5 py-3.5 text-[12px] text-gray-400 font-mono">{i + 1}</td>
+                    <tr
+                      key={m.id}
+                      className="border-b border-gray-50 hover:bg-violet-50/40 transition-colors group"
+                    >
+                      <td className="px-5 py-3.5 text-[12px] text-gray-400 font-mono">
+                        {i + 1}
+                      </td>
                       <td className="px-5 py-3.5">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-[13px] font-[600] text-gray-800">{m.label}</span>
-                          <span className="text-[11px] font-mono text-gray-400">{m.apiKey}</span>
+                          <span className="text-[13px] font-[600] text-gray-800">
+                            {m.label}
+                          </span>
+                          <span className="text-[11px] font-mono text-gray-400">
+                            {m.apiKey}
+                          </span>
                         </div>
                       </td>
                       <td className="px-2 py-3.5 text-center text-gray-300 group-hover:text-violet-400 transition-colors">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={1.8}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <path d="M2 8h12M9 4l4 4-4 4" />
                         </svg>
                       </td>
@@ -5621,7 +8141,9 @@ function MappingsPage({ onBack }) {
                       <td className="px-5 py-3.5 text-center">
                         <button
                           type="button"
-                          onClick={() => setDeleteTarget({ id: m.id, label: m.apiKey })}
+                          onClick={() =>
+                            setDeleteTarget({ id: m.id, label: m.apiKey })
+                          }
                           className="rounded-lg p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 active:scale-90 transition"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -5637,9 +8159,16 @@ function MappingsPage({ onBack }) {
 
         <div className="flex items-center justify-between bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 w-full">
           <p className="text-[12px] text-gray-400">
-            {saveError
-              ? <span className="text-red-500 font-[500]">{saveError}</span>
-              : <><span className="font-[600] text-gray-700">{mappings.length}</span> mappings configured</>}
+            {saveError ? (
+              <span className="text-red-500 font-[500]">{saveError}</span>
+            ) : (
+              <>
+                <span className="font-[600] text-gray-700">
+                  {mappings.length}
+                </span>{" "}
+                mappings configured
+              </>
+            )}
           </p>
           <button
             type="submit"
@@ -5653,29 +8182,50 @@ function MappingsPage({ onBack }) {
       </form>
 
       {showAdd && (
-        <Modal title="Add Custom Field Mapping" onClose={() => setShowAdd(false)}>
+        <Modal
+          title="Add Custom Field Mapping"
+          onClose={() => setShowAdd(false)}
+        >
           <div className="space-y-4">
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">System Field Key <span className="text-red-500">*</span></label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                System Field Key <span className="text-red-500">*</span>
+              </label>
               <input
                 placeholder="e.g. custom_field"
                 value={newMap.sysKey}
-                onChange={(e) => setNewMap((p) => ({ ...p, sysKey: e.target.value }))}
+                onChange={(e) =>
+                  setNewMap((p) => ({ ...p, sysKey: e.target.value }))
+                }
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-[600] text-gray-600 mb-1">CRM Field Value</label>
+              <label className="block text-[11px] font-[600] text-gray-600 mb-1">
+                CRM Field Value
+              </label>
               <input
                 placeholder="e.g. custom_crm_field"
                 value={newMap.crmField}
-                onChange={(e) => setNewMap((p) => ({ ...p, crmField: e.target.value }))}
+                onChange={(e) =>
+                  setNewMap((p) => ({ ...p, crmField: e.target.value }))
+                }
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20"
               />
             </div>
             <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
-              <button onClick={() => setShowAdd(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition">Cancel</button>
-              <button onClick={addMapping} className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition">Add</button>
+              <button
+                onClick={() => setShowAdd(false)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addMapping}
+                className="px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 active:scale-95 transition"
+              >
+                Add
+              </button>
             </div>
           </div>
         </Modal>
@@ -5684,7 +8234,10 @@ function MappingsPage({ onBack }) {
         <DeleteConfirmModal
           label={deleteTarget.label}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => { remove(deleteTarget.id); setDeleteTarget(null); }}
+          onConfirm={() => {
+            remove(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
         />
       )}
     </div>
@@ -5709,7 +8262,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       ELEVEN_LABS_BASE_URL: "https://api.elevenlabs.io/v1/convai",
       ELEVEN_LABS_PHONE_NUMBER: "",
       ELEVEN_LABS_PHONE_NUMBER_ID: "",
-      OUTBOUND_CALL_ENDPOINT_URL: "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
+      OUTBOUND_CALL_ENDPOINT_URL:
+        "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
     },
     linkedin: {
       APIFY_API_TOKEN: "",
@@ -5760,10 +8314,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const setField = (section, key) => (input) => {
-    const value =
-      input?.target
-        ? (input.target.type === "checkbox" ? input.target.checked : input.target.value)
-        : input;
+    const value = input?.target
+      ? input.target.type === "checkbox"
+        ? input.target.checked
+        : input.target.value
+      : input;
     setForms((prev) => ({
       ...prev,
       [section]: {
@@ -5781,7 +8336,12 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
     const getObject = (raw) => {
       const payload = raw?.data ?? raw ?? {};
-      return payload?.credentials ?? payload?.data?.credentials ?? payload?.data ?? payload;
+      return (
+        payload?.credentials ??
+        payload?.data?.credentials ??
+        payload?.data ??
+        payload
+      );
     };
     const asBoolean = (v, fallback) => {
       if (typeof v === "boolean") return v;
@@ -5795,7 +8355,18 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
     (async () => {
       setLoading(true);
-      const [twilioRes, elevenlabsRes, linkedinRes, azureRes, tmRes, groqRes, appConfigRes, grokEnrichRes, grokEmailRes, xaiRes] = await Promise.allSettled([
+      const [
+        twilioRes,
+        elevenlabsRes,
+        linkedinRes,
+        azureRes,
+        tmRes,
+        groqRes,
+        appConfigRes,
+        grokEnrichRes,
+        grokEmailRes,
+        xaiRes,
+      ] = await Promise.allSettled([
         axiosInstance.get("/api/globalsetting/twilio"),
         axiosInstance.get("/api/globalsetting/elevenlabs"),
         axiosInstance.get("/api/globalsetting/linkedin-scraping"),
@@ -5814,7 +8385,10 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         if (twilioRes.status === "fulfilled") {
           const d = getObject(twilioRes.value);
           next.twilio = {
-            twilio_auth_token: d.twilio_auth_token ?? d.TWILIO_AUTH_TOKEN ?? prev.twilio.twilio_auth_token,
+            twilio_auth_token:
+              d.twilio_auth_token ??
+              d.TWILIO_AUTH_TOKEN ??
+              prev.twilio.twilio_auth_token,
             twilio_sid: d.twilio_sid ?? d.TWILIO_SID ?? prev.twilio.twilio_sid,
           };
         }
@@ -5822,15 +8396,29 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         if (elevenlabsRes.status === "fulfilled") {
           const d = getObject(elevenlabsRes.value);
           next.elevenlabs = {
-            ELEVENLABS_API_KEY: d.ELEVENLABS_API_KEY ?? prev.elevenlabs.ELEVENLABS_API_KEY,
-            ELEVENLABS_INBOUND_AGENT_ID: d.ELEVENLABS_INBOUND_AGENT_ID ?? prev.elevenlabs.ELEVENLABS_INBOUND_AGENT_ID,
-            ELEVENLABS_INBOUND_PHONE_NUMBER: d.ELEVENLABS_INBOUND_PHONE_NUMBER ?? prev.elevenlabs.ELEVENLABS_INBOUND_PHONE_NUMBER,
-            ELEVEN_LABS_AGENT_ID: d.ELEVEN_LABS_AGENT_ID ?? prev.elevenlabs.ELEVEN_LABS_AGENT_ID,
-            ELEVEN_LABS_API_KEY: d.ELEVEN_LABS_API_KEY ?? prev.elevenlabs.ELEVEN_LABS_API_KEY,
-            ELEVEN_LABS_BASE_URL: d.ELEVEN_LABS_BASE_URL ?? prev.elevenlabs.ELEVEN_LABS_BASE_URL,
-            ELEVEN_LABS_PHONE_NUMBER: d.ELEVEN_LABS_PHONE_NUMBER ?? prev.elevenlabs.ELEVEN_LABS_PHONE_NUMBER,
-            ELEVEN_LABS_PHONE_NUMBER_ID: d.ELEVEN_LABS_PHONE_NUMBER_ID ?? prev.elevenlabs.ELEVEN_LABS_PHONE_NUMBER_ID,
-            OUTBOUND_CALL_ENDPOINT_URL: d.OUTBOUND_CALL_ENDPOINT_URL ?? prev.elevenlabs.OUTBOUND_CALL_ENDPOINT_URL,
+            ELEVENLABS_API_KEY:
+              d.ELEVENLABS_API_KEY ?? prev.elevenlabs.ELEVENLABS_API_KEY,
+            ELEVENLABS_INBOUND_AGENT_ID:
+              d.ELEVENLABS_INBOUND_AGENT_ID ??
+              prev.elevenlabs.ELEVENLABS_INBOUND_AGENT_ID,
+            ELEVENLABS_INBOUND_PHONE_NUMBER:
+              d.ELEVENLABS_INBOUND_PHONE_NUMBER ??
+              prev.elevenlabs.ELEVENLABS_INBOUND_PHONE_NUMBER,
+            ELEVEN_LABS_AGENT_ID:
+              d.ELEVEN_LABS_AGENT_ID ?? prev.elevenlabs.ELEVEN_LABS_AGENT_ID,
+            ELEVEN_LABS_API_KEY:
+              d.ELEVEN_LABS_API_KEY ?? prev.elevenlabs.ELEVEN_LABS_API_KEY,
+            ELEVEN_LABS_BASE_URL:
+              d.ELEVEN_LABS_BASE_URL ?? prev.elevenlabs.ELEVEN_LABS_BASE_URL,
+            ELEVEN_LABS_PHONE_NUMBER:
+              d.ELEVEN_LABS_PHONE_NUMBER ??
+              prev.elevenlabs.ELEVEN_LABS_PHONE_NUMBER,
+            ELEVEN_LABS_PHONE_NUMBER_ID:
+              d.ELEVEN_LABS_PHONE_NUMBER_ID ??
+              prev.elevenlabs.ELEVEN_LABS_PHONE_NUMBER_ID,
+            OUTBOUND_CALL_ENDPOINT_URL:
+              d.OUTBOUND_CALL_ENDPOINT_URL ??
+              prev.elevenlabs.OUTBOUND_CALL_ENDPOINT_URL,
           };
         }
 
@@ -5839,30 +8427,53 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           next.linkedin = {
             APIFY_API_TOKEN: d.APIFY_API_TOKEN ?? prev.linkedin.APIFY_API_TOKEN,
             APOLLO_API_KEY: d.APOLLO_API_KEY ?? prev.linkedin.APOLLO_API_KEY,
-            ENRICHMENT_CACHE_TTL_DAYS: String(d.ENRICHMENT_CACHE_TTL_DAYS ?? prev.linkedin.ENRICHMENT_CACHE_TTL_DAYS),
-            ENRICHMENT_ENABLED: String(d.ENRICHMENT_ENABLED ?? prev.linkedin.ENRICHMENT_ENABLED),
-            LINKEDIN_CACHE_TTL_DAYS: String(d.LINKEDIN_CACHE_TTL_DAYS ?? prev.linkedin.LINKEDIN_CACHE_TTL_DAYS),
-            LINKEDIN_SCRAPING_ENABLED: String(d.LINKEDIN_SCRAPING_ENABLED ?? prev.linkedin.LINKEDIN_SCRAPING_ENABLED),
+            ENRICHMENT_CACHE_TTL_DAYS: String(
+              d.ENRICHMENT_CACHE_TTL_DAYS ??
+                prev.linkedin.ENRICHMENT_CACHE_TTL_DAYS,
+            ),
+            ENRICHMENT_ENABLED: String(
+              d.ENRICHMENT_ENABLED ?? prev.linkedin.ENRICHMENT_ENABLED,
+            ),
+            LINKEDIN_CACHE_TTL_DAYS: String(
+              d.LINKEDIN_CACHE_TTL_DAYS ??
+                prev.linkedin.LINKEDIN_CACHE_TTL_DAYS,
+            ),
+            LINKEDIN_SCRAPING_ENABLED: String(
+              d.LINKEDIN_SCRAPING_ENABLED ??
+                prev.linkedin.LINKEDIN_SCRAPING_ENABLED,
+            ),
           };
         }
 
         if (azureRes.status === "fulfilled") {
           const d = getObject(azureRes.value);
           next.azure = {
-            AZURE_OPENAI_API_KEY: d.AZURE_OPENAI_API_KEY ?? prev.azure.AZURE_OPENAI_API_KEY,
-            AZURE_OPENAI_API_MODEL: d.AZURE_OPENAI_API_MODEL ?? prev.azure.AZURE_OPENAI_API_MODEL,
-            AZURE_OPENAI_ENDPOINT: d.AZURE_OPENAI_ENDPOINT ?? prev.azure.AZURE_OPENAI_ENDPOINT,
-            AZURE_OPENAI_VERSION: d.AZURE_OPENAI_VERSION ?? prev.azure.AZURE_OPENAI_VERSION,
+            AZURE_OPENAI_API_KEY:
+              d.AZURE_OPENAI_API_KEY ?? prev.azure.AZURE_OPENAI_API_KEY,
+            AZURE_OPENAI_API_MODEL:
+              d.AZURE_OPENAI_API_MODEL ?? prev.azure.AZURE_OPENAI_API_MODEL,
+            AZURE_OPENAI_ENDPOINT:
+              d.AZURE_OPENAI_ENDPOINT ?? prev.azure.AZURE_OPENAI_ENDPOINT,
+            AZURE_OPENAI_VERSION:
+              d.AZURE_OPENAI_VERSION ?? prev.azure.AZURE_OPENAI_VERSION,
           };
         }
 
         if (tmRes.status === "fulfilled") {
           const d = getObject(tmRes.value);
           next.tmOwnSolution = {
-            TM_OWN_SOLUTION_AGENT_ID: d.TM_OWN_SOLUTION_AGENT_ID ?? prev.tmOwnSolution.TM_OWN_SOLUTION_AGENT_ID,
-            TM_OWN_SOLUTION_API_KEY: d.TM_OWN_SOLUTION_API_KEY ?? prev.tmOwnSolution.TM_OWN_SOLUTION_API_KEY,
-            TM_OWN_SOLUTION_API_URL: d.TM_OWN_SOLUTION_API_URL ?? prev.tmOwnSolution.TM_OWN_SOLUTION_API_URL,
-            TM_OWN_SOLUTION_PHONE_NUMBER_ID: d.TM_OWN_SOLUTION_PHONE_NUMBER_ID ?? prev.tmOwnSolution.TM_OWN_SOLUTION_PHONE_NUMBER_ID,
+            TM_OWN_SOLUTION_AGENT_ID:
+              d.TM_OWN_SOLUTION_AGENT_ID ??
+              prev.tmOwnSolution.TM_OWN_SOLUTION_AGENT_ID,
+            TM_OWN_SOLUTION_API_KEY:
+              d.TM_OWN_SOLUTION_API_KEY ??
+              prev.tmOwnSolution.TM_OWN_SOLUTION_API_KEY,
+            TM_OWN_SOLUTION_API_URL:
+              d.TM_OWN_SOLUTION_API_URL ??
+              prev.tmOwnSolution.TM_OWN_SOLUTION_API_URL,
+            TM_OWN_SOLUTION_PHONE_NUMBER_ID:
+              d.TM_OWN_SOLUTION_PHONE_NUMBER_ID ??
+              prev.tmOwnSolution.TM_OWN_SOLUTION_PHONE_NUMBER_ID,
           };
         }
 
@@ -5870,25 +8481,40 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           const d = groqRes.value?.data ?? {};
           next.groq = {
             groq_api_key:
-              d.groq_api_key ?? d.GROQ_API_KEY ?? d?.credentials?.groq_api_key ?? prev.groq.groq_api_key,
+              d.groq_api_key ??
+              d.GROQ_API_KEY ??
+              d?.credentials?.groq_api_key ??
+              prev.groq.groq_api_key,
             email_deliverability_provider:
-              d.email_deliverability_provider ?? prev.groq.email_deliverability_provider,
+              d.email_deliverability_provider ??
+              prev.groq.email_deliverability_provider,
           };
         }
 
         if (appConfigRes.status === "fulfilled") {
           const d = appConfigRes.value?.data ?? {};
           next.appConfig = {
-            target_mailbox_for_replies: d.target_mailbox_for_replies ?? prev.appConfig.target_mailbox_for_replies,
-            timezone_configuration: d.timezone_configuration ?? prev.appConfig.timezone_configuration,
-            graph_client_state: d.graph_client_state ?? prev.appConfig.graph_client_state,
+            target_mailbox_for_replies:
+              d.target_mailbox_for_replies ??
+              prev.appConfig.target_mailbox_for_replies,
+            timezone_configuration:
+              d.timezone_configuration ?? prev.appConfig.timezone_configuration,
+            graph_client_state:
+              d.graph_client_state ?? prev.appConfig.graph_client_state,
             agent_name: d.agent_name ?? prev.appConfig.agent_name,
             company_name: d.company_name ?? prev.appConfig.company_name,
-            default_agent_name: d.default_agent_name ?? prev.appConfig.default_agent_name,
-            company_sales_pain_solution: d.company_sales_pain_solution ?? prev.appConfig.company_sales_pain_solution,
+            default_agent_name:
+              d.default_agent_name ?? prev.appConfig.default_agent_name,
+            company_sales_pain_solution:
+              d.company_sales_pain_solution ??
+              prev.appConfig.company_sales_pain_solution,
             about_company: d.about_company ?? prev.appConfig.about_company,
-            call_service_provider: d.call_service_provider ?? prev.appConfig.call_service_provider,
-            skip_weekend_check: asBoolean(d.skip_weekend_check, prev.appConfig.skip_weekend_check),
+            call_service_provider:
+              d.call_service_provider ?? prev.appConfig.call_service_provider,
+            skip_weekend_check: asBoolean(
+              d.skip_weekend_check,
+              prev.appConfig.skip_weekend_check,
+            ),
             enable_logs: asBoolean(d.enable_logs, prev.appConfig.enable_logs),
           };
         }
@@ -5897,19 +8523,38 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         const enrichNext = { ...prev.enrichment };
         if (xaiRes.status === "fulfilled") {
           const d = xaiRes.value?.data ?? {};
-          enrichNext.xai_api_key = d.xai_api_key ?? d.XAI_API_KEY ?? d?.credentials?.xai_api_key ?? prev.enrichment.xai_api_key;
+          enrichNext.xai_api_key =
+            d.xai_api_key ??
+            d.XAI_API_KEY ??
+            d?.credentials?.xai_api_key ??
+            prev.enrichment.xai_api_key;
         }
         if (grokEnrichRes.status === "fulfilled") {
           const d = grokEnrichRes.value?.data ?? {};
-          enrichNext.grok_enrichment = d.grok_enrichment ?? d.value ?? d.model ?? d.grok_enrichment_model ?? prev.enrichment.grok_enrichment;
-          enrichNext.enable_grok_enrichment = asBoolean(d.enable_grok_enrichment, prev.enrichment.enable_grok_enrichment);
+          enrichNext.grok_enrichment =
+            d.grok_enrichment ??
+            d.value ??
+            d.model ??
+            d.grok_enrichment_model ??
+            prev.enrichment.grok_enrichment;
+          enrichNext.enable_grok_enrichment = asBoolean(
+            d.enable_grok_enrichment,
+            prev.enrichment.enable_grok_enrichment,
+          );
           // Also extract options for dropdown if available
-          if (Array.isArray(d.options)) enrichNext._enrichmentOptions = d.options;
+          if (Array.isArray(d.options))
+            enrichNext._enrichmentOptions = d.options;
         }
         if (grokEmailRes.status === "fulfilled") {
           const d = grokEmailRes.value?.data ?? {};
-          enrichNext.grok_email_style = d.grok_email_style ?? d.value ?? d.style ?? d.grok_email_style_model ?? prev.enrichment.grok_email_style;
-          if (Array.isArray(d.options)) enrichNext._emailStyleOptions = d.options;
+          enrichNext.grok_email_style =
+            d.grok_email_style ??
+            d.value ??
+            d.style ??
+            d.grok_email_style_model ??
+            prev.enrichment.grok_email_style;
+          if (Array.isArray(d.options))
+            enrichNext._emailStyleOptions = d.options;
         }
         next.enrichment = enrichNext;
 
@@ -5918,7 +8563,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
       setLoading(false);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, refreshTrigger]);
 
   const save = async (section) => {
@@ -5930,24 +8575,35 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
     setSavingKey(section);
     try {
       if (section === "twilio") {
-        await axiosInstance.put("/api/globalsetting/twilio", { credentials: forms.twilio });
+        await axiosInstance.put("/api/globalsetting/twilio", {
+          credentials: forms.twilio,
+        });
       }
       if (section === "elevenlabs") {
-        await axiosInstance.put("/api/globalsetting/elevenlabs", { credentials: forms.elevenlabs });
+        await axiosInstance.put("/api/globalsetting/elevenlabs", {
+          credentials: forms.elevenlabs,
+        });
       }
       if (section === "linkedin") {
-        await axiosInstance.put("/api/globalsetting/linkedin-scraping", { credentials: forms.linkedin });
+        await axiosInstance.put("/api/globalsetting/linkedin-scraping", {
+          credentials: forms.linkedin,
+        });
       }
       if (section === "azure") {
-        await axiosInstance.put("/api/globalsetting/azure", { credentials: forms.azure });
+        await axiosInstance.put("/api/globalsetting/azure", {
+          credentials: forms.azure,
+        });
       }
       if (section === "tmOwnSolution") {
-        await axiosInstance.put("/api/globalsetting/tm-own-solution", { credentials: forms.tmOwnSolution });
+        await axiosInstance.put("/api/globalsetting/tm-own-solution", {
+          credentials: forms.tmOwnSolution,
+        });
       }
       if (section === "groq") {
         await axiosInstance.put("/api/globalsetting/groq", {
           groq_api_key: forms.groq.groq_api_key,
-          email_deliverability_provider: forms.groq.email_deliverability_provider,
+          email_deliverability_provider:
+            forms.groq.email_deliverability_provider,
         });
       }
       if (section === "enrichment") {
@@ -5966,13 +8622,15 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       }
       if (section === "appConfig") {
         await axiosInstance.put("/api/globalsetting/app-config", {
-          target_mailbox_for_replies: forms.appConfig.target_mailbox_for_replies,
+          target_mailbox_for_replies:
+            forms.appConfig.target_mailbox_for_replies,
           timezone_configuration: forms.appConfig.timezone_configuration,
           graph_client_state: forms.appConfig.graph_client_state,
           agent_name: forms.appConfig.agent_name,
           company_name: forms.appConfig.company_name,
           default_agent_name: forms.appConfig.default_agent_name,
-          company_sales_pain_solution: forms.appConfig.company_sales_pain_solution,
+          company_sales_pain_solution:
+            forms.appConfig.company_sales_pain_solution,
           about_company: forms.appConfig.about_company,
           call_service_provider: forms.appConfig.call_service_provider,
           skip_weekend_check: !!forms.appConfig.skip_weekend_check,
@@ -5981,7 +8639,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       }
       toast.success("Configuration saved successfully.");
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? err?.response?.data?.message ?? "Failed to save configuration.");
+      toast.error(
+        err?.response?.data?.detail ??
+          err?.response?.data?.message ??
+          "Failed to save configuration.",
+      );
     } finally {
       setSavingKey(null);
     }
@@ -5994,7 +8656,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       disabled={savingKey === section}
       className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
     >
-      {savingKey === section ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Settings className="h-3.5 w-3.5" />}
+      {savingKey === section ? (
+        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Settings className="h-3.5 w-3.5" />
+      )}
       {savingKey === section ? "Saving…" : "Save"}
     </button>
   );
@@ -6023,17 +8689,20 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
             <div>
-              <h3 className="text-[15px] font-[700] text-gray-900">Access Restricted</h3>
+              <h3 className="text-[15px] font-[700] text-gray-900">
+                Access Restricted
+              </h3>
               <p className="text-[13px] text-gray-500 mt-1">
-                Global Integrations can be viewed and updated only by admin users.
+                Global Integrations can be viewed and updated only by admin
+                users.
               </p>
             </div>
           </div>
         </div>
       ) : loading ? (
-
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex items-center justify-center gap-2 text-[13px] text-gray-500">
-          <RefreshCw className="h-4 w-4 animate-spin text-blue-500" /> Loading global settings...
+          <RefreshCw className="h-4 w-4 animate-spin text-blue-500" /> Loading
+          global settings...
         </div>
       ) : (
         <div className="space-y-5">
@@ -6046,8 +8715,19 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <SaveBtn section="twilio" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Twilio SID" value={forms.twilio.twilio_sid} onChange={setField("twilio", "twilio_sid")} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-              <Field label="Twilio Auth Token" type="password" value={forms.twilio.twilio_auth_token} onChange={setField("twilio", "twilio_auth_token")} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+              <Field
+                label="Twilio SID"
+                value={forms.twilio.twilio_sid}
+                onChange={setField("twilio", "twilio_sid")}
+                placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              />
+              <Field
+                label="Twilio Auth Token"
+                type="password"
+                value={forms.twilio.twilio_auth_token}
+                onChange={setField("twilio", "twilio_auth_token")}
+                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              />
             </div>
           </div>
 
@@ -6055,34 +8735,104 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-4 w-4 text-violet-600" />
-                <h3 className="text-[14px] font-[700] text-gray-900">ElevenLabs Configuration</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  ElevenLabs Configuration
+                </h3>
               </div>
               <SaveBtn section="elevenlabs" />
             </div>
             <div className="space-y-5">
               {/* ── INBOUND CALLS ── */}
               <div className="border-l-4 border-green-400 pl-4">
-                <h4 className="text-[12px] font-[700] uppercase tracking-wider text-green-700 mb-3">📲 Inbound Calls Configuration</h4>
+                <h4 className="text-[12px] font-[700] uppercase tracking-wider text-green-700 mb-3">
+                  📲 Inbound Calls Configuration
+                </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="API Key" type="password" value={forms.elevenlabs.ELEVENLABS_API_KEY} onChange={setField("elevenlabs", "ELEVENLABS_API_KEY")} placeholder="sk_..." />
-                  <Field label="Agent ID" value={forms.elevenlabs.ELEVENLABS_INBOUND_AGENT_ID} onChange={setField("elevenlabs", "ELEVENLABS_INBOUND_AGENT_ID")} placeholder="agent_..." />
+                  <Field
+                    label="API Key"
+                    type="password"
+                    value={forms.elevenlabs.ELEVENLABS_API_KEY}
+                    onChange={setField("elevenlabs", "ELEVENLABS_API_KEY")}
+                    placeholder="sk_..."
+                  />
+                  <Field
+                    label="Agent ID"
+                    value={forms.elevenlabs.ELEVENLABS_INBOUND_AGENT_ID}
+                    onChange={setField(
+                      "elevenlabs",
+                      "ELEVENLABS_INBOUND_AGENT_ID",
+                    )}
+                    placeholder="agent_..."
+                  />
                   <div className="sm:col-span-2">
-                    <Field label="Inbound Phone Number" value={forms.elevenlabs.ELEVENLABS_INBOUND_PHONE_NUMBER} onChange={setField("elevenlabs", "ELEVENLABS_INBOUND_PHONE_NUMBER")} placeholder="+1 929 329 3858" hint="Phone number customers call for inbound calls" />
+                    <Field
+                      label="Inbound Phone Number"
+                      value={forms.elevenlabs.ELEVENLABS_INBOUND_PHONE_NUMBER}
+                      onChange={setField(
+                        "elevenlabs",
+                        "ELEVENLABS_INBOUND_PHONE_NUMBER",
+                      )}
+                      placeholder="+1 929 329 3858"
+                      hint="Phone number customers call for inbound calls"
+                    />
                   </div>
                 </div>
               </div>
 
               {/* ── OUTBOUND CALLS ── */}
               <div className="border-l-4 border-blue-400 pl-4">
-                <h4 className="text-[12px] font-[700] uppercase tracking-wider text-blue-700 mb-3">☎️ Outbound Calls Configuration</h4>
+                <h4 className="text-[12px] font-[700] uppercase tracking-wider text-blue-700 mb-3">
+                  ☎️ Outbound Calls Configuration
+                </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="API Key" type="password" value={forms.elevenlabs.ELEVEN_LABS_API_KEY} onChange={setField("elevenlabs", "ELEVEN_LABS_API_KEY")} placeholder="sk_..." />
-                  <Field label="Agent ID" value={forms.elevenlabs.ELEVEN_LABS_AGENT_ID} onChange={setField("elevenlabs", "ELEVEN_LABS_AGENT_ID")} placeholder="agent_..." />
-                  <Field label="Phone Number" value={forms.elevenlabs.ELEVEN_LABS_PHONE_NUMBER} onChange={setField("elevenlabs", "ELEVEN_LABS_PHONE_NUMBER")} placeholder="+1 929 329 3858" hint="Phone number used for outbound calls" />
-                  <Field label="Phone Number ID" value={forms.elevenlabs.ELEVEN_LABS_PHONE_NUMBER_ID} onChange={setField("elevenlabs", "ELEVEN_LABS_PHONE_NUMBER_ID")} placeholder="phnum_..." />
-                  <Field label="Base URL" value={forms.elevenlabs.ELEVEN_LABS_BASE_URL} onChange={setField("elevenlabs", "ELEVEN_LABS_BASE_URL")} placeholder="https://api.elevenlabs.io/v1/convai" />
+                  <Field
+                    label="API Key"
+                    type="password"
+                    value={forms.elevenlabs.ELEVEN_LABS_API_KEY}
+                    onChange={setField("elevenlabs", "ELEVEN_LABS_API_KEY")}
+                    placeholder="sk_..."
+                  />
+                  <Field
+                    label="Agent ID"
+                    value={forms.elevenlabs.ELEVEN_LABS_AGENT_ID}
+                    onChange={setField("elevenlabs", "ELEVEN_LABS_AGENT_ID")}
+                    placeholder="agent_..."
+                  />
+                  <Field
+                    label="Phone Number"
+                    value={forms.elevenlabs.ELEVEN_LABS_PHONE_NUMBER}
+                    onChange={setField(
+                      "elevenlabs",
+                      "ELEVEN_LABS_PHONE_NUMBER",
+                    )}
+                    placeholder="+1 929 329 3858"
+                    hint="Phone number used for outbound calls"
+                  />
+                  <Field
+                    label="Phone Number ID"
+                    value={forms.elevenlabs.ELEVEN_LABS_PHONE_NUMBER_ID}
+                    onChange={setField(
+                      "elevenlabs",
+                      "ELEVEN_LABS_PHONE_NUMBER_ID",
+                    )}
+                    placeholder="phnum_..."
+                  />
+                  <Field
+                    label="Base URL"
+                    value={forms.elevenlabs.ELEVEN_LABS_BASE_URL}
+                    onChange={setField("elevenlabs", "ELEVEN_LABS_BASE_URL")}
+                    placeholder="https://api.elevenlabs.io/v1/convai"
+                  />
                   <div className="sm:col-span-2">
-                    <Field label="Outbound Call Endpoint URL" value={forms.elevenlabs.OUTBOUND_CALL_ENDPOINT_URL} onChange={setField("elevenlabs", "OUTBOUND_CALL_ENDPOINT_URL")} placeholder="https://api.elevenlabs.io/v1/convai/twilio/outbound-call" />
+                    <Field
+                      label="Outbound Call Endpoint URL"
+                      value={forms.elevenlabs.OUTBOUND_CALL_ENDPOINT_URL}
+                      onChange={setField(
+                        "elevenlabs",
+                        "OUTBOUND_CALL_ENDPOINT_URL",
+                      )}
+                      placeholder="https://api.elevenlabs.io/v1/convai/twilio/outbound-call"
+                    />
                   </div>
                 </div>
               </div>
@@ -6093,26 +8843,52 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Linkedin className="h-4 w-4 text-sky-600" />
-                <h3 className="text-[14px] font-[700] text-gray-900">LinkedIn Scraping</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  LinkedIn Scraping
+                </h3>
               </div>
               <SaveBtn section="linkedin" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="APIFY API Token" type="password" value={forms.linkedin.APIFY_API_TOKEN} onChange={setField("linkedin", "APIFY_API_TOKEN")} />
-              <Field label="APOLLO API Key" type="password" value={forms.linkedin.APOLLO_API_KEY} onChange={setField("linkedin", "APOLLO_API_KEY")} />
-              <Field label="Enrichment Cache TTL (days)" value={forms.linkedin.ENRICHMENT_CACHE_TTL_DAYS} onChange={setField("linkedin", "ENRICHMENT_CACHE_TTL_DAYS")} />
+              <Field
+                label="APIFY API Token"
+                type="password"
+                value={forms.linkedin.APIFY_API_TOKEN}
+                onChange={setField("linkedin", "APIFY_API_TOKEN")}
+              />
+              <Field
+                label="APOLLO API Key"
+                type="password"
+                value={forms.linkedin.APOLLO_API_KEY}
+                onChange={setField("linkedin", "APOLLO_API_KEY")}
+              />
+              <Field
+                label="Enrichment Cache TTL (days)"
+                value={forms.linkedin.ENRICHMENT_CACHE_TTL_DAYS}
+                onChange={setField("linkedin", "ENRICHMENT_CACHE_TTL_DAYS")}
+              />
               <SelectField
                 label="Enrichment Enabled"
                 value={forms.linkedin.ENRICHMENT_ENABLED}
                 onChange={setField("linkedin", "ENRICHMENT_ENABLED")}
-                options={[{ label: "true", value: "true" }, { label: "false", value: "false" }]}
+                options={[
+                  { label: "true", value: "true" },
+                  { label: "false", value: "false" },
+                ]}
               />
-              <Field label="LinkedIn Cache TTL (days)" value={forms.linkedin.LINKEDIN_CACHE_TTL_DAYS} onChange={setField("linkedin", "LINKEDIN_CACHE_TTL_DAYS")} />
+              <Field
+                label="LinkedIn Cache TTL (days)"
+                value={forms.linkedin.LINKEDIN_CACHE_TTL_DAYS}
+                onChange={setField("linkedin", "LINKEDIN_CACHE_TTL_DAYS")}
+              />
               <SelectField
                 label="LinkedIn Scraping Enabled"
                 value={forms.linkedin.LINKEDIN_SCRAPING_ENABLED}
                 onChange={setField("linkedin", "LINKEDIN_SCRAPING_ENABLED")}
-                options={[{ label: "true", value: "true" }, { label: "false", value: "false" }]}
+                options={[
+                  { label: "true", value: "true" },
+                  { label: "false", value: "false" },
+                ]}
               />
             </div>
           </div>
@@ -6121,15 +8897,34 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-indigo-600" />
-                <h3 className="text-[14px] font-[700] text-gray-900">Azure OpenAI</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                 Azure Services Key
+                </h3>
               </div>
               <SaveBtn section="azure" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="AZURE_OPENAI_API_KEY" type="password" value={forms.azure.AZURE_OPENAI_API_KEY} onChange={setField("azure", "AZURE_OPENAI_API_KEY")} />
-              <Field label="AZURE_OPENAI_API_MODEL" value={forms.azure.AZURE_OPENAI_API_MODEL} onChange={setField("azure", "AZURE_OPENAI_API_MODEL")} />
-              <Field label="AZURE_OPENAI_ENDPOINT" value={forms.azure.AZURE_OPENAI_ENDPOINT} onChange={setField("azure", "AZURE_OPENAI_ENDPOINT")} />
-              <Field label="AZURE_OPENAI_VERSION" value={forms.azure.AZURE_OPENAI_VERSION} onChange={setField("azure", "AZURE_OPENAI_VERSION")} />
+              <Field
+                label="Azure OPENAI API Key"
+                type="password"
+                value={forms.azure.AZURE_OPENAI_API_KEY}
+                onChange={setField("azure", "AZURE_OPENAI_API_KEY")}
+              />
+              <Field
+                label=" Azure OPENAI API Model"
+                value={forms.azure.AZURE_OPENAI_API_MODEL}
+                onChange={setField("azure", "AZURE_OPENAI_API_MODEL")}
+              />
+              <Field
+                label="Azure OPENAI Endpoint"
+                value={forms.azure.AZURE_OPENAI_ENDPOINT}
+                onChange={setField("azure", "AZURE_OPENAI_ENDPOINT")}
+              />
+              <Field
+                label="Azure OPENAI API Version"
+                value={forms.azure.AZURE_OPENAI_VERSION}
+                onChange={setField("azure", "AZURE_OPENAI_VERSION")}
+              />{" "}
             </div>
           </div>
 
@@ -6137,15 +8932,37 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-emerald-600" />
-                <h3 className="text-[14px] font-[700] text-gray-900">TM Own Solution</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  TM Own Solution
+                </h3>
               </div>
               <SaveBtn section="tmOwnSolution" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="TM_OWN_SOLUTION_AGENT_ID" value={forms.tmOwnSolution.TM_OWN_SOLUTION_AGENT_ID} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_AGENT_ID")} />
-              <Field label="TM_OWN_SOLUTION_API_KEY" type="password" value={forms.tmOwnSolution.TM_OWN_SOLUTION_API_KEY} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_API_KEY")} />
-              <Field label="TM_OWN_SOLUTION_API_URL" value={forms.tmOwnSolution.TM_OWN_SOLUTION_API_URL} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_API_URL")} />
-              <Field label="TM_OWN_SOLUTION_PHONE_NUMBER_ID" value={forms.tmOwnSolution.TM_OWN_SOLUTION_PHONE_NUMBER_ID} onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_PHONE_NUMBER_ID")} />
+              <Field
+                label="Agent ID"
+                value={forms.tmOwnSolution.TM_OWN_SOLUTION_AGENT_ID}
+                onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_AGENT_ID")}
+              />
+              <Field
+                label="API Key"
+                type="password"
+                value={forms.tmOwnSolution.TM_OWN_SOLUTION_API_KEY}
+                onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_API_KEY")}
+              />
+              <Field
+                label="API URL"
+                value={forms.tmOwnSolution.TM_OWN_SOLUTION_API_URL}
+                onChange={setField("tmOwnSolution", "TM_OWN_SOLUTION_API_URL")}
+              />
+              <Field
+                label="Phone Number ID"
+                value={forms.tmOwnSolution.TM_OWN_SOLUTION_PHONE_NUMBER_ID}
+                onChange={setField(
+                  "tmOwnSolution",
+                  "TM_OWN_SOLUTION_PHONE_NUMBER_ID",
+                )}
+              />{" "}
             </div>
           </div>
 
@@ -6153,51 +8970,81 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Zap className="h-4 w-4 text-amber-600" />
-                <h3 className="text-[14px] font-[700] text-gray-900">Groq</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  AI Services
+                </h3>
               </div>
               <SaveBtn section="groq" />
             </div>
-            <Field label="Groq API Key" type="password" value={forms.groq.groq_api_key} onChange={setField("groq", "groq_api_key")} />
+
+            <Field
+              label="API Key"
+              type="password"
+              value={forms.groq.groq_api_key}
+              onChange={setField("groq", "groq_api_key")}
+            />
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Database className="h-4 w-4 text-teal-600" />
-                <h3 className="text-[14px] font-[700] text-gray-900">Enrichment</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  Enrichment
+                </h3>
               </div>
               <SaveBtn section="enrichment" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <Field label="xAI API Key" type="password" value={forms.enrichment.xai_api_key} onChange={setField("enrichment", "xai_api_key")} placeholder="xai-xxxxxxxxxxxxxxxx" />
+                <Field
+                  label="API Key"
+                  type="password"
+                  value={forms.enrichment.xai_api_key}
+                  onChange={setField("enrichment", "xai_api_key")}
+                  placeholder="api-xxxxxxxxxxxxxxxx"
+                />
               </div>
-              <SelectField
-                label="Grok Enrichment"
-                value={String(!!forms.enrichment.enable_grok_enrichment)}
-                onChange={(e) => setForms((prev) => ({ ...prev, enrichment: { ...prev.enrichment, enable_grok_enrichment: e.target.value === "true" } }))}
-                options={[
-                  { label: "True", value: "true" },
-                  { label: "False", value: "false" },
-                ]}
-              />
-          
-              <SelectField
-                label="Grok Email Style"
-                value={forms.enrichment.grok_email_style}
-                onChange={setField("enrichment", "grok_email_style")}
-                options={
-                  forms.enrichment._emailStyleOptions?.length > 0
-                    ? forms.enrichment._emailStyleOptions.map((o) =>
-                        typeof o === "string" ? { label: o, value: o } : { label: o.label ?? o.name ?? o.value, value: o.value ?? o.name }
-                      )
-                    : [
-                        { label: "Select…", value: "" },
-                        { label: "Business", value: "business" },
-                        { label: "Personal", value: "personal" },
-                      ]
-                }
-              />
+            <SelectField
+  label="Enrichment Level"
+  value={String(!!forms.enrichment.enable_grok_enrichment)}
+  onChange={(e) =>
+    setForms((prev) => ({
+      ...prev,
+      enrichment: {
+        ...prev.enrichment,
+        enable_grok_enrichment: e.target.value === "true",
+      },
+    }))
+  }
+  options={[
+    { label: "Advanced", value: "true" },
+    { label: "Base", value: "false" },
+  ]}
+/>
+
+<SelectField
+  label="Email Style"
+  value={forms.enrichment.grok_email_style}
+  onChange={setField("enrichment", "grok_email_style")}
+  options={
+    forms.enrichment._emailStyleOptions?.length > 0
+      ? forms.enrichment._emailStyleOptions.map((o) =>
+          typeof o === "string"
+            ? { label: o, value: o }
+            : {
+                label: o.label ?? o.name ?? o.value,
+                value: o.value ?? o.name,
+              },
+        )
+      : [
+          { label: "Select…", value: "" },
+          { label: "Business", value: "business" },
+          { label: "Personal", value: "personal" },
+          { label: "Automated", value: "automated" },
+        ]
+  }
+/>
             </div>
           </div>
 
@@ -6215,19 +9062,53 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Settings className="h-4 w-4 text-gray-700" />
-                <h3 className="text-[14px] font-[700] text-gray-900">App Config</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  App Config
+                </h3>
               </div>
               <SaveBtn section="appConfig" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Target Mailbox For Replies" value={forms.appConfig.target_mailbox_for_replies} onChange={setField("appConfig", "target_mailbox_for_replies")} />
-              <Field label="Timezone Configuration" value={forms.appConfig.timezone_configuration} onChange={setField("appConfig", "timezone_configuration")} />
-              <Field label="Graph Client State" value={forms.appConfig.graph_client_state} onChange={setField("appConfig", "graph_client_state")} />
-              <Field label="Agent Name" value={forms.appConfig.agent_name} onChange={setField("appConfig", "agent_name")} />
-              <Field label="Company Name" value={forms.appConfig.company_name} onChange={setField("appConfig", "company_name")} />
-              <Field label="Default Agent Name" value={forms.appConfig.default_agent_name} onChange={setField("appConfig", "default_agent_name")} />
-              <Field label="Company Sales Pain Solution" value={forms.appConfig.company_sales_pain_solution} onChange={setField("appConfig", "company_sales_pain_solution")} />
-              <Field label="About Company" value={forms.appConfig.about_company} onChange={setField("appConfig", "about_company")} />
+              <Field
+                label="Target Mailbox For Replies"
+                value={forms.appConfig.target_mailbox_for_replies}
+                onChange={setField("appConfig", "target_mailbox_for_replies")}
+              />
+              <Field
+                label="Timezone Configuration"
+                value={forms.appConfig.timezone_configuration}
+                onChange={setField("appConfig", "timezone_configuration")}
+              />
+              <Field
+                label="Graph Client State"
+                value={forms.appConfig.graph_client_state}
+                onChange={setField("appConfig", "graph_client_state")}
+              />
+              <Field
+                label="Agent Name"
+                value={forms.appConfig.agent_name}
+                onChange={setField("appConfig", "agent_name")}
+              />
+              <Field
+                label="Company Name"
+                value={forms.appConfig.company_name}
+                onChange={setField("appConfig", "company_name")}
+              />
+              <Field
+                label="Default Agent Name"
+                value={forms.appConfig.default_agent_name}
+                onChange={setField("appConfig", "default_agent_name")}
+              />
+              <Field
+                label="Company Sales Pain Solution"
+                value={forms.appConfig.company_sales_pain_solution}
+                onChange={setField("appConfig", "company_sales_pain_solution")}
+              />
+              <Field
+                label="About Company"
+                value={forms.appConfig.about_company}
+                onChange={setField("appConfig", "about_company")}
+              />
               <SelectField
                 label="Call Service Provider"
                 value={forms.appConfig.call_service_provider || "elevenlabs"}
@@ -6265,8 +9146,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
 export default function Setting() {
   const [activePage, setActivePage] = useState(null);
-  const [emailPlatform, setEP] = useState(() =>
-    (typeof window !== "undefined" && localStorage.getItem("emailSendingService")) || "SMTP"
+  const [emailPlatform, setEP] = useState(
+    () =>
+      (typeof window !== "undefined" &&
+        localStorage.getItem("emailSendingService")) ||
+      "SMTP",
   );
   const [emailPlatformSaving, setEmailPlatformSaving] = useState(false);
   const [smtpProvider, setSMTP] = useState("");
@@ -6277,7 +9161,8 @@ export default function Setting() {
   const [crmStatusLoading, setCrmStatusLoading] = useState(true);
   const [crmDisconnecting, setCrmDisconnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [userCanAccessGlobalSettings, setUserCanAccessGlobalSettings] = useState(false);
+  const [userCanAccessGlobalSettings, setUserCanAccessGlobalSettings] =
+    useState(false);
   const [userIsSuperAdmin, setUserIsSuperAdmin] = useState(false);
 
   useEffect(() => {
@@ -6326,7 +9211,8 @@ export default function Setting() {
           d?.token_expired !== true;
         setCRM(stillConn);
         if (!stillConn) toast.success("CRM disconnected successfully.");
-        else toast.error("Disconnect may not have completed. Please try again.");
+        else
+          toast.error("Disconnect may not have completed. Please try again.");
       } catch {
         setCRM(false);
         toast.success("CRM disconnected successfully.");
@@ -6353,11 +9239,18 @@ export default function Setting() {
         let providers = [];
         if (availableRes.status === "fulfilled") {
           const d = availableRes.value.data;
-          const raw = d?.available_providers ?? d?.providers ?? (Array.isArray(d) ? d : []);
+          const raw =
+            d?.available_providers ??
+            d?.providers ??
+            (Array.isArray(d) ? d : []);
           providers = raw.map((p) =>
             typeof p === "string"
               ? { name: p, description: "", ready: true }
-              : { name: p.name ?? p.provider ?? String(p), description: p.description ?? "", ready: p.ready ?? true }
+              : {
+                  name: p.name ?? p.provider ?? String(p),
+                  description: p.description ?? "",
+                  ready: p.ready ?? true,
+                },
           );
         }
         if (providers.length === 0) {
@@ -6375,18 +9268,27 @@ export default function Setting() {
             ? d
             : (d?.saved_providers ?? d?.providers ?? d?.items ?? d?.data ?? []);
           const activeProvider = Array.isArray(saved)
-            ? saved.find((p) => p.is_current ?? p.is_active ?? p.selected ?? p.is_default ?? p.default)
-            : (d?.active_provider ?? d?.selected_provider ?? d?.provider ?? null);
+            ? saved.find(
+                (p) =>
+                  p.is_current ??
+                  p.is_active ??
+                  p.selected ??
+                  p.is_default ??
+                  p.default,
+              )
+            : (d?.active_provider ??
+              d?.selected_provider ??
+              d?.provider ??
+              null);
           if (activeProvider) {
-            const name = typeof activeProvider === "string"
-              ? activeProvider
-              : (
-                activeProvider.provider ??
-                activeProvider.provider_name ??
-                activeProvider.smtp_provider_name ??
-                activeProvider.name ??
-                ""
-              );
+            const name =
+              typeof activeProvider === "string"
+                ? activeProvider
+                : (activeProvider.provider ??
+                  activeProvider.provider_name ??
+                  activeProvider.smtp_provider_name ??
+                  activeProvider.name ??
+                  "");
             if (name) setSMTP(name);
           } else if (providers.length > 0) {
             setSMTP(providers[0].name);
@@ -6405,13 +9307,20 @@ export default function Setting() {
 
   const handleSelectEmailPlatform = async (platform) => {
     setEP(platform);
-    if (typeof window !== "undefined") localStorage.setItem("emailSendingService", platform.toUpperCase());
+    if (typeof window !== "undefined")
+      localStorage.setItem("emailSendingService", platform.toUpperCase());
     setEmailPlatformSaving(true);
     try {
-      await axiosInstance.post("/api/email-sending/select-service", { service: platform.toLowerCase() });
+      await axiosInstance.post("/api/email-sending/select-service", {
+        service: platform.toLowerCase(),
+      });
       toast.success(`Email sending service set to ${platform}`);
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to set email sending service.");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          "Failed to set email sending service.",
+      );
     } finally {
       setEmailPlatformSaving(false);
     }
@@ -6421,42 +9330,120 @@ export default function Setting() {
     setSMTP(providerName);
     setSmtpSelectSaving(true);
     try {
-      await axiosInstance.post("/api/smtp/select-provider", { provider_name: providerName });
+      await axiosInstance.post("/api/smtp/select-provider", {
+        provider_name: providerName,
+      });
       toast.success(`SMTP provider set to ${providerName}`);
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.response?.data?.detail || "Failed to set SMTP provider.");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.response?.data?.detail ||
+          "Failed to set SMTP provider.",
+      );
     } finally {
       setSmtpSelectSaving(false);
     }
   };
 
-  if (activePage === "crm") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><CRMPage onBack={() => setActivePage(null)} onConnectionChange={setCRM} /></div>;
-  if (activePage === "agents") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><AgentsPage onBack={() => setActivePage(null)} /></div>;
-  if (activePage === "email-templates") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><EmailTemplatesPage onBack={() => setActivePage(null)} /></div>;
-  if (activePage === "graph-config") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><GraphConfigPage onBack={() => setActivePage(null)} /></div>;
-  if (activePage === "global-integrations") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><GlobalIntegrationsPage onBack={() => setActivePage(null)} canAccess={userCanAccessGlobalSettings} /></div>;
-  if (activePage === "smtp-providers") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><SMTPProvidersPage onBack={() => setActivePage(null)} /></div>;
-  if (activePage === "leads") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><LeadsPage onBack={() => setActivePage(null)} /></div>;
-  if (activePage === "mappings") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><MappingsPage onBack={() => setActivePage(null)} /></div>;
-  if (activePage === "users") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><UsersPage onBack={() => setActivePage(null)} isSuperAdmin={userIsSuperAdmin} /></div>;
-  if (activePage === "superadmin-metrics") return <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]"><SuperAdminMetricsPage onBack={() => setActivePage(null)} /></div>;
+  if (activePage === "crm")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <CRMPage
+          onBack={() => setActivePage(null)}
+          onConnectionChange={setCRM}
+        />
+      </div>
+    );
+  if (activePage === "agents")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <AgentsPage onBack={() => setActivePage(null)} />
+      </div>
+    );
+  if (activePage === "email-templates")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <EmailTemplatesPage onBack={() => setActivePage(null)} />
+      </div>
+    );
+  if (activePage === "graph-config")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <GraphConfigPage onBack={() => setActivePage(null)} />
+      </div>
+    );
+  if (activePage === "global-integrations")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <GlobalIntegrationsPage
+          onBack={() => setActivePage(null)}
+          canAccess={userCanAccessGlobalSettings}
+        />
+      </div>
+    );
+  if (activePage === "smtp-providers")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <SMTPProvidersPage onBack={() => setActivePage(null)} />
+      </div>
+    );
+  if (activePage === "leads")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <LeadsPage onBack={() => setActivePage(null)} />
+      </div>
+    );
+  if (activePage === "mappings")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <MappingsPage onBack={() => setActivePage(null)} />
+      </div>
+    );
+  if (activePage === "users")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <UsersPage
+          onBack={() => setActivePage(null)}
+          isSuperAdmin={userIsSuperAdmin}
+        />
+      </div>
+    );
+  if (activePage === "superadmin-metrics")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <SuperAdminMetricsPage onBack={() => setActivePage(null)} />
+      </div>
+    );
 
-  const SettingCard = ({ icon: Icon, iconBg, iconColor, title, desc, action }) => (
+  const SettingCard = ({
+    icon: Icon,
+    iconBg,
+    iconColor,
+    title,
+    desc,
+    action,
+  }) => (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col gap-4">
       <div className="flex items-start gap-3">
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}
+        >
           <Icon className={`h-5 w-5 ${iconColor}`} />
         </div>
         <div className="min-w-0">
-          <p className="text-[13px] font-[700] text-gray-900 leading-snug">{title}</p>
-          <p className="text-[11px] text-gray-400 mt-0.5 leading-tight">{desc}</p>
+          <p className="text-[13px] font-[700] text-gray-900 leading-snug">
+            {title}
+          </p>
+          <p className="text-[11px] text-gray-400 mt-0.5 leading-tight">
+            {desc}
+          </p>
         </div>
       </div>
       <div className="mt-auto">{action}</div>
     </div>
   );
 
-  const GearBtn = ({ page }) => ( 
+  const GearBtn = ({ page }) => (
     <button
       type="button"
       onClick={() => setActivePage(page)}
@@ -6477,8 +9464,12 @@ export default function Setting() {
             <Wrench className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="font-poppins text-[20px] font-[700] text-[#0a0a0a]">Settings</h1>
-            <p className="text-[12px] text-gray-400 mt-0.5">Manage integrations, agents, email, and system preferences</p>
+            <h1 className="font-poppins text-[20px] font-[700] text-[#0a0a0a]">
+              Settings
+            </h1>
+            <p className="text-[12px] text-gray-400 mt-0.5">
+              Manage integrations, agents, email, and system preferences
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -6494,20 +9485,25 @@ export default function Setting() {
           )}
           <button
             type="button"
-            onClick={() => { setRefreshing(true); setTimeout(() => setRefreshing(false), 700); }}
+            onClick={() => {
+              setRefreshing(true);
+              setTimeout(() => setRefreshing(false), 700);
+            }}
             title="Refresh"
             className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
           >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
           </button>
         </div>
       </div>
 
-  
-
       {/* ═══ SECTION 1 — CONNECTION ═══ */}
       <div className="mb-2">
-        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Connection & Integration</p>
+        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">
+          Connection & Integration
+        </p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         {/* {userCanAccessGlobalSettings && (
@@ -6521,8 +9517,11 @@ export default function Setting() {
           />
         )} */}
         <SettingCard
-          icon={Database} iconBg="bg-indigo-50" iconColor="text-indigo-600"
-          title="Configure CRM" desc="Connect & authorise your CRM via OAuth2 credentials"
+          icon={Database}
+          iconBg="bg-indigo-50"
+          iconColor="text-indigo-600"
+          title="Configure CRM"
+          desc="Connect & authorise your CRM via OAuth2 credentials"
           action={
             <div className="flex flex-col gap-2">
               {crmConnected ? (
@@ -6531,43 +9530,85 @@ export default function Setting() {
                     <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                     CRM Connected
                   </div>
-                  <button onClick={() => setActivePage("crm")} className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-[500] text-gray-600 hover:bg-white hover:border-violet-300 hover:text-violet-700 transition">
-                    <Settings className="h-3.5 w-3.5" />Manage
+                  <button
+                    onClick={() => setActivePage("crm")}
+                    className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-[500] text-gray-600 hover:bg-white hover:border-violet-300 hover:text-violet-700 transition"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Manage
                   </button>
                   <button
                     onClick={handleCrmDisconnect}
                     disabled={crmDisconnecting}
                     className="w-full rounded-xl bg-red-500 py-2 text-[12px] font-[600] text-white hover:bg-red-600 transition flex items-center justify-center gap-1.5 disabled:opacity-60"
                   >
-                    {crmDisconnecting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link2Off className="h-3.5 w-3.5" />}
+                    {crmDisconnecting ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Link2Off className="h-3.5 w-3.5" />
+                    )}
                     {crmDisconnecting ? "Disconnecting…" : "Disconnect"}
                   </button>
                 </>
               ) : (
                 <>
-                  <button onClick={() => setActivePage("crm")} className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#0a0a0a] py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition">
+                  <button
+                    onClick={() => setActivePage("crm")}
+                    className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#0a0a0a] py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"
+                  >
                     <Link2 className="h-3.5 w-3.5" />+ Connect CRM
                   </button>
                   <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-                    <AlertCircle className="h-3 w-3 text-amber-400" />Not connected
+                    <AlertCircle className="h-3 w-3 text-amber-400" />
+                    Not connected
                   </div>
                 </>
               )}
             </div>
           }
         />
-        <SettingCard icon={Users} iconBg="bg-violet-50" iconColor="text-violet-600" title="Leads" desc="Manage lead lists and data sources for your campaigns" action={<GearBtn page="leads" />} />
-        <SettingCard icon={Map} iconBg="bg-orange-50" iconColor="text-orange-600" title="Field Mappings" desc="Map CRM fields to internal system fields for data sync" action={<GearBtn page="mappings" />} />
+        <SettingCard
+          icon={Users}
+          iconBg="bg-violet-50"
+          iconColor="text-violet-600"
+          title="Leads"
+          desc="Manage lead lists and data sources for your campaigns"
+          action={<GearBtn page="leads" />}
+        />
+        <SettingCard
+          icon={Map}
+          iconBg="bg-orange-50"
+          iconColor="text-orange-600"
+          title="Field Mappings"
+          desc="Map CRM fields to internal system fields for data sync"
+          action={<GearBtn page="mappings" />}
+        />
       </div>
 
       {/* ═══ SECTION 2 — AI & AUTOMATION ═══ */}
       <div className="mb-2">
-        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">AI & Automation</p>
+        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">
+          AI & Automation
+        </p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        <SettingCard icon={Zap} iconBg="bg-amber-50" iconColor="text-amber-600" title="Agent" desc="Manage AI SDR agents, switching, and parallel call limits" action={<GearBtn page="agents" />} />
+        <SettingCard
+          icon={Zap}
+          iconBg="bg-amber-50"
+          iconColor="text-amber-600"
+          title="Agent"
+          desc="Manage AI SDR agents, switching, and parallel call limits"
+          action={<GearBtn page="agents" />}
+        />
         {userIsSuperAdmin && (
-          <SettingCard icon={Users} iconBg="bg-violet-50" iconColor="text-violet-600" title="User Management" desc="Add, edit, and manage users with roles and permissions" action={<GearBtn page="users" />} />
+          <SettingCard
+            icon={Users}
+            iconBg="bg-violet-50"
+            iconColor="text-violet-600"
+            title="User Management"
+            desc="Add, edit, and manage users with roles and permissions"
+            action={<GearBtn page="users" />}
+          />
         )}
         {/* {userIsSuperAdmin && (
           <SettingCard icon={ShieldCheck} iconBg="bg-indigo-50" iconColor="text-indigo-600" title="Superadmin Metrics" desc="Select users and send metrics data — superadmin only" action={<GearBtn page="superadmin-metrics" />} />
@@ -6576,15 +9617,22 @@ export default function Setting() {
 
       {/* ═══ SECTION 3 — EMAIL DELIVERY ═══ */}
       <div className="mb-2">
-        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">Email Delivery</p>
+        <p className="text-[11px] font-[700] uppercase tracking-widest text-gray-400 mb-3 px-1">
+          Email Delivery
+        </p>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <SettingCard
-          icon={Mail} iconBg="bg-sky-50" iconColor="text-sky-600"
-          title="Email Sender Platform" desc="Choose whether email is sent via SMTP or your CRM"
+          icon={Mail}
+          iconBg="bg-sky-50"
+          iconColor="text-sky-600"
+          title="Email Sender Platform"
+          desc="Choose whether email is sent via SMTP or your CRM"
           action={
             <div>
-              <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Platform</label>
+              <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">
+                Platform
+              </label>
               <div className="relative">
                 <select
                   value={emailPlatform}
@@ -6598,7 +9646,9 @@ export default function Setting() {
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>
               {emailPlatformSaving && (
-                <p className="mt-1.5 text-[11px] text-violet-500 font-[500]">Saving…</p>
+                <p className="mt-1.5 text-[11px] text-violet-500 font-[500]">
+                  Saving…
+                </p>
               )}
             </div>
           }
@@ -6606,11 +9656,16 @@ export default function Setting() {
 
         {emailPlatform === "SMTP" && (
           <SettingCard
-            icon={Server} iconBg="bg-teal-50" iconColor="text-teal-600"
-            title="Default SMTP Provider" desc="Select the active provider for outbound email delivery"
+            icon={Server}
+            iconBg="bg-teal-50"
+            iconColor="text-teal-600"
+            title="Default SMTP Provider"
+            desc="Select the active provider for outbound email delivery"
             action={
               <div>
-                <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">Provider</label>
+                <label className="block text-[11px] font-[600] text-gray-500 mb-1.5">
+                  Provider
+                </label>
                 <div className="relative">
                   {smtpProviderLoading ? (
                     <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-400">
@@ -6624,14 +9679,18 @@ export default function Setting() {
                       className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {smtpProviderList.map((p) => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
+                        <option key={p.name} value={p.name}>
+                          {p.name}
+                        </option>
                       ))}
                     </select>
                   )}
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 </div>
                 {smtpSelectSaving && (
-                  <p className="mt-1.5 text-[11px] text-violet-500 font-[500]">Saving…</p>
+                  <p className="mt-1.5 text-[11px] text-violet-500 font-[500]">
+                    Saving…
+                  </p>
                 )}
               </div>
             }
@@ -6639,13 +9698,34 @@ export default function Setting() {
         )}
 
         {emailPlatform === "SMTP" && (
-          <SettingCard icon={Server} iconBg="bg-green-50" iconColor="text-green-600" title="SMTP Providers Configuration" desc="Add, configure and test your SMTP delivery providers" action={<GearBtn page="smtp-providers" />} />
+          <SettingCard
+            icon={Server}
+            iconBg="bg-green-50"
+            iconColor="text-green-600"
+            title="SMTP Providers Configuration"
+            desc="Add, configure and test your SMTP delivery providers"
+            action={<GearBtn page="smtp-providers" />}
+          />
         )}
         {emailPlatform === "SMTP" && (
-          <SettingCard icon={FileText} iconBg="bg-pink-50" iconColor="text-pink-600" title="Email Templates" desc="Create and manage reusable email templates for automation" action={<GearBtn page="email-templates" />} />
+          <SettingCard
+            icon={FileText}
+            iconBg="bg-pink-50"
+            iconColor="text-pink-600"
+            title="Email Templates"
+            desc="Create and manage reusable email templates for automation"
+            action={<GearBtn page="email-templates" />}
+          />
         )}
         {emailPlatform === "CRM" && (
-          <SettingCard icon={Shield} iconBg="bg-blue-50" iconColor="text-blue-600" title="Graph Configuration" desc="Microsoft Graph API credentials for calendar and mail sync" action={<GearBtn page="graph-config" />} />
+          <SettingCard
+            icon={Shield}
+            iconBg="bg-blue-50"
+            iconColor="text-blue-600"
+            title="Graph Configuration"
+            desc="Microsoft Graph API credentials for calendar and mail sync"
+            action={<GearBtn page="graph-config" />}
+          />
         )}
       </div>
     </main>
