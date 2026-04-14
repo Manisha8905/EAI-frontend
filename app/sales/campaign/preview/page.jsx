@@ -711,7 +711,7 @@ export default function CampaignPreviewPage() {
                           </button>
                           <span className="flex-1" />
                           {/* Accept — always visible */}
-                          <button
+                          {/* <button
                             type="button"
                             onClick={handleAcceptDraft}
                             disabled={accepting || !pendingDraft}
@@ -720,7 +720,7 @@ export default function CampaignPreviewPage() {
                           >
                             {accepting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                             {accepting ? "Saving…" : "Accept"}
-                          </button>
+                          </button> */}
                           {/* Submit */}
                           <button
                             type="button"

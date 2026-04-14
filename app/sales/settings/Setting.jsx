@@ -7164,7 +7164,7 @@ function LeadsPage({ onBack }) {
         onBack={onBack}
         action={
           <div className="flex items-center gap-2">
-            <button
+            {/* <button
               onClick={fetchLists}
               disabled={loading}
               className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
@@ -7173,7 +7173,7 @@ function LeadsPage({ onBack }) {
               <RefreshCw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
-            </button>
+            </button> */}
             <button
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
