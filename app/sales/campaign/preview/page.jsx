@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, RefreshCw, Send, Users, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Database, Eraser, RefreshCw, Send, Sparkles, Trash2, User, Users, X } from "lucide-react";
 import { toast } from "react-toastify";
-import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import axiosInstance from "../../../Redux/axiosInstance";
 
 const toRows = (payload) => {
@@ -241,15 +241,18 @@ export default function CampaignPreviewPage() {
   const [activePreviewLead, setActivePreviewLead] = useState(null);
   const [previewApproved, setPreviewApproved] = useState(false);
   const [previewTab, setPreviewTab] = useState("content");
-  const [modalTab, setModalTab] = useState("preview");
+  const [activePanel, setActivePanel] = useState(null); // null | "enrichment" | "reprocess"
   const [archiveLeads, setArchiveLeads] = useState(MOCK_ARCHIVE_LEADS);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveFetched, setArchiveFetched] = useState(false);
   const [enrichmentSubTab, setEnrichmentSubTab] = useState("system");
-  const [tabClickCount, setTabClickCount] = useState({});
   const [reprocessPrompt, setReprocessPrompt] = useState("");
   const [reprocessing, setReprocessing] = useState(false);
   const [reprocessResult, setReprocessResult] = useState(null);
+  const [pendingDraft, setPendingDraft] = useState(null); // temporary regenerated content, not yet accepted
+  const [originalLead, setOriginalLead] = useState(null); // snapshot before reprocess, for discard
+  const [accepting, setAccepting] = useState(false);
+  const [lastPromptByLead, setLastPromptByLead] = useState({}); // { [leadId]: string } session memory
 
   const validLeads = useMemo(() => leads.filter((l) => !!l.id), [leads]);
   const allSelected = validLeads.length > 0 && validLeads.every((l) => selectedLeadIds.has(l.id));
@@ -334,14 +337,15 @@ export default function CampaignPreviewPage() {
 
   const openPreviewModal = (lead) => {
     setActivePreviewLead(lead);
-    setModalTab("preview");
+    setActivePanel(null);
     setArchiveFetched(false);
     setArchiveLeads(MOCK_ARCHIVE_LEADS);
     setEnrichmentSubTab("system");
-    setTabClickCount({});
     setReprocessPrompt("");
     setReprocessing(false);
     setReprocessResult(null);
+    setPendingDraft(null);
+    setOriginalLead(null);
   };
 
   const handleReprocess = async () => {
@@ -356,13 +360,33 @@ export default function CampaignPreviewPage() {
         { record_prompt: reprocessPrompt.trim() }
       );
       const data = res?.data ?? {};
-      setReprocessResult({
-        newDraftId: data.new_draft_id,
-        subject: data.subject ?? "",
-        bodyHtml: data.body_html ?? "",
-      });
-      toast.success("Draft regenerated successfully.");
-      setReprocessPrompt("");
+      const updatedId = data.new_draft_id ? String(data.new_draft_id) : draftId;
+      const updatedSubject = data.subject ?? activePreviewLead.previewSubject;
+      const updatedBodyHtml = data.body_html ?? activePreviewLead.previewBodyHtml;
+      const updatedBody = data.body ?? data.body_html ?? activePreviewLead.previewBody;
+      const submittedPrompt = reprocessPrompt.trim();
+
+      // Save original lead snapshot for discard (only first time)
+      if (!pendingDraft) setOriginalLead(activePreviewLead);
+
+      // Temporarily update preview
+      setActivePreviewLead((prev) => ({
+        ...prev,
+        id: updatedId,
+        previewSubject: updatedSubject,
+        previewBodyHtml: updatedBodyHtml,
+        previewBody: updatedBody,
+      }));
+
+      // Store pending state (not yet accepted)
+      setPendingDraft({ newDraftId: updatedId, subject: updatedSubject, bodyHtml: updatedBodyHtml, body: updatedBody, prompt: submittedPrompt });
+
+      // Remember prompt under both old and new draft id for reliable lookup
+      setLastPromptByLead((prev) => ({ ...prev, [draftId]: submittedPrompt, [updatedId]: submittedPrompt }));
+
+      setReprocessResult({ newDraftId: updatedId, subject: updatedSubject, bodyHtml: updatedBodyHtml });
+      toast.success("Draft regenerated — review changes then Accept or Discard.");
+      // Keep bar open so Accept/Discard buttons are visible; keep prompt text
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to regenerate draft.");
     } finally {
@@ -370,12 +394,50 @@ export default function CampaignPreviewPage() {
     }
   };
 
+  const handleAcceptDraft = async () => {
+    if (!pendingDraft || !campaignId) return;
+    setAccepting(true);
+    try {
+      const res = await axiosInstance.get(`/api/campaigns/${campaignId}/email-drafts`);
+      const rows = toRows(res.data).map(normalizeLead).filter((l) => !!l.id);
+      setLeads(rows);
+      // Update active preview with fresh data for this lead
+      const fresh = rows.find((l) => l.id === pendingDraft.newDraftId) ||
+        rows.find((l) => l.id === activePreviewLead?.id);
+      if (fresh) setActivePreviewLead(fresh);
+      setPendingDraft(null);
+      setOriginalLead(null);
+      // Clear session prompt for this lead
+      setLastPromptByLead((prev) => {
+        const next = { ...prev };
+        delete next[activePreviewLead?.id];
+        return next;
+      });
+      toast.success("Email template accepted and updated.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to accept draft.");
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    if (!originalLead) return;
+    setActivePreviewLead(originalLead);
+    setLeads((prev) =>
+      prev.map((l) => l.id === pendingDraft?.newDraftId || l.id === originalLead.id ? originalLead : l)
+    );
+    setPendingDraft(null);
+    setOriginalLead(null);
+    toast.info("Draft discarded.");
+  };
+
   const closePreviewModal = () => {
     setActivePreviewLead(null);
   };
 
   useEffect(() => {
-    if (modalTab !== "enrichment" || archiveFetched || !campaignId) return;
+    if (activePanel !== "enrichment" || archiveFetched || !campaignId) return;
     setArchiveLoading(true);
     fetchArchivedLeads(campaignId)
       .then((rows) => {
@@ -390,18 +452,19 @@ export default function CampaignPreviewPage() {
         setArchiveLoading(false);
         setArchiveFetched(true);
       });
-  }, [modalTab, archiveFetched, campaignId]);
+  }, [activePanel, archiveFetched, campaignId]);
 
-  // Close modal on ESC key
+  // Close panel on ESC, or close modal if no panel open
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === "Escape" && activePreviewLead) {
-        closePreviewModal();
+      if (e.key === "Escape") {
+        if (activePanel) setActivePanel(null);
+        else if (activePreviewLead) closePreviewModal();
       }
     };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [activePreviewLead]);
+  }, [activePreviewLead, activePanel]);
 
   const plainContent = useMemo(() => {
     if (!activePreviewLead) return "";
@@ -474,7 +537,7 @@ export default function CampaignPreviewPage() {
             <table className="w-full text-left" style={{ minWidth: "760px" }}>
               <thead>
                 <tr className="bg-[#1e293b]">
-                  {["Select", "Lead Name", "From Email", "Company", "Subject", ""].map((h) => (
+                  {["Select", "Lead Name", "From Email", "Company", "Subject", "Action"].map((h) => (
                     <th
                       key={h}
                       className="px-3 py-3 text-[11px] font-[600] uppercase tracking-wide text-white"
@@ -528,178 +591,169 @@ export default function CampaignPreviewPage() {
         )}
       </div>
 
-      {activePreviewLead ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
-          onClick={closePreviewModal}
-          role="dialog"
-          aria-label="Email preview modal"
-        >
-          <div
-            className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
+      {/* ── Preview Modal ── */}
+      <AnimatePresence>
+        {activePreviewLead && (
+          <motion.div
+            key="preview-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+            onClick={closePreviewModal}
+            role="dialog"
+            aria-label="Email preview modal"
           >
-            {/* ── Modal Header ── */}
-            <div className="bg-white border-b border-gray-100 px-6 pt-5 pb-0">
-              <div className="flex items-center justify-between gap-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 16 }}
+              transition={{ type: "spring", stiffness: 380, damping: 34 }}
+              className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* ── Modal Header ── */}
+              <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between gap-4 flex-shrink-0">
                 <h2 className="text-[16px] font-[700] text-gray-900 tracking-tight">Preview</h2>
-                <button
-                  type="button"
-                  onClick={closePreviewModal}
-                  className="flex-shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition duration-200"
-                  title="Close (ESC)"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {/* Enriched Data icon button */}
+                  <button
+                    type="button"
+                    onClick={() => setActivePanel("enrichment")}
+                    title="Enriched Data"
+                    className="flex items-center justify-center w-8 h-8 rounded-lg text-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-all duration-150 border border-transparent hover:border-blue-100"
+                  >
+                    <Database className="h-4 w-4" />
+                  </button>
+                  {/* Reprocess icon button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const isOpening = activePanel !== "reprocess";
+                      setActivePanel(isOpening ? "reprocess" : null);
+                      if (isOpening && activePreviewLead) {
+                        // Look up by current id or original lead id (in case draft id changed after regen)
+                        const savedPrompt =
+                          lastPromptByLead[activePreviewLead.id] ??
+                          (pendingDraft ? lastPromptByLead[pendingDraft.newDraftId] : undefined) ??
+                          "";
+                        setReprocessPrompt(savedPrompt);
+                      }
+                    }}
+                    title="Reprocess"
+                    className={`flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150 border ${
+                      activePanel === "reprocess"
+                        ? "bg-violet-100 text-violet-600 border-violet-200"
+                        : "text-violet-400 hover:bg-violet-50 hover:text-violet-600 border-transparent hover:border-violet-100"
+                    }`}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${activePanel === "reprocess" ? "animate-spin-slow" : ""}`} />
+                  </button>
+                  {/* Divider */}
+                  <span className="w-px h-5 bg-gray-200 mx-1" />
+                  {/* Close button */}
+                  <button
+                    type="button"
+                    onClick={closePreviewModal}
+                    className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition duration-200"
+                    title="Close (ESC)"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
 
-              {/* ── Main Tab Switcher ── */}
-              <LayoutGroup id="modal-tabs">
-                <div className="relative flex items-end" style={{ minHeight: 48 }}>
-                  {(() => {
-                    const isEnrichmentActive = modalTab === "enrichment";
-                    const tabs = [
-                      { key: "preview", label: "Preview Email" },
-                      { key: "enrichment", label: "Enriched Data" },
-                      { key: "reprocess", label: "Reprocess" },
-                    ];
-                    return tabs.map((tab) => {
-                      const active = modalTab === tab.key;
-                      const isLeft = tab.key === "preview";
-                      const isRight = tab.key === "reprocess";
-                      const isCenter = tab.key === "enrichment";
+              {/* ── Email Preview Content ── */}
+              <div className="flex-1 overflow-y-auto bg-gray-50 relative">
 
-                      // Compute x offset: side tabs spread out when enrichment is active
-                      let xOffset = 0;
-                      if (isEnrichmentActive && isLeft) xOffset = -18;
-                      if (isEnrichmentActive && isRight) xOffset = 18;
-
-                      // Compute scale & y for enrichment tab
-                      let yOffset = active ? -2 : 0;
-                      let scale = 1;
-                      if (isCenter && isEnrichmentActive) {
-                        yOffset = -12;
-                        scale = 0.92;
-                      }
-
-                      // Opacity: fade side tabs when enrichment is active
-                      let opacity = 1;
-                      if (isEnrichmentActive && !isCenter) opacity = 0.45;
-                      if (!isEnrichmentActive && !active) opacity = 0.55;
-
-                      return (
-                        <motion.button
-                          key={tab.key}
-                          type="button"
-                          onClick={() => setModalTab(tab.key)}
-                          animate={{
-                            x: xOffset,
-                            y: yOffset,
-                            scale,
-                            opacity,
-                            color: active ? "#111827" : "#9ca3af",
-                          }}
-                          whileHover={{ color: active ? "#111827" : "#374151", opacity: Math.max(opacity, 0.75) }}
-                          transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                          className="relative px-5 py-2.5 select-none focus:outline-none origin-bottom"
-                          style={{ fontSize: active ? "13px" : "12.5px", fontWeight: active ? 700 : 500 }}
-                        >
-                          {tab.label}
-                          {active && (
-                            <motion.span
-                              layoutId="tab-underline"
-                              className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-sm"
-                              style={{ background: "linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)" }}
-                              transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                            />
-                          )}
-                        </motion.button>
-                      );
-                    });
-                  })()}
-                </div>
-              </LayoutGroup>
-
-              {/* ── Enrichment Sub-tabs (underline style) ── */}
-              <AnimatePresence>
-                {modalTab === "enrichment" && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                    className="overflow-hidden"
-                  >
-                    {/* <div className="border-t border-gray-200" /> */}
-                    <LayoutGroup id="enrichment-sub">
-                      <div className="flex items-center justify-start gap-0 ">
-                        {[
-                          { key: "system", label: "Prospect Information" },
-                          { key: "ai", label: "Fetched by AI" },
-                        ].map((st) => {
-                          const subActive = enrichmentSubTab === st.key;
-                          return (
-                            <motion.button
-                              key={st.key}
-                              type="button"
-                              onClick={() => setEnrichmentSubTab(st.key)}
-                              animate={{
-                                color: subActive ? "#1d4ed8" : "#9ca3af",
-                              }}
-                              whileHover={{ color: subActive ? "#1d4ed8" : "#374151" }}
-                              transition={{ duration: 0.18 }}
-                              className="relative px-5 py-2 text-[8px] font-[600] select-none focus:outline-none whitespace-nowrap"
-                            >
-                              {st.label}
-                              {subActive && (
-                                <motion.span
-                                  layoutId="sub-underline"
-                                  className="absolute bottom-0 left-2 right-2 h-[2px] rounded-t-sm bg-blue-600"
-                                  transition={{ type: "spring", stiffness: 500, damping: 38 }}
-                                />
-                              )}
-                            </motion.button>
-                          );
-                        })}
+                {/* ── Reprocess Overlay Bar ── */}
+                <AnimatePresence initial={false}>
+                  {activePanel === "reprocess" && (
+                    <motion.div
+                      key="reprocess-bar"
+                      initial={{ y: "-100%", opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: "-100%", opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 38 }}
+                      className="absolute top-0 left-0 right-0 z-20 px-6 pt-4 pb-3 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-md"
+                    >
+                      <div className="flex flex-col rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                        {/* Textarea row */}
+                        <div className="flex items-start gap-2 px-3 pt-3 pb-1">
+                          <RefreshCw className="h-3.5 w-3.5 text-violet-400 flex-shrink-0 mt-1.5" />
+                          <textarea
+                            value={reprocessPrompt}
+                            onChange={(e) => setReprocessPrompt(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleReprocess(); }
+                              if (e.key === "Escape") setActivePanel(null);
+                            }}
+                            placeholder="Describe how to reprocess this email draft…"
+                            rows={4}
+                            className="flex-1 min-w-0 text-[13px] text-gray-800 placeholder-gray-300 bg-transparent outline-none ring-0 border-0 resize-y min-h-[40px] max-h-[160px] leading-5"
+                            style={{ boxShadow: "none" }}
+                            disabled={reprocessing}
+                            autoFocus
+                          />
+                        </div>
+                        {/* Bottom action bar */}
+                        <div className="flex items-center gap-2 px-3 py-2 border-t border-gray-100">
+                          {/* Clear */}
+                          <button
+                            type="button"
+                            onClick={() => setReprocessPrompt("")}
+                            disabled={!reprocessPrompt.length}
+                            title="Clear"
+                            className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-400 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Eraser className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="flex-1" />
+                          {/* Accept — always visible */}
+                          <button
+                            type="button"
+                            onClick={handleAcceptDraft}
+                            disabled={accepting || !pendingDraft}
+                            title="Accept & save"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-[700] bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {accepting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                            {accepting ? "Saving…" : "Accept"}
+                          </button>
+                          {/* Submit */}
+                          <button
+                            type="button"
+                            onClick={handleReprocess}
+                            disabled={!reprocessPrompt.trim() || reprocessing}
+                            title="Submit (Enter)"
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-[700] transition-all duration-200 ${
+                              reprocessPrompt.trim() && !reprocessing
+                                ? "bg-violet-500 text-white hover:bg-violet-600 shadow-sm"
+                                : "bg-gray-100 text-gray-300 cursor-not-allowed"
+                            }`}
+                          >
+                            {reprocessing
+                              ? <RefreshCw className="h-3 w-3 animate-spin" />
+                              : <Send className="h-3 w-3" />}
+                            {reprocessing ? "Sending…" : "Submit"}
+                          </button>
+                        </div>
                       </div>
-                    </LayoutGroup>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-            </div>
 
-            {/* ── Tab Panels ── */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 relative">
-              <AnimatePresence mode="wait" initial={false}>
-
-              {/* Preview Email */}
-              {modalTab === "preview" && (
-                <motion.div
-                  key="preview"
-                  initial={{ opacity: 0, x: -18 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 18 }}
-                  transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-                  className="p-6"
-                >
-                  {/* Compact email metadata strip */}
+                <div className="p-6">
                   <div className="mb-3 bg-white border border-gray-200 rounded-xl px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1">
                     <span className="text-[12px] text-gray-500 whitespace-nowrap">
                       <span className="font-[600] text-gray-700 mr-1">To:</span>{activePreviewLead.name}
                     </span>
                     <span className="hidden sm:block text-gray-200 select-none">|</span>
                     <span className="text-[12px] text-gray-500 whitespace-nowrap">
-                      <span className="font-[600] text-gray-700 mr-1">To:</span>{activePreviewLead.toEmail}
+                      <span className="font-[600] text-gray-700 mr-1">Email:</span>{activePreviewLead.toEmail}
                     </span>
-                    {/* {activePreviewLead.company && activePreviewLead.company !== "—" && (
-                      <>
-                        <span className="hidden sm:block text-gray-200 select-none">|</span>
-                        <span className="text-[12px] text-gray-500 whitespace-nowrap">
-                          <span className="font-[600] text-gray-700 mr-1">Company:</span>{activePreviewLead.company}
-                        </span>
-                      </>
-                    )} */}
                     <span className="hidden sm:block text-gray-200 select-none">|</span>
                     <span className="text-[12px] text-gray-500 min-w-0 truncate">
                       <span className="font-[600] text-gray-700 mr-1">Subject:</span>
@@ -722,315 +776,269 @@ export default function CampaignPreviewPage() {
                       </div>
                     )}
                   </div>
-                </motion.div>
-              )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              {/* Enrichment */}
-              {modalTab === "enrichment" && (
-                <motion.div
-                  key="enrichment"
-                  initial={{ opacity: 0, x: 18 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -18 }}
-                  transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-                  className="p-5"
-                >
+      {/* ── Panel Modal (Enrichment only) stacked on top ── */}
+      <AnimatePresence>
+        {activePanel === "enrichment" && activePreviewLead && (
+          <motion.div
+            key="panel-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+            onClick={() => setActivePanel(null)}
+            role="dialog"
+            aria-label="Detail panel"
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.96, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 400, damping: 36 }}
+              className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col h-[80vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Panel Header */}
+              <div className="bg-white border-b border-gray-100 flex-shrink-0">
+                <div className="px-5 py-3.5 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setActivePanel(null)}
+                    className="flex items-center justify-center rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition duration-150"
+                    title="Back to Preview"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="flex items-center gap-2 flex-1">
+                    {activePanel === "enrichment" ? (
+                      <Database className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 text-violet-500 flex-shrink-0" />
+                    )}
+                    <span className="text-[14px] font-[700] text-gray-900">
+                      {activePanel === "enrichment" ? "Enriched Data" : "Reprocess Email Draft"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActivePanel(null)}
+                    className="flex-shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition duration-200"
+                    title="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
 
-                  {/* Sub-tab content rendered below — sub-tabs are now in the header */}
+                {/* Enrichment sub-tab buttons */}
+                {activePanel === "enrichment" && (
+                  <div className="px-5 pb-3 flex items-center gap-2">
+                    {[
+                      { key: "system", label: "Prospect Information", icon: User },
+                      { key: "ai", label: "Fetched by AI", icon: Sparkles },
+                    ].map((st) => {
+                      const subActive = enrichmentSubTab === st.key;
+                      const Icon = st.icon;
+                      return (
+                        <button
+                          key={st.key}
+                          type="button"
+                          onClick={() => setEnrichmentSubTab(st.key)}
+                          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-[600] transition-all duration-200 border ${
+                            subActive
+                              ? st.key === "system"
+                                ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm"
+                                : "bg-violet-50 text-violet-700 border-violet-200 shadow-sm"
+                              : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700"
+                          }`}
+                        >
+                          <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${
+                            subActive
+                              ? st.key === "system" ? "text-blue-500" : "text-violet-500"
+                              : "text-gray-400"
+                          }`} />
+                          {st.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-                  {/* ── Sub-tab Content with Animation ── */}
-                  <AnimatePresence mode="wait" initial={false}>
-                    {/* Available on System */}
-                    {enrichmentSubTab === "system" && (
-                      <motion.div
-                        key="system"
-                        initial={{ opacity: 0, x: -12 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 12 }}
-                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-                        className="bg-white rounded-xl border border-gray-200 px-4 py-1"
-                      >
-                        {(() => {
-                          const sys = activePreviewLead?.availableOnSystem;
-                          if (!sys || typeof sys !== "object") {
-                            return (
-                              <div className="flex items-center justify-center py-8">
-                                <p className="text-[13px] text-gray-400">No data available.</p>
-                              </div>
-                            );
-                          }
+              {/* Panel Content */}
+              <div className="flex-1 overflow-y-auto bg-gray-50">
 
-                          // Define expected keys for Available on System
-                          const expectedKeys = ["name", "email", "phone", "company", "contact_number"];
-
-                          return expectedKeys.map((key) => {
-                            const val = sys[key];
-                            const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                            const renderValue = (v) => {
-                              if (v === null || v === undefined) return <span className="text-gray-400 italic text-[12px]">—</span>;
-                              if (Array.isArray(v)) {
-                                if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
-                                if (typeof v[0] === "object" && v[0] !== null) {
+                {/* ── Enrichment Panel ── */}
+                {activePanel === "enrichment" && (
+                  <div className="p-5">
+                    <AnimatePresence mode="wait" initial={false}>
+                      {enrichmentSubTab === "system" && (
+                        <motion.div
+                          key="system"
+                          initial={{ opacity: 0, x: -12 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 12 }}
+                          transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                          className="bg-white rounded-xl border border-gray-200 px-4 py-1"
+                        >
+                          {(() => {
+                            const sys = activePreviewLead?.availableOnSystem;
+                            if (!sys || typeof sys !== "object") {
+                              return (
+                                <div className="flex items-center justify-center py-8">
+                                  <p className="text-[13px] text-gray-400">No data available.</p>
+                                </div>
+                              );
+                            }
+                            const expectedKeys = ["name", "email", "phone", "company", "contact_number"];
+                            return expectedKeys.map((key) => {
+                              const val = sys[key];
+                              const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                              const renderValue = (v) => {
+                                if (v === null || v === undefined) return <span className="text-gray-400 italic text-[12px]">—</span>;
+                                if (Array.isArray(v)) {
+                                  if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
+                                  if (typeof v[0] === "object" && v[0] !== null) {
+                                    return (
+                                      <div className="flex flex-col gap-1 mt-1">
+                                        {v.map((item, i) => (
+                                          <div key={i} className="bg-gray-50 rounded px-2 py-1 text-[11px] text-gray-600">
+                                            {Object.entries(item).map(([k, vv]) => (
+                                              <div key={k} className="flex gap-1 flex-wrap">
+                                                <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
+                                                {typeof vv === "string" && vv.startsWith("http") ? (
+                                                  <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
+                                                ) : (
+                                                  <span className="text-gray-700">{String(vv ?? "—")}</span>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  }
                                   return (
-                                    <div className="flex flex-col gap-1 mt-1">
+                                    <div className="flex flex-wrap gap-1 mt-1">
                                       {v.map((item, i) => (
-                                        <div key={i} className="bg-gray-50 rounded px-2 py-1 text-[11px] text-gray-600">
-                                          {Object.entries(item).map(([k, vv]) => (
-                                            <div key={k} className="flex gap-1 flex-wrap">
-                                              <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
-                                              {typeof vv === "string" && vv.startsWith("http") ? (
-                                                <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
-                                              ) : (
-                                                <span className="text-gray-700">{String(vv ?? "—")}</span>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
+                                        <span key={i} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-[500]">{String(item)}</span>
                                       ))}
                                     </div>
                                   );
                                 }
-                                return (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {v.map((item, i) => (
-                                      <span key={i} className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-[500]">{String(item)}</span>
-                                    ))}
-                                  </div>
-                                );
-                              }
-                              if (typeof v === "string" && v.startsWith("http")) {
-                                return <a href={v} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{v}</a>;
-                              }
-                              return <span className="text-gray-800 text-[12px]">{String(v || "—")}</span>;
-                            };
-                            return (
-                              <div key={key} className="flex gap-3 py-2">
-                                <span className="text-[12px] font-[600] text-gray-500 w-32 flex-shrink-0 capitalize">{label}</span>
-                                <div className="flex-1 min-w-0">{renderValue(val)}</div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </motion.div>
-                    )}
-
-                    {/* Fetched by AI */}
-                    {enrichmentSubTab === "ai" && (
-                      <motion.div
-                        key="ai"
-                        initial={{ opacity: 0, x: 12 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -12 }}
-                        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-                        className="bg-white rounded-xl border border-gray-200 p-4 space-y-4"
-                      >
-                        {(() => {
-                          const ai = activePreviewLead?.fetchedByAi;
-                          if (!ai || typeof ai !== "object") {
-                            return (
-                              <div className="flex items-center justify-center py-8">
-                                <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
-                              </div>
-                            );
-                          }
-
-                          const renderSection = (title, data) => {
-                            if (!data || typeof data !== "object") return null;
-                            const entries = Object.entries(data);
-                            if (entries.length === 0) return null;
-                            return (
-                              <div>
-                                <h3 className="text-[14px] font-[700] text-gray-900 mb-2">{title}</h3>
-                                <div className="border-b border-gray-100 mb-3" />
-                                {entries.map(([key, val]) => {
-                                  const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-                                  const renderValue = (v) => {
-                                    if (Array.isArray(v)) {
-                                      if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
-                                      if (typeof v[0] === "object" && v[0] !== null) {
+                                if (typeof v === "string" && v.startsWith("http")) {
+                                  return <a href={v} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{v}</a>;
+                                }
+                                return <span className="text-gray-800 text-[12px]">{String(v || "—")}</span>;
+                              };
+                              return (
+                                <div key={key} className="flex gap-3 py-2">
+                                  <span className="text-[12px] font-[600] text-gray-500 w-32 flex-shrink-0 capitalize">{label}</span>
+                                  <div className="flex-1 min-w-0">{renderValue(val)}</div>
+                                </div>
+                              );
+                            });
+                          })()}
+                        </motion.div>
+                      )}
+                      {enrichmentSubTab === "ai" && (
+                        <motion.div
+                          key="ai"
+                          initial={{ opacity: 0, x: 12 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -12 }}
+                          transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                          className="bg-white rounded-xl border border-gray-200 p-4 space-y-4"
+                        >
+                          {(() => {
+                            const ai = activePreviewLead?.fetchedByAi;
+                            if (!ai || typeof ai !== "object") {
+                              return (
+                                <div className="flex items-center justify-center py-8">
+                                  <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
+                                </div>
+                              );
+                            }
+                            const renderSection = (title, data) => {
+                              if (!data || typeof data !== "object") return null;
+                              const entries = Object.entries(data);
+                              if (entries.length === 0) return null;
+                              return (
+                                <div>
+                                  <h3 className="text-[14px] font-[700] text-gray-900 mb-2">{title}</h3>
+                                  <div className="border-b border-gray-100 mb-3" />
+                                  {entries.map(([key, val]) => {
+                                    const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                                    const renderValue = (v) => {
+                                      if (Array.isArray(v)) {
+                                        if (v.length === 0) return <span className="text-gray-400 italic text-[12px]">—</span>;
+                                        if (typeof v[0] === "object" && v[0] !== null) {
+                                          return (
+                                            <div className="flex flex-col gap-1 mt-1">
+                                              {v.map((item, i) => (
+                                                <div key={i} className="bg-gray-50 rounded px-2 py-1 text-[11px] text-gray-600">
+                                                  {Object.entries(item).map(([k, vv]) => (
+                                                    <div key={k} className="flex gap-1 flex-wrap">
+                                                      <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
+                                                      {typeof vv === "string" && vv.startsWith("http") ? (
+                                                        <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
+                                                      ) : (
+                                                        <span className="text-gray-700">{String(vv ?? "—")}</span>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          );
+                                        }
                                         return (
-                                          <div className="flex flex-col gap-1 mt-1">
+                                          <div className="flex flex-wrap gap-1 mt-1">
                                             {v.map((item, i) => (
-                                              <div key={i} className="bg-gray-50 rounded px-2 py-1 text-[11px] text-gray-600">
-                                                {Object.entries(item).map(([k, vv]) => (
-                                                  <div key={k} className="flex gap-1 flex-wrap">
-                                                    <span className="font-[600] text-gray-500 capitalize">{k.replace(/_/g, " ")}:</span>
-                                                    {typeof vv === "string" && vv.startsWith("http") ? (
-                                                      <a href={vv} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline truncate">{vv}</a>
-                                                    ) : (
-                                                      <span className="text-gray-700">{String(vv ?? "—")}</span>
-                                                    )}
-                                                  </div>
-                                                ))}
-                                              </div>
+                                              <span key={i} className="px-2 py-0.5 rounded bg-violet-50 text-violet-700 text-[11px] font-[500]">{String(item)}</span>
                                             ))}
                                           </div>
                                         );
                                       }
-                                      return (
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                          {v.map((item, i) => (
-                                            <span key={i} className="px-2 py-0.5 rounded bg-violet-50 text-violet-700 text-[11px] font-[500]">{String(item)}</span>
-                                          ))}
-                                        </div>
-                                      );
-                                    }
-                                    if (typeof val === "string" && val.startsWith("http")) {
-                                      return <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{val}</a>;
-                                    }
-                                    return <span className="text-gray-800 text-[12px]">{String(val ?? "—")}</span>;
-                                  };
-                                  return (
-                                    <div key={key} className="flex gap-3 py-1.5">
-                                      <span className="text-[12px] font-[600] text-gray-500 w-32 flex-shrink-0 capitalize">{label}</span>
-                                      <div className="flex-1 min-w-0">{renderValue(val)}</div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                                      if (typeof val === "string" && val.startsWith("http")) {
+                                        return <a href={val} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline text-[12px]">{val}</a>;
+                                      }
+                                      return <span className="text-gray-800 text-[12px]">{String(val ?? "—")}</span>;
+                                    };
+                                    return (
+                                      <div key={key} className="flex gap-3 py-1.5">
+                                        <span className="text-[12px] font-[600] text-gray-500 w-32 flex-shrink-0 capitalize">{label}</span>
+                                        <div className="flex-1 min-w-0">{renderValue(val)}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            };
+                            return (
+                              <>
+                                {renderSection("Personal Details", ai.personalDetails)}
+                                {renderSection("Business Details", ai.businessDetails)}
+                              </>
                             );
-                          };
-
-                          return (
-                            <>
-                              {renderSection("Personal Details", ai.personalDetails)}
-                              {renderSection("Business Details", ai.businessDetails)}
-                            </>
-                          );
-                        })()}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                </motion.div>
-              )}
-
-              {/* Reprocess */}
-              {modalTab === "reprocess" && (
-                <motion.div
-                  key="reprocess"
-                  initial={{ opacity: 0, x: 18 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -18 }}
-                  transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
-                  className="p-6 flex flex-col gap-5"
-                >
-
-                  {/* Header */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <RefreshCw className="h-4 w-4 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-[14px] font-[700] text-gray-900 leading-tight">Reprocess Email Draft</p>
-                      <p className="text-[12px] text-gray-400 mt-0.5">Describe your changes and the AI will regenerate this draft.</p>
-                    </div>
-                  </div>
-
-                  {/* Regenerated result */}
-                  {reprocessResult && (
-                    <div className="animate-fadeIn flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[12px] font-[700] text-emerald-600 flex items-center gap-1.5">
-                          <CheckCircle2 className="h-4 w-4" /> Draft regenerated
-                          {reprocessResult.newDraftId && (
-                            <span className="ml-1 text-[11px] text-gray-400 font-[400]">ID: {reprocessResult.newDraftId}</span>
-                          )}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setReprocessResult(null)}
-                          className="text-[11px] text-gray-400 hover:text-gray-600 transition"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                      {reprocessResult.subject && (
-                        <div className="bg-white border border-emerald-100 rounded-xl px-4 py-2 text-[12px] text-gray-700">
-                          <span className="font-[600] text-gray-500 mr-1.5">Subject:</span>
-                          {reprocessResult.subject}
-                        </div>
+                          })()}
+                        </motion.div>
                       )}
-                      <div className="bg-white rounded-xl border border-emerald-100 shadow-sm overflow-hidden">
-                        {reprocessResult.bodyHtml ? (
-                          <iframe
-                            srcDoc={reprocessResult.bodyHtml}
-                            sandbox="allow-same-origin"
-                            title="Regenerated email preview"
-                            className="w-full h-[35vh] min-h-[280px] block"
-                          />
-                        ) : (
-                          <div className="p-4 text-[13px] text-gray-400 italic">No preview available.</div>
-                        )}
-                      </div>
-                      <div className="border-t border-gray-100 pt-1" />
-                    </div>
-                  )}
-
-                  {/* Suggestion chips */}
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "Make it more formal",
-                      "Shorten the message",
-                      "Focus on product benefits",
-                      "Add a sense of urgency",
-                      "More friendly tone",
-                    ].map((chip) => (
-                      <button
-                        key={chip}
-                        type="button"
-                        disabled={reprocessing}
-                        onClick={() => setReprocessPrompt((prev) => prev ? `${prev.trimEnd()}, ${chip.toLowerCase()}` : chip)}
-                        className="px-3 py-1 rounded-full border border-gray-200 bg-white text-[11px] font-[500] text-gray-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {chip}
-                      </button>
-                    ))}
+                    </AnimatePresence>
                   </div>
+                )}
 
-                  {/* Prompt box */}
-                  <div className={`bg-white rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden ${reprocessPrompt.trim() ? "border-blue-300 ring-1 ring-blue-100" : "border-gray-200"}`}>
-                    <textarea
-                      value={reprocessPrompt}
-                      onChange={(e) => setReprocessPrompt(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleReprocess();
-                      }}
-                      placeholder="e.g. Make the subject line more compelling, emphasize the ROI, and end with a clear call to action…"
-                      rows={5}
-                      className="w-full px-4 pt-4 pb-2 text-[13px] text-gray-800 placeholder-gray-300 resize-none focus:outline-none leading-6 bg-transparent"
-                      disabled={reprocessing}
-                    />
-                    {/* Toolbar row */}
-                    <div className="flex items-center justify-between px-4 pb-3 pt-1.5">
-                      <span className="text-[11px] text-gray-300 select-none">
-                        {reprocessPrompt.length > 0 ? `${reprocessPrompt.length} chars` : "⌘ Enter to submit"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleReprocess}
-                        disabled={!reprocessPrompt.trim() || reprocessing}
-                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[12px] font-[700] transition-all duration-200 shadow-sm disabled:cursor-not-allowed ${
-                          reprocessPrompt.trim() && !reprocessing
-                            ? "bg-gradient-to-r from-blue-500 to-violet-500 text-white hover:from-blue-600 hover:to-violet-600 shadow-blue-100"
-                            : "bg-gray-100 text-gray-300"
-                        }`}
-                      >
-                        {reprocessing
-                          ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Processing…</>
-                          : <><Send className="h-3.5 w-3.5" /> Submit</>}
-                      </button>
-                    </div>
-                  </div>
-
-                </motion.div>
-              )}
-
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-      ) : null}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

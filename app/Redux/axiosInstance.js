@@ -31,4 +31,27 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// ✅ Normalize all error responses — extract `detail` (FastAPI) or `message` into error.message
+// Also handles blob responses: parses blob JSON so catch blocks can read .detail directly
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const data = error?.response?.data;
+    if (data instanceof Blob && data.type?.includes("json")) {
+      try {
+        const text = await data.text();
+        const json = JSON.parse(text);
+        error.response.data = json;
+        error.message = json?.detail || json?.message || error.message;
+      } catch {
+        // leave error as-is if blob can't be parsed
+      }
+    } else if (data && typeof data === "object") {
+      if (data.detail) error.message = data.detail;
+      else if (data.message) error.message = data.message;
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default axiosInstance;
