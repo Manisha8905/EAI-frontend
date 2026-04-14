@@ -2297,7 +2297,12 @@ export default function ModuleDashboard({
             }
           >
             {inboundOutcomes ? (
-              <OutcomesPieChart data={inboundOutcomes} />
+              <OutcomesPieChart
+                data={inboundOutcomes.map((item, i) => ({
+                  ...item,
+                  fill: ["#a860f0ed", "#06b6d4", "#a855f7", "#10b981", "#ec4899"][i % 5],
+                }))}
+              />
             ) : (
               <div className="h-[200px] flex items-center justify-center text-[13px] text-gray-400">
                 No distribution data
@@ -2612,7 +2617,7 @@ export default function ModuleDashboard({
           {/* EM-2b ── Email Deliverability (static: API not yet supported) */}
           {(() => {
             const deliverabilityBars = [
-              { name: "Inbox", value: 98, fill: "#16a34a", bg: "#dcfce7", pct: 98 },
+              { name: "Inbox", value: 98, fill: "#22c55e", bg: "#dcfce7", pct: 98 },
               { name: "Spam",  value: 2,  fill: "#dc2626", bg: "#fee2e2", pct: 2  },
             ];
             return (
@@ -2661,7 +2666,7 @@ export default function ModuleDashboard({
                     </ResponsiveContainer>
                     {/* Centre label */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-[26px] font-black text-green-600 leading-none">98%</span>
+                      <span className="text-[26px] font-black text-green-500 leading-none">98%</span>
                       <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Inbox</span>
                     </div>
                   </div>
