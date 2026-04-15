@@ -2429,7 +2429,7 @@ export default function CampaignPage() {
                   <div className="relative">
                     <select
                       name="template_id"
-                      value={form.template_id}
+                      value={form.template_id ?? ""}
                       onChange={handleFormChange}
                       required
                       className={selectCls}
@@ -2457,7 +2457,7 @@ export default function CampaignPage() {
                     <Field label="From Name">
                       <input
                         name="from_name"
-                        value={form.from_name}
+                        value={form.from_name ?? ""}
                         onChange={handleFormChange}
                         placeholder="John from Acme Corp"
                         className={inputCls}
@@ -2467,7 +2467,7 @@ export default function CampaignPage() {
                       <input
                         type="email"
                         name="from_email"
-                        value={form.from_email}
+                        value={form.from_email ?? ""}
                         onChange={handleFormChange}
                         placeholder="john@acme.com"
                         className={inputCls}
@@ -2477,7 +2477,7 @@ export default function CampaignPage() {
                       <input
                         type="email"
                         name="reply_to_email"
-                        value={form.reply_to_email}
+                        value={form.reply_to_email ?? ""}
                         onChange={handleFormChange}
                         placeholder="support@acme.com"
                         className={inputCls}
@@ -2487,7 +2487,7 @@ export default function CampaignPage() {
                       <input
                         type="number"
                         name="emails_per_batch"
-                        value={form.emails_per_batch}
+                        value={form.emails_per_batch ?? ""}
                         onChange={handleFormChange}
                         min={1}
                         className={inputCls}
@@ -2497,7 +2497,7 @@ export default function CampaignPage() {
                       <input
                         type="number"
                         name="delay_between_batches_seconds"
-                        value={form.delay_between_batches_seconds}
+                        value={form.delay_between_batches_seconds ?? ""}
                         onChange={handleFormChange}
                         min={0}
                         className={inputCls}
