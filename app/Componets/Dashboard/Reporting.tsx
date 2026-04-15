@@ -359,7 +359,7 @@ export default function Reporting() {
                       const statusKey = row.status?.toUpperCase() ?? "";
                       return (
                         <tr key={idx} className={`border-b border-gray-50 transition hover:bg-gray-50/70 ${idx % 2 === 0 ? "" : "bg-gray-50/30"}`}>
-                          <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-800 whitespace-nowrap">{row.name}</td>
+                          <td className="px-5 py-3.5 text-[13px] font-[500] text-gray-800 whitespace-nowrap">{row.caller_name}</td>
                           <td className="px-5 py-3.5 text-[12px] text-gray-600 font-mono whitespace-nowrap">{row.phone}</td>
                           <td className="px-5 py-3.5 text-[13px] text-gray-700 whitespace-nowrap">{row.company}</td>
                           <td className="px-5 py-3.5 text-[12px] text-gray-500 whitespace-nowrap">{row.dateTime}</td>

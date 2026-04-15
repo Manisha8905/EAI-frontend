@@ -51,6 +51,7 @@ import {
   SkipForward,
   Users,
   Settings,
+  RotateCcw,
 } from "lucide-react";
 import {
   BarChart,
@@ -401,6 +402,49 @@ export default function CampaignPage() {
       setEmailSendingService(localStorage.getItem("emailSendingService") || "SMTP");
     }
   }, []);
+
+  /* ── Email Config Toggle ── */
+  const [showEmailConfig, setShowEmailConfig] = useState(false);
+  const [emailConfigLoading, setEmailConfigLoading] = useState(false);
+  const handleEmailConfigToggle = async () => {
+    if (showEmailConfig) {
+      setShowEmailConfig(false);
+      setForm((prev) => ({
+        ...prev,
+        logged_in_user_email: null,
+        smtp_provider_name: null,
+        template_id: null,
+        from_name: null,
+        from_email: null,
+        reply_to_email: null,
+        emails_per_batch: null,
+        delay_between_batches_seconds: null,
+      }));
+    } else {
+      setShowEmailConfig(true);
+      setEmailConfigLoading(true);
+      try {
+        const res = await axiosInstance.get("/campaign-email-settings");
+        const d = res?.data ?? {};
+        setForm((prev) => ({
+          ...prev,
+          logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
+          smtp_provider_name: d.smtp_provider_name ?? prev.smtp_provider_name ?? "",
+          template_id: d.template_id ?? prev.template_id ?? "",
+          from_name: d.from_name ?? prev.from_name ?? "",
+          from_email: d.from_email ?? prev.from_email ?? "",
+          reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
+          emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
+          delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
+        }));
+      } catch (err) {
+        console.error("Failed to fetch email config settings:", err);
+      } finally {
+        setEmailConfigLoading(false);
+      }
+    }
+  };
+
   /* ── Settings Panel ── */
   const [showSettings, setShowSettings] = useState(false);
 
@@ -528,6 +572,36 @@ export default function CampaignPage() {
   const [emailDetailLoading, setEmailDetailLoading] = useState(false);
   const [emailModalView, setEmailModalView] = useState("email");
 
+  /* ── Approve Regeneration Modal ── */
+  const [approveRegenModal, setApproveRegenModal] = useState(null); // { row }
+  const [approveRegenLoading, setApproveRegenLoading] = useState(false);
+
+  const handleApproveRegen = async () => {
+    if (!approveRegenModal?.row || !selectedCampaign?.id) return;
+    const draftId = approveRegenModal.row.id ?? approveRegenModal.row.email_history_id;
+    if (!draftId) {
+      toast.error("No draft ID found.");
+      return;
+    }
+    setApproveRegenLoading(true);
+    try {
+      await axiosInstance.post(
+        `/api/campaigns/${selectedCampaign.id}/email-drafts/${draftId}/approve-regeneration`,
+      );
+      toast.success("Regeneration approved successfully.");
+      setApproveRegenModal(null);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to approve regeneration.";
+      toast.error(msg);
+    } finally {
+      setApproveRegenLoading(false);
+    }
+  };
+
   const getMergedReplies = (row) => {
     if (!row) return [];
     const rowIdKey = String(row.id ?? row.email_history_id ?? "");
@@ -627,32 +701,32 @@ export default function CampaignPage() {
       return;
     }
     if (hasEmailChannel) {
-      if (!form.logged_in_user_email?.trim()) {
-        toast.error("Meeting invite sender email is required for Email channel.");
-        return;
-      }
-      if (!isValidEmail(form.logged_in_user_email)) {
-        toast.error("Please enter a valid meeting invite sender email.");
-        return;
-      }
-      if (emailSendingService !== "CRM") {
-        if (!form.template_id) {
-          toast.error("Please select an email template.");
-          return;
-        }
-        if (!form.from_email?.trim()) {
-          toast.error("From Email is required.");
-          return;
-        }
-        if (!isValidEmail(form.from_email)) {
-          toast.error("Please enter a valid From Email address.");
-          return;
-        }
-        if (form.reply_to_email?.trim() && !isValidEmail(form.reply_to_email)) {
-          toast.error("Please enter a valid Reply to Email address.");
-          return;
-        }
-      }
+      // if (!form.logged_in_user_email?.trim()) {
+      //   toast.error("Meeting invite sender email is required for Email channel.");
+      //   return;
+      // }
+      // if (!isValidEmail(form.logged_in_user_email)) {
+      //   toast.error("Please enter a valid meeting invite sender email.");
+      //   return;
+      // }
+      // if (emailSendingService !== "CRM") {
+      //   if (!form.template_id) {
+      //     toast.error("Please select an email template.");
+      //     return;
+      //   }
+      //   if (!form.from_email?.trim()) {
+      //     toast.error("From Email is required.");
+      //     return;
+      //   }
+      //   if (!isValidEmail(form.from_email)) {
+      //     toast.error("Please enter a valid From Email address.");
+      //     return;
+      //   }
+      //   if (form.reply_to_email?.trim() && !isValidEmail(form.reply_to_email)) {
+      //     toast.error("Please enter a valid Reply to Email address.");
+      //     return;
+      //   }
+      // }
     }
     setCreating(true);
     try {
@@ -2259,17 +2333,7 @@ export default function CampaignPage() {
                   className={inputCls}
                 />
               </Field>
-              <Field label="Meeting Invite Sender Email" required={form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL")}>
-                <input
-                  type="email"
-                  name="logged_in_user_email"
-                  value={form.logged_in_user_email}
-                  onChange={handleFormChange}
-                  placeholder="user@company.com"
-                  required={form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL")}
-                  className={inputCls}
-                />
-              </Field>
+          
               <Field label="Lead List">
                 <div className="relative">
                   <select
@@ -2289,15 +2353,16 @@ export default function CampaignPage() {
                 </div>
               </Field>
             </div>
+         
           </section>
 
           {/* Section: Email Config — only when Email is in channel_order AND service is not CRM */}
-          {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
+          {showEmailConfig && form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
             <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Mail className="h-4 w-4 text-indigo-600" />
                 <h2 className="text-[14px] font-[700] text-[#1e3a8a]">
-                  Email Configuration
+                  Advance Campaign Setting
                 </h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2440,6 +2505,18 @@ export default function CampaignPage() {
                     </Field>
                   </>
                 )}
+                    {showEmailConfig && (
+                <Field label="Meeting Invite Sender Email">
+                  <input
+                    type="email"
+                    name="logged_in_user_email"
+                    value={form.logged_in_user_email ?? ""}
+                    onChange={handleFormChange}
+                    placeholder="user@company.com"
+                    className={inputCls}
+                  />
+                </Field>
+              )}
               </div>
             </section>
           )}
@@ -2518,7 +2595,7 @@ export default function CampaignPage() {
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="grid grid-cols-2 gap-3">
               {/* AI Personalization toggle */}
-              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+              {/* <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
                 <div>
                   <p className="text-[14px] font-[600] text-[#0a0a0a]">Enable AI Personalization</p>
                   <p className="text-[12px] text-blue-500 mt-0.5">Use AI to personalize email content</p>
@@ -2537,7 +2614,7 @@ export default function CampaignPage() {
                     className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.enable_ai_personalization ? "translate-x-6" : "translate-x-1"}`}
                   />
                 </button>
-              </div>
+              </div> */}
               {/* Preview Mode toggle */}
               <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
                 <div>
@@ -2554,8 +2631,32 @@ export default function CampaignPage() {
                   />
                 </button>
               </div>
+                 {/* Advance Campaign Setting Toggle */}
+              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+              <div>
+                <p className="text-[14px] font-[600] text-[#0a0a0a]">Advance Campaign Setting</p>
+                <p className="text-[12px] text-blue-500 mt-0.5">Campaign sender email, SMTP and template settings</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleEmailConfigToggle}
+                disabled={emailConfigLoading}
+                className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-60 ${showEmailConfig ? "bg-[#1e293b]" : "bg-gray-200"}`}
+              >
+                {emailConfigLoading ? (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <svg className="h-3 w-3 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                  </span>
+                ) : (
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${showEmailConfig ? "translate-x-6" : "translate-x-1"}`} />
+                )}
+              </button>
             </div>
-            {form.enable_ai_personalization && (
+            </div>
+            {/* {form.enable_ai_personalization && (
               <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
                 <Field label="AI Tone">
                   <div className="relative">
@@ -2591,7 +2692,7 @@ export default function CampaignPage() {
                   />
                 </Field>
               </div>
-            )}
+            )} */}
           </section>
           )}
 
@@ -2615,7 +2716,7 @@ export default function CampaignPage() {
             </section>
           ) : (
             /* ── Create mode: three buttons ── */
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 grid grid-cols-1 md:grid-cols-1 gap-3">
               <button
                 type="button"
                 disabled={creating || !form.campaign_name.trim()}
@@ -2629,7 +2730,7 @@ export default function CampaignPage() {
                 )}
                 Run Campaign Now
               </button>
-              <button
+              {/* <button
                 type="button"
                 disabled={creating || !form.campaign_name.trim()}
                 onClick={() => handleCreate("schedule")}
@@ -2645,7 +2746,7 @@ export default function CampaignPage() {
                 className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-gray-200 bg-white text-[14px] font-[600] text-blue-600 hover:bg-blue-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save as Draft
-              </button>
+              </button> */}
             </section>
           )}
         </div>
@@ -4079,7 +4180,7 @@ export default function CampaignPage() {
                         <tr>
                           <td
                             colSpan={9}
-                            className="px-4 py-12 text-center text-[13px] text-gray-400"
+                            className="px-4 py-6 text-center text-[13px] text-gray-400"
                           >
                             No call records available.
                           </td>
@@ -4956,7 +5057,7 @@ export default function CampaignPage() {
                     <tr>
                       <td
                         colSpan={10}
-                        className="px-4 py-12 text-center text-[13px] text-gray-400"
+                        className="px-4 py-6 text-center text-[13px] text-gray-400"
                       >
                         No email records available.
                       </td>
@@ -5085,6 +5186,14 @@ export default function CampaignPage() {
                               title={hasReply ? "View Reply" : "No Reply"}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setApproveRegenModal({ row })}
+                              className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition"
+                              title="Approve Regeneration"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </td>
@@ -5331,6 +5440,47 @@ export default function CampaignPage() {
             </div>
           </div>
         )}
+        {/* ── Approve Regeneration Confirmation Modal ── */}
+        {approveRegenModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-6 max-w-sm w-full">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                  <RotateCcw className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-[700] text-gray-900">Approve Regeneration</h3>
+                  <p className="text-[12px] text-gray-400">This will trigger a new email draft.</p>
+                </div>
+              </div>
+              <p className="text-[13px] text-gray-600 mb-5">
+                Approve regeneration for email draft sent to{" "}
+                <span className="font-[700] text-gray-900">
+                  &ldquo;{approveRegenModal.row?.name ?? approveRegenModal.row?.lead_name ?? "this lead"}&rdquo;
+                </span>?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setApproveRegenModal(null)}
+                  disabled={approveRegenLoading}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApproveRegen}
+                  disabled={approveRegenLoading}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-[13px] font-[700] hover:bg-amber-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {approveRegenLoading ? "Approving…" : "Approve"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {emailTooltip && (() => {
           const { kind, rect } = emailTooltip;
           const left = Math.min(Math.max(rect.left + rect.width / 2, 10), (typeof window !== "undefined" ? window.innerWidth : 1200) - 10);
@@ -5665,11 +5815,11 @@ export default function CampaignPage() {
                       "Lead Name",
                       "Company",
                       "Title",
-                      "Conn. Sent",
-                      "Conn. Accepted",
-                      "DM Sent",
+                      // "Conn. Sent",
+                      // "Conn. Accepted",
+                      // "DM Sent",
                       "Replied",
-                      "Intent",
+                      // "Intent",
                       "Status",
                       "Date",
                       "Meeting",
@@ -5690,7 +5840,7 @@ export default function CampaignPage() {
                     <tr>
                       <td
                         colSpan={13}
-                        className="px-4 py-12 text-center text-[13px] text-gray-400"
+                        className="px-4 py-6 text-center text-[13px] text-gray-400"
                       >
                         No LinkedIn records available.
                       </td>
@@ -5704,7 +5854,7 @@ export default function CampaignPage() {
                         <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">{row.name}</td>
                         <td className="px-3 py-3 text-[12px] text-blue-600 font-[500]">{row.company}</td>
                         <td className="px-3 py-3 text-[11px] text-gray-500">{row.title}</td>
-                        <td className="px-3 py-3 text-center">
+                        {/* <td className="px-3 py-3 text-center">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
                             row.connectionSent ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-100 text-gray-500 border-gray-200"
                           }`}>{row.connectionSent ? "Yes" : "No"}</span>
@@ -5713,18 +5863,18 @@ export default function CampaignPage() {
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
                             row.connectionAccepted ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"
                           }`}>{row.connectionAccepted ? "Yes" : "No"}</span>
-                        </td>
-                        <td className="px-3 py-3 text-center">
+                        </td> */}
+                        {/* <td className="px-3 py-3 text-center">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
                             row.messageSent ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-gray-100 text-gray-500 border-gray-200"
                           }`}>{row.messageSent ? "Yes" : "No"}</span>
-                        </td>
+                        </td> */}
                         <td className="px-3 py-3 text-center">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
                             row.replied ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-gray-100 text-gray-500 border-gray-200"
                           }`}>{row.replied ? "Yes" : "No"}</span>
                         </td>
-                        <td className="px-3 py-3">
+                        {/* <td className="px-3 py-3">
                           {row.lastReplyIntent !== "—" ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] bg-amber-50 text-amber-700 border border-amber-200 capitalize">
                               {row.lastReplyIntent}
@@ -5732,7 +5882,7 @@ export default function CampaignPage() {
                           ) : (
                             <span className="text-[11px] text-gray-400">—</span>
                           )}
-                        </td>
+                        </td> */}
                         <td className="px-3 py-3">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${LINKEDIN_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}>
                             {row.status || "—"}
@@ -6130,13 +6280,13 @@ export default function CampaignPage() {
                 <tbody>
                   {whatsappHistoryLoading ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-12 text-center text-[13px] text-gray-400">
+                      <td colSpan={10} className="px-4 py-6 text-center text-[13px] text-gray-400">
                         Loading conversations...
                       </td>
                     </tr>
                   ) : waRows.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-12 text-center text-[13px] text-gray-400">
+                      <td colSpan={10} className="px-4 py-6 text-center text-[13px] text-gray-400">
                         No WhatsApp records available.
                       </td>
                     </tr>

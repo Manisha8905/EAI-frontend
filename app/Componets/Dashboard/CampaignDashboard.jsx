@@ -999,7 +999,7 @@ function CallHistoryView({ campaign, onBack }) {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-[13px] text-gray-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-[13px] text-gray-400">
                     No records match your search / filter.
                   </td>
                 </tr>
@@ -1249,7 +1249,7 @@ function EmailHistoryView({ campaign, onBack }) {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-[13px] text-gray-400">
+                  <td colSpan={7} className="px-4 py-6 text-center text-[13px] text-gray-400">
                     No records match your search / filter.
                   </td>
                 </tr>
@@ -1511,7 +1511,7 @@ function LinkedInHistoryView({ campaign, onBack }) {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-[13px] text-gray-400">
+                  <td colSpan={7} className="px-4 py-6 text-center text-[13px] text-gray-400">
                     No records match your search / filter.
                   </td>
                 </tr>

@@ -46,6 +46,19 @@ import {
   FileDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 
 const isAdminRole = (role) => {
   const normalizedRole = String(role || "")
@@ -8180,6 +8193,14 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       LINKEDIN_CACHE_TTL_DAYS: "7",
       LINKEDIN_SCRAPING_ENABLED: "true",
     },
+    whatsapp: {
+      WHATSAPP_ACCESS_TOKEN: "",
+      WHATSAPP_DEFAULT_TEMPLATE: "",
+      WHATSAPP_DEFAULT_TEMPLATE_LANG: "",
+      WHATSAPP_PHONE_NUMBER_ID: "",
+      WHATSAPP_WABA_ID: "",
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: "",
+    },
     azure: {
       AZURE_OPENAI_API_KEY: "",
       AZURE_OPENAI_API_MODEL: "text-embedding-ada-002",
@@ -8219,6 +8240,12 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [whatsappMetrics, setWhatsappMetrics] = useState({
+    delivery_status_distribution: [],
+    intent_distribution: [],
+    conversation_status_distribution: [],
+  });
+  const [metricsLoading, setMetricsLoading] = useState(false);
 
   const setField = (section, key) => (input) => {
     const value = input?.target
@@ -8234,6 +8261,24 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       },
     }));
   };
+
+  const fetchWhatsappMetrics = useCallback(async () => {
+    setMetricsLoading(true);
+    try {
+      const response = await axiosInstance.post("/api/metrics/whatsapp-campaigns", {
+        filter: "this_year",
+      });
+      setWhatsappMetrics({
+        delivery_status_distribution: response.data?.delivery_status_distribution || [],
+        intent_distribution: response.data?.intent_distribution || [],
+        conversation_status_distribution: response.data?.conversation_status_distribution || [],
+      });
+    } catch (error) {
+      console.error("Failed to fetch WhatsApp metrics:", error);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!canAccess) {
@@ -8473,6 +8518,10 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, refreshTrigger]);
 
+  useEffect(() => {
+    fetchWhatsappMetrics();
+  }, [fetchWhatsappMetrics]);
+
   const save = async (section) => {
     if (!canAccess) {
       toast.error("Only admin users can update Global Integrations.");
@@ -8494,6 +8543,16 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       if (section === "linkedin") {
         await axiosInstance.put("/api/globalsetting/linkedin-scraping", {
           credentials: forms.linkedin,
+        });
+      }
+      if (section === "whatsapp") {
+        await axiosInstance.put("/api/whatsapp/credentials", {
+          WHATSAPP_ACCESS_TOKEN: forms.whatsapp.WHATSAPP_ACCESS_TOKEN,
+          WHATSAPP_DEFAULT_TEMPLATE: forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE,
+          WHATSAPP_DEFAULT_TEMPLATE_LANG: forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE_LANG,
+          WHATSAPP_PHONE_NUMBER_ID: forms.whatsapp.WHATSAPP_PHONE_NUMBER_ID,
+          WHATSAPP_WABA_ID: forms.whatsapp.WHATSAPP_WABA_ID,
+          WHATSAPP_WEBHOOK_VERIFY_TOKEN: forms.whatsapp.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
         });
       }
       if (section === "azure") {
@@ -8577,7 +8636,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       <AnimStyles />
       <PageHeader
         title="Global Integrations"
-        subtitle="Configure Twilio, ElevenLabs, LinkedIn scraping, Azure, TM solution, Groq and app-level settings"
+        subtitle="Configure Twilio, ElevenLabs, LinkedIn scraping, WhatsApp, Azure, TM solution, Groq and app-level settings"
         onBack={onBack}
         action={
           <button
@@ -8803,6 +8862,58 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-green-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  WhatsApp Integration
+                </h3>
+              </div>
+              <SaveBtn section="whatsapp" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field
+                label="Access Token"
+                type="password"
+                value={forms.whatsapp.WHATSAPP_ACCESS_TOKEN}
+                onChange={setField("whatsapp", "WHATSAPP_ACCESS_TOKEN")}
+                placeholder="EAAxxxxxxxxxxxxxxx"
+              />
+              <Field
+                label="Phone Number ID"
+                value={forms.whatsapp.WHATSAPP_PHONE_NUMBER_ID}
+                onChange={setField("whatsapp", "WHATSAPP_PHONE_NUMBER_ID")}
+                placeholder="123456789012345"
+              />
+              <Field
+                label="WABA ID"
+                value={forms.whatsapp.WHATSAPP_WABA_ID}
+                onChange={setField("whatsapp", "WHATSAPP_WABA_ID")}
+                placeholder="987654321098765"
+              />
+              <Field
+                label="Default Template"
+                value={forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE}
+                onChange={setField("whatsapp", "WHATSAPP_DEFAULT_TEMPLATE")}
+                placeholder="hello-world"
+              />
+              <Field
+                label="Default Template Language"
+                value={forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE_LANG}
+                onChange={setField("whatsapp", "WHATSAPP_DEFAULT_TEMPLATE_LANG")}
+                placeholder="en-US"
+              />
+              <Field
+                label="Webhook Verify Token"
+                type="password"
+                value={forms.whatsapp.WHATSAPP_WEBHOOK_VERIFY_TOKEN}
+                onChange={setField("whatsapp", "WHATSAPP_WEBHOOK_VERIFY_TOKEN")}
+                placeholder="my-secret-verify-token"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-indigo-600" />
                 <h3 className="text-[14px] font-[700] text-gray-900">
                  Azure Services Key
@@ -9012,7 +9123,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 onChange={setField("appConfig", "company_sales_pain_solution")}
               />
               <Field
-                label="About Company"
+                label="Product/Services Focus"
                 value={forms.appConfig.about_company}
                 onChange={setField("appConfig", "about_company")}
               />
@@ -9419,7 +9530,7 @@ export default function Setting() {
             iconBg="bg-blue-50"
             iconColor="text-blue-600"
             title="Global Integrations"
-            desc="Configure Twilio, ElevenLabs, LinkedIn scraping, Azure, Groq, TM solution and app config"
+            desc="Configure Twilio, ElevenLabs, LinkedIn scraping, WhatsApp, Azure, Groq, TM solution and app config"
             action={<GearBtn page="global-integrations" />}
           />
         )} */}

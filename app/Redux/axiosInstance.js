@@ -37,19 +37,31 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const data = error?.response?.data;
+    let errorMessage = error.message || "An error occurred";
+    
     if (data instanceof Blob && data.type?.includes("json")) {
       try {
         const text = await data.text();
         const json = JSON.parse(text);
         error.response.data = json;
-        error.message = json?.detail || json?.message || error.message;
+        errorMessage = json?.detail || json?.message || errorMessage;
       } catch {
         // leave error as-is if blob can't be parsed
       }
     } else if (data && typeof data === "object") {
-      if (data.detail) error.message = data.detail;
-      else if (data.message) error.message = data.message;
+      // Handle FastAPI detail (even if empty or null)
+      if (data.detail !== undefined && data.detail !== null && data.detail !== "") {
+        errorMessage = data.detail;
+      } else if (data.message !== undefined && data.message !== null && data.message !== "") {
+        errorMessage = data.message;
+      } else if (data.error !== undefined && data.error !== null && data.error !== "") {
+        errorMessage = data.error;
+      }
     }
+    
+    error.message = errorMessage;
+    error.response = error.response || {};
+    error.response.data = error.response.data || { detail: errorMessage };
     return Promise.reject(error);
   }
 );

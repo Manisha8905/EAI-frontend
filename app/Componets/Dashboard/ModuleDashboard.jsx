@@ -1463,6 +1463,8 @@ export default function ModuleDashboard({
               <button
                 key={tab.key}
                 onClick={() => !isDisabled && setActiveTab(tab.key)}
+                                onClick={() => setActiveTab(tab.key)}
+
                 type="button"
                 disabled={isDisabled}
                 className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${
@@ -1472,6 +1474,10 @@ export default function ModuleDashboard({
                       ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-violet-400/30"
                       : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 }`}
+                //   className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${ isActive
+                //       ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-violet-400/30"
+                //       : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                // }`}
               >
                 {tab.label}
               </button>
@@ -1992,111 +1998,159 @@ export default function ModuleDashboard({
             </div>
           </ChartCard>
 
-          {/* Delivery Status Distribution */}
+          {/* Delivery Status Distribution - Donut */}
           <ChartCard
             title="Delivery Status Distribution"
-            subtitle="Delivery breakdown"
+            subtitle="Delivery breakdown by status"
+            badge={`${(whatsappData.delivery_status_distribution || []).reduce((s, d) => s + (d.count ?? 0), 0)} total`}
           >
             <div className="h-[240px] w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={whatsappData.delivery_status_distribution || []}
-                    dataKey="count"
-                    nameKey="status"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    strokeWidth={0}
-                  >
-                    {(whatsappData.delivery_status_distribution || []).map(
-                      (entry, idx) => (
-                        <Cell
-                          key={idx}
-                          fill={
-                            ["#6366f1", "#22c55e", "#f59e42", "#ef4444"][
-                              idx % 4
-                            ]
-                          }
-                        />
-                      ),
-                    )}
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [`${value}`, name]} />
-                </PieChart>
-              </ResponsiveContainer>
+              {(whatsappData.delivery_status_distribution || []).length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={whatsappData.delivery_status_distribution || []}
+                      dataKey="count"
+                      nameKey="status"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={3}
+                      strokeWidth={2}
+                      stroke="#fff"
+                    >
+                      {(whatsappData.delivery_status_distribution || []).map(
+                        (entry, idx) => (
+                          <Cell
+                            key={idx}
+                            fill={
+                              ["#6366f1", "#22c55e", "#f59e42", "#ef4444"][
+                                idx % 4
+                              ]
+                            }
+                          />
+                        ),
+                      )}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [`${value} messages`, name]}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" }}
+                    />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-[13px] text-gray-400">No delivery data</div>
+              )}
             </div>
           </ChartCard>
 
-          {/* Intent Distribution */}
-          <ChartCard title="Intent Distribution" subtitle="Intent breakdown">
-            <div className="h-[240px] w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
+          {/* Intent Distribution - Horizontal Bar Chart */}
+          <ChartCard
+            title="Intent Distribution"
+            subtitle="Prospect intent signals from WhatsApp conversations"
+            badge={`${(whatsappData.intent_distribution || []).reduce((s, d) => s + (d.count ?? 0), 0)} total`}
+          >
+            <div className="h-[240px] w-full">
+              {(whatsappData.intent_distribution || []).length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
                     data={whatsappData.intent_distribution || []}
-                    dataKey="count"
-                    nameKey="intent"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    strokeWidth={0}
+                    layout="vertical"
+                    margin={{ top: 5, right: 40, left: 90, bottom: 5 }}
                   >
-                    {(whatsappData.intent_distribution || []).map(
-                      (entry, idx) => (
-                        <Cell
-                          key={idx}
-                          fill={
-                            ["#6366f1", "#22c55e", "#f59e42", "#ef4444"][
-                              idx % 4
-                            ]
-                          }
-                        />
-                      ),
-                    )}
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [`${value}`, name]} />
-                </PieChart>
-              </ResponsiveContainer>
+                    <defs>
+                      <linearGradient id="waIntentGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.7} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      type="number"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                    />
+                    <YAxis
+                      dataKey="intent"
+                      type="category"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: "#6b7280" }}
+                      width={85}
+                    />
+                    <Tooltip
+                      formatter={(value) => [`${value} leads`, "Count"]}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" }}
+                      cursor={{ fill: "#f5f3ff" }}
+                    />
+                    <Bar
+                      dataKey="count"
+                      fill="url(#waIntentGrad)"
+                      radius={[0, 6, 6, 0]}
+                      label={{ position: "right", fontSize: 11, fill: "#6b7280", fontWeight: 600 }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[13px] text-gray-400">No intent data</div>
+              )}
             </div>
           </ChartCard>
 
-          {/* Conversation Status Distribution */}
+          {/* Conversation Status Distribution - Vertical Bar Chart */}
           <ChartCard
             title="Conversation Status Distribution"
-            subtitle="Conversation breakdown"
+            subtitle="Active vs closed vs pending conversations"
+            badge={`${(whatsappData.conversation_status_distribution || []).reduce((s, d) => s + (d.count ?? 0), 0)} total`}
           >
-            <div className="h-[240px] w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
+            <div className="h-[240px] w-full">
+              {(whatsappData.conversation_status_distribution || []).length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
                     data={whatsappData.conversation_status_distribution || []}
-                    dataKey="count"
-                    nameKey="status"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    strokeWidth={0}
+                    barSize={28}
+                    margin={{ top: 8, right: 8, bottom: 20, left: -10 }}
                   >
-                    {(whatsappData.conversation_status_distribution || []).map(
-                      (entry, idx) => (
-                        <Cell
-                          key={idx}
-                          fill={
-                            ["#6366f1", "#22c55e", "#f59e42", "#ef4444"][
-                              idx % 4
-                            ]
-                          }
-                        />
-                      ),
-                    )}
-                  </Pie>
-                  <Tooltip formatter={(value, name) => [`${value}`, name]} />
-                </PieChart>
-              </ResponsiveContainer>
+                    <defs>
+                      <linearGradient id="waConvGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0ea5e9" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.6} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="status"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 10, fill: "#9ca3af" }}
+                      angle={-20}
+                      textAnchor="end"
+                      dy={6}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: "#9ca3af" }}
+                    />
+                    <Tooltip
+                      formatter={(value) => [`${value} conversations`, "Count"]}
+                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "12px" }}
+                      cursor={{ fill: "#f0f9ff" }}
+                    />
+                    <Bar
+                      dataKey="count"
+                      fill="url(#waConvGrad)"
+                      radius={[6, 6, 0, 0]}
+                      label={{ position: "top", fontSize: 11, fill: "#6b7280", fontWeight: 600 }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[13px] text-gray-400">No conversation data</div>
+              )}
             </div>
           </ChartCard>
 

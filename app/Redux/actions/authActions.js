@@ -291,12 +291,18 @@ export const fetchOutboundCalls = (filter = "this_year") => async (dispatch) => 
       payload: response.data,
     });
   } catch (error) {
+    const errorMsg = error.response?.data?.detail || 
+                     error.response?.data?.message || 
+                     error.message || 
+                     "Failed to fetch outbound calls";
     dispatch({
       type: OUTBOUND_CALLS_FAILURE,
-      payload: error.response?.data?.message || "Failed to fetch outbound calls",
+      payload: errorMsg,
     });
 
-    toast.error(error.response?.data?.message || "Failed to fetch outbound calls");
+    if (errorMsg && errorMsg !== "") {
+      toast.error(errorMsg);
+    }
   }
 };
 
@@ -317,12 +323,18 @@ export const fetchInboundCalls = (filter = "this_year") => async (dispatch) => {
       payload: response.data,
     });
   } catch (error) {
+    const errorMsg = error.response?.data?.detail || 
+                     error.response?.data?.message || 
+                     error.message || 
+                     "Failed to fetch inbound calls";
     dispatch({
       type: INBOUND_CALLS_FAILURE,
-      payload: error.response?.data?.message || "Failed to fetch inbound calls",
+      payload: errorMsg,
     });
 
-    toast.error(error.response?.data?.message || "Failed to fetch inbound calls");
+    if (errorMsg && errorMsg !== "") {
+      toast.error(errorMsg);
+    }
   }
 };
 
@@ -343,12 +355,18 @@ export const fetchEmailCampaigns = (filter = "this_year") => async (dispatch) =>
       payload: response.data,
     });
   } catch (error) {
+    const errorMsg = error.response?.data?.detail || 
+                     error.response?.data?.message || 
+                     error.message || 
+                     "Failed to fetch email campaigns";
     dispatch({
       type: EMAIL_CAMPAIGNS_FAILURE,
-      payload: error.response?.data?.message || "Failed to fetch email campaigns",
+      payload: errorMsg,
     });
 
-    toast.error(error.response?.data?.message || "Failed to fetch email campaigns");
+    if (errorMsg && errorMsg !== "") {
+      toast.error(errorMsg);
+    }
   }
 };
 
@@ -359,7 +377,7 @@ export const fetchLinkedinCampaigns = (filter = "this_year") => async (dispatch)
 
   try {
     const response = await axiosInstance.post(
-      `/api/metrics/linkedin-campaigns`,
+      `/api/metrics/linkedin`,
       { filter },
       { headers: { "Content-Type": "application/json" } }
     );
@@ -369,12 +387,18 @@ export const fetchLinkedinCampaigns = (filter = "this_year") => async (dispatch)
       payload: response.data,
     });
   } catch (error) {
+    const errorMsg = error.response?.data?.detail || 
+                     error.response?.data?.message || 
+                     error.message || 
+                     "Failed to fetch LinkedIn campaigns";
     dispatch({
       type: LINKEDIN_CAMPAIGNS_FAILURE,
-      payload: error.response?.data?.message || "Failed to fetch LinkedIn campaigns",
+      payload: errorMsg,
     });
 
-    toast.error(error.response?.data?.message || "Failed to fetch LinkedIn campaigns");
+    if (errorMsg && errorMsg !== "") {
+      toast.error(errorMsg);
+    }
   }
 };
 

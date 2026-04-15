@@ -398,7 +398,7 @@ export default function CampaignPreviewPage() {
     if (!pendingDraft || !campaignId) return;
     setAccepting(true);
     try {
-      const res = await axiosInstance.get(`/api/campaigns/${campaignId}/email-drafts`);
+      const res = await axiosInstance.post(`/api/campaigns/${campaignId}/email-drafts/${pendingDraft.newDraftId}/approve-regeneration`);
       const rows = toRows(res.data).map(normalizeLead).filter((l) => !!l.id);
       setLeads(rows);
       // Update active preview with fresh data for this lead
@@ -711,7 +711,7 @@ export default function CampaignPreviewPage() {
                           </button>
                           <span className="flex-1" />
                           {/* Accept — always visible */}
-                          {/* <button
+                          <button
                             type="button"
                             onClick={handleAcceptDraft}
                             disabled={accepting || !pendingDraft}
@@ -720,7 +720,7 @@ export default function CampaignPreviewPage() {
                           >
                             {accepting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
                             {accepting ? "Saving…" : "Accept"}
-                          </button> */}
+                          </button>
                           {/* Submit */}
                           <button
                             type="button"
