@@ -6214,9 +6214,16 @@ function LeadsPage({ onBack }) {
                       disabled={downloadingLeads}
                       onClick={async () => {
                         setDownloadingLeads(true);
+                        // Map list_lead UUIDs → actual lead_id values that the download API expects
+                        const downloadLeadIds = Array.from(checkedLeadIds).map((id) => {
+                          const found = listLeads.find(
+                            (l) => (l.id ?? l._id ?? l.list_lead_id) === id,
+                          );
+                          return found?.lead_id ?? id;
+                        });
                         await handleApiDownload(
                           viewList.id,
-                          Array.from(checkedLeadIds),
+                          downloadLeadIds,
                           false,
                         );
                         setDownloadingLeads(false);
