@@ -1463,8 +1463,6 @@ export default function ModuleDashboard({
               <button
                 key={tab.key}
                 onClick={() => !isDisabled && setActiveTab(tab.key)}
-                                onClick={() => setActiveTab(tab.key)}
-
                 type="button"
                 disabled={isDisabled}
                 className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${
