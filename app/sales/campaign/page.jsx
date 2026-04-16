@@ -336,7 +336,7 @@ export default function CampaignPage() {
     linkedin_max_attempts: 3,
     reply_wait_hours: 72,
     reply_wait_minutes: 0,
-    preview: false,
+    preview_mode: false,
   };
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(blankForm);
@@ -805,7 +805,7 @@ export default function CampaignPage() {
       enable_ai_personalization: form.enable_ai_personalization,
       ai_tone: form.ai_tone,
       ai_context: form.ai_context,
-      preview: form.preview,
+      preview_mode: form.preview_mode,
     };
 
     if (editingCampaignId) {
@@ -899,7 +899,7 @@ export default function CampaignPage() {
         linkedin_max_attempts: liData.max_attempts ?? 3,
         reply_wait_hours: liData.reply_wait_hours ?? 72,
         reply_wait_minutes: liData.reply_wait_minutes ?? 0,
-        preview: c.preview ?? false,
+        preview_mode: c.preview_mode ?? false,
       });
       setEditingCampaignId(campaignId);
       setShowCreate(true);
@@ -5034,7 +5034,7 @@ export default function CampaignPage() {
                       return (
                       <tr
                         key={idx}
-                        className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
+                        className={`${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
                       >
                         <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">
                           {row.name}
@@ -5814,7 +5814,7 @@ export default function CampaignPage() {
                       >
                         <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">{row.name}</td>
                         <td className="px-3 py-3 text-[12px] text-blue-600 font-[500]">{row.company}</td>
-                        <td className="px-3 py-3 text-[11px] text-gray-500">{row.title}</td>
+                        {/* <td className="px-3 py-3 text-[11px] text-gray-500">{row.title}</td> */}
                         {/* <td className="px-3 py-3 text-center">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
                             row.connectionSent ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-100 text-gray-500 border-gray-200"

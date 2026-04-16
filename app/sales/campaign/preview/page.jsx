@@ -305,7 +305,7 @@ export default function CampaignPreviewPage() {
       toast.error("Select at least one lead.");
       return;
     }
-
+    
     setSending(true);
     try {
       // Step 1: Approve the selected email drafts
