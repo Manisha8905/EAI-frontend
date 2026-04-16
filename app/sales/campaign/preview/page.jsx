@@ -914,7 +914,41 @@ export default function CampaignPreviewPage() {
                                 </div>
                               );
                             }
-                            const expectedKeys = ["name", "email", "phone", "company", "contact_number"];
+                            const expectedKeys = ["city",
+  "name",
+  "email",
+  "notes",
+  "phone",
+  "state",
+  "tasks",
+  "title",
+  "company",
+  "country",
+  "lead_id",
+  "website",
+  "comments",
+  "headline",
+  "industry",
+  "from_name",
+  "full_name",
+  "last_name",
+  "seniority",
+  "your_name",
+  "first_name",
+  "from_email",
+  "static_url",
+  "description",
+  "lead_source",
+  "lead_status",
+  "sender_name",
+  "company_name",
+  "from_company",
+  "sender_email",
+  "your_company",
+  "annual_revenue",
+  "sender_company",
+  "no_of_employees",
+  "company_description"];
                             return expectedKeys.map((key) => {
                               const val = sys[key];
                               const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
