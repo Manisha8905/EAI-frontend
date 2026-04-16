@@ -1584,13 +1584,13 @@ export default function ModuleDashboard({
             </span>
           </div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
-            {activeTab === "email" ? "Avg Emails / Lead" : "Avg Response Time"}
+            {activeTab === "email" ? "Avg Emails / Lead" : "Avg Call Duration"}
           </p>
           <p className="text-[36px] font-bold leading-none">
             {isLoading ? "…" : durationDisplay}
           </p>
           <p className="text-[12px] text-white/60 mt-1">
-            {activeTab === "email" ? "Emails per lead" : "per response"}
+            {activeTab === "email" ? "Emails per lead" : "minutes per call"}
           </p>
         </article>
       </section>

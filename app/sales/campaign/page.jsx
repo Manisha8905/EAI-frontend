@@ -2363,8 +2363,133 @@ export default function CampaignPage() {
          
           </section>
 
-          {/* Section: Email Config — only when Email is in channel_order AND service is not CRM */}
-          {showEmailConfig && form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
+
+
+
+          {/* Section: LinkedIn Config — only when LinkedIn is in channel_order */}
+          {form.channel_order
+            .map((c) => c.toUpperCase())
+            .includes("LINKEDIN") && (
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Linkedin className="h-4 w-4 text-blue-600" />
+                <h2 className="text-[14px] font-[700] text-[#2563eb]">
+                  LinkedIn Configuration
+                </h2>
+              </div>
+              <div className="space-y-4">
+                <Field label="Connection Note Template">
+                  <textarea
+                    name="connection_note_template"
+                    value={form.connection_note_template}
+                    onChange={handleFormChange}
+                    rows={2}
+                    placeholder="Hi {first_name}, I'd love to connect!"
+                    className={inputCls + " resize-none"}
+                  />
+                </Field>
+                <Field label="DM Body Template">
+                  <textarea
+                    name="dm_body_template"
+                    value={form.dm_body_template}
+                    onChange={handleFormChange}
+                    rows={2}
+                    placeholder="Hey {first_name}, thanks for connecting!"
+                    className={inputCls + " resize-none"}
+                  />
+                </Field>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Field label="Max Attempts">
+                    <input
+                      type="number"
+                      name="linkedin_max_attempts"
+                      value={form.linkedin_max_attempts}
+                      onChange={handleFormChange}
+                      min={1}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label="Reply Wait Hours">
+                    <input
+                      type="number"
+                      name="reply_wait_hours"
+                      value={form.reply_wait_hours}
+                      onChange={handleFormChange}
+                      min={0}
+                      className={inputCls}
+                    />
+                  </Field>
+                  <Field label="Reply Wait Minutes">
+                    <input
+                      type="number"
+                      name="reply_wait_minutes"
+                      value={form.reply_wait_minutes}
+                      onChange={handleFormChange}
+                      min={0}
+                      max={59}
+                      className={inputCls}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Section: Campaign Settings Toggles */}
+          {form.channel_order.length > 0 && (
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <div className={`grid gap-3 ${form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") ? "grid-cols-2" : "grid-cols-1"}`}>
+                {/* Advance Campaign Setting Toggle — shows for ALL channels */}
+                <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                  <div>
+                    <p className="text-[14px] font-[600] text-[#0a0a0a]">Advance Campaign Setting</p>
+                    <p className="text-[12px] text-blue-500 mt-0.5">Campaign sender email, SMTP and template settings</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleEmailConfigToggle}
+                    disabled={emailConfigLoading}
+                    className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-60 ${showEmailConfig ? "bg-[#1e293b]" : "bg-gray-200"}`}
+                  >
+                    {emailConfigLoading ? (
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <svg className="h-3 w-3 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                      </span>
+                    ) : (
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${showEmailConfig ? "translate-x-6" : "translate-x-1"}`} />
+                    )}
+                  </button>
+                </div>
+
+                {/* Preview Mode toggle — only when Email is in channel_order */}
+                {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && (
+                  <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
+                    <div>
+                      <p className="text-[14px] font-[600] text-[#0a0a0a]">Preview Mode</p>
+                      <p className="text-[12px] text-blue-500 mt-0.5">Review drafts before sending</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, preview: !p.preview }))}
+                      className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.preview ? "bg-[#1e293b]" : "bg-gray-200"}`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.preview ? "translate-x-6" : "translate-x-1"}`}
+                      />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </section>
+          )}
+
+         
+          {/* Section: Advance Campaign Setting Fields — shows when toggle is ON and any channel selected */}
+          {showEmailConfig && form.channel_order.length > 0 && (
             <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Mail className="h-4 w-4 text-indigo-600" />
@@ -2373,7 +2498,21 @@ export default function CampaignPage() {
                 </h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {emailSendingService !== "CRM" && (
+                {/* Meeting Invite Sender Email — for ALL channels */}
+                <Field label="Meeting Invite Sender Email">
+                  <input
+                    type="email"
+                    name="logged_in_user_email"
+                    value={form.logged_in_user_email ?? ""}
+                    onChange={handleFormChange}
+                    placeholder="user@company.com"
+                    className={inputCls}
+                  />
+                </Field>
+
+                {/* Email Config fields — only for Email channel */}
+                {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
+                  <>
                   <Field label="SMTP Provider Name (Optional)">
                     <div className="relative">
                       <button
@@ -2431,8 +2570,7 @@ export default function CampaignPage() {
                       )}
                     </div>
                   </Field>
-                )}
-                <Field label="Email Template">
+                  <Field label="Email Template">
                   <div className="relative">
                     <select
                       name="template_id"
@@ -2512,195 +2650,11 @@ export default function CampaignPage() {
                     </Field>
                   </>
                 )}
-                    {showEmailConfig && (
-                <Field label="Meeting Invite Sender Email">
-                  <input
-                    type="email"
-                    name="logged_in_user_email"
-                    value={form.logged_in_user_email ?? ""}
-                    onChange={handleFormChange}
-                    placeholder="user@company.com"
-                    className={inputCls}
-                  />
-                </Field>
-              )}
-              </div>
-            </section>
-          )}
-
-          {/* Section: LinkedIn Config — only when LinkedIn is in channel_order */}
-          {form.channel_order
-            .map((c) => c.toUpperCase())
-            .includes("LINKEDIN") && (
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Linkedin className="h-4 w-4 text-blue-600" />
-                <h2 className="text-[14px] font-[700] text-[#2563eb]">
-                  LinkedIn Configuration
-                </h2>
-              </div>
-              <div className="space-y-4">
-                <Field label="Connection Note Template">
-                  <textarea
-                    name="connection_note_template"
-                    value={form.connection_note_template}
-                    onChange={handleFormChange}
-                    rows={2}
-                    placeholder="Hi {first_name}, I'd love to connect!"
-                    className={inputCls + " resize-none"}
-                  />
-                </Field>
-                <Field label="DM Body Template">
-                  <textarea
-                    name="dm_body_template"
-                    value={form.dm_body_template}
-                    onChange={handleFormChange}
-                    rows={2}
-                    placeholder="Hey {first_name}, thanks for connecting!"
-                    className={inputCls + " resize-none"}
-                  />
-                </Field>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Field label="Max Attempts">
-                    <input
-                      type="number"
-                      name="linkedin_max_attempts"
-                      value={form.linkedin_max_attempts}
-                      onChange={handleFormChange}
-                      min={1}
-                      className={inputCls}
-                    />
-                  </Field>
-                  <Field label="Reply Wait Hours">
-                    <input
-                      type="number"
-                      name="reply_wait_hours"
-                      value={form.reply_wait_hours}
-                      onChange={handleFormChange}
-                      min={0}
-                      className={inputCls}
-                    />
-                  </Field>
-                  <Field label="Reply Wait Minutes">
-                    <input
-                      type="number"
-                      name="reply_wait_minutes"
-                      value={form.reply_wait_minutes}
-                      onChange={handleFormChange}
-                      min={0}
-                      max={59}
-                      className={inputCls}
-                    />
-                  </Field>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Section: AI Personalization — only when Email is in channel_order */}
-          {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && (
-          <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="grid grid-cols-2 gap-3">
-              {/* AI Personalization toggle */}
-              {/* <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
-                <div>
-                  <p className="text-[14px] font-[600] text-[#0a0a0a]">Enable AI Personalization</p>
-                  <p className="text-[12px] text-blue-500 mt-0.5">Use AI to personalize email content</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForm((p) => ({
-                      ...p,
-                      enable_ai_personalization: !p.enable_ai_personalization,
-                    }))
-                  }
-                  className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.enable_ai_personalization ? "bg-[#1e293b]" : "bg-gray-200"}`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.enable_ai_personalization ? "translate-x-6" : "translate-x-1"}`}
-                  />
-                </button>
-              </div> */}
-              {/* Preview Mode toggle */}
-              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
-                <div>
-                  <p className="text-[14px] font-[600] text-[#0a0a0a]">Preview Mode</p>
-                  <p className="text-[12px] text-blue-500 mt-0.5">Review drafts before sending</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setForm((p) => ({ ...p, preview: !p.preview }))}
-                  className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.preview ? "bg-[#1e293b]" : "bg-gray-200"}`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.preview ? "translate-x-6" : "translate-x-1"}`}
-                  />
-                </button>
-              </div>
-                 {/* Advance Campaign Setting Toggle */}
-              <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3">
-              <div>
-                <p className="text-[14px] font-[600] text-[#0a0a0a]">Advance Campaign Setting</p>
-                <p className="text-[12px] text-blue-500 mt-0.5">Campaign sender email, SMTP and template settings</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleEmailConfigToggle}
-                disabled={emailConfigLoading}
-                className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-60 ${showEmailConfig ? "bg-[#1e293b]" : "bg-gray-200"}`}
-              >
-                {emailConfigLoading ? (
-                  <span className="absolute inset-0 flex items-center justify-center">
-                    <svg className="h-3 w-3 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                  </span>
-                ) : (
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${showEmailConfig ? "translate-x-6" : "translate-x-1"}`} />
+                  </>
                 )}
-              </button>
-            </div>
-            </div>
-            {/* {form.enable_ai_personalization && (
-              <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
-                <Field label="AI Tone">
-                  <div className="relative">
-                    <select
-                      name="ai_tone"
-                      value={form.ai_tone}
-                      onChange={handleFormChange}
-                      className={selectCls}
-                    >
-                      {[
-                        "professional",
-                        "casual",
-                        "friendly",
-                        "formal",
-                        "persuasive",
-                      ].map((t) => (
-                        <option key={t} value={t}>
-                          {t.charAt(0).toUpperCase() + t.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  </div>
-                </Field>
-                <Field label="AI Context">
-                  <textarea
-                    name="ai_context"
-                    value={form.ai_context}
-                    onChange={handleFormChange}
-                    rows={3}
-                    placeholder="We help SaaS companies increase revenue by 30% through AI-powered outreach"
-                    className={inputCls + " resize-none"}
-                  />
-                </Field>
               </div>
-            )} */}
-          </section>
+
+            </section>
           )}
 
           {/* Action buttons */}

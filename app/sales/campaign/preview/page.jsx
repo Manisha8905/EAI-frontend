@@ -308,6 +308,7 @@ export default function CampaignPreviewPage() {
 
     setSending(true);
     try {
+      // Step 1: Approve the selected email drafts
       const result = await approveEmailDrafts(campaignId, selected, validLeads.length);
       const approved = Number(result?.approved ?? 0);
       const sent = Number(result?.sent ?? 0);
@@ -316,9 +317,20 @@ export default function CampaignPreviewPage() {
       // Any successful approve request (2xx) should mark preview as completed.
       setPreviewApproved(true);
 
-      // Remove sent rows from the table and clear selection
-      const sentSet = new Set(selected);
-      setLeads((prev) => prev.filter((l) => !sentSet.has(l.id)));
+      // Step 2: Fetch fresh email-drafts data from server after approval
+      try {
+        const freshLeads = await fetchPreviewLeads(campaignId);
+        const normalized = (Array.isArray(freshLeads) ? freshLeads : [])
+          .map(normalizeLead)
+          .filter((lead) => !!lead.id);
+        setLeads(normalized);
+      } catch (err) {
+        // If fetch fails, fall back to local removal
+        const sentSet = new Set(selected);
+        setLeads((prev) => prev.filter((l) => !sentSet.has(l.id)));
+      }
+
+      // Clear selection
       setSelectedLeadIds(new Set());
 
       if (failed > 0) {

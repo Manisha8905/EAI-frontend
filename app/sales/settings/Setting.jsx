@@ -8243,6 +8243,22 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       skip_weekend_check: true,
       enable_logs: true,
     },
+    linkedin_config: {
+      api_key: "",
+      dsn: "",
+      account_id: "",
+      webhook_secret: "",
+    },
+    campaign_email_settings: {
+      from_email: "",
+      reply_to_email: "",
+      from_name: "",
+      template_id: "",
+      smtp_provider_name: "",
+      credential: "",
+      meeting_schedule: "",
+      logged_in_user_email: "",
+    },
   });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
@@ -8269,23 +8285,23 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
     }));
   };
 
-  const fetchWhatsappMetrics = useCallback(async () => {
-    setMetricsLoading(true);
-    try {
-      const response = await axiosInstance.post("/api/metrics/whatsapp-campaigns", {
-        filter: "this_year",
-      });
-      setWhatsappMetrics({
-        delivery_status_distribution: response.data?.delivery_status_distribution || [],
-        intent_distribution: response.data?.intent_distribution || [],
-        conversation_status_distribution: response.data?.conversation_status_distribution || [],
-      });
-    } catch (error) {
-      console.error("Failed to fetch WhatsApp metrics:", error);
-    } finally {
-      setMetricsLoading(false);
-    }
-  }, []);
+  // const fetchWhatsappMetrics = useCallback(async () => {
+  //   setMetricsLoading(true);
+  //   try {
+  //     const response = await axiosInstance.post("/api/metrics/whatsapp-campaigns", {
+  //       filter: "this_year",
+  //     });
+  //     setWhatsappMetrics({
+  //       delivery_status_distribution: response.data?.delivery_status_distribution || [],
+  //       intent_distribution: response.data?.intent_distribution || [],
+  //       conversation_status_distribution: response.data?.conversation_status_distribution || [],
+  //     });
+  //   } catch (error) {
+  //     console.error("Failed to fetch WhatsApp metrics:", error);
+  //   } finally {
+  //     setMetricsLoading(false);
+  //   }
+  // }, []);
 
   useEffect(() => {
     if (!canAccess) {
@@ -8325,6 +8341,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         grokEnrichRes,
         grokEmailRes,
         xaiRes,
+        linkedinConfigRes,
+        campaignEmailSettingsRes,
       ] = await Promise.allSettled([
         axiosInstance.get("/api/globalsetting/twilio"),
         axiosInstance.get("/api/globalsetting/elevenlabs"),
@@ -8336,6 +8354,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         axiosInstance.get("/api/globalsetting/grok-enrichment"),
         axiosInstance.get("/api/globalsetting/grok-email-style"),
         axiosInstance.get("/api/globalsetting/xai"),
+        axiosInstance.get("/api/admin/linkedin/config"),
+        axiosInstance.get("/campaign-email-settings"),
       ]);
 
       setForms((prev) => {
@@ -8517,6 +8537,45 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         }
         next.enrichment = enrichNext;
 
+        // LinkedIn Configuration
+        if (linkedinConfigRes.status === "fulfilled") {
+          const d = linkedinConfigRes.value?.data ?? {};
+          next.linkedin_config = {
+            api_key:
+              d.api_key ?? prev.linkedin_config.api_key,
+            dsn:
+              d.dsn ?? prev.linkedin_config.dsn,
+            account_id:
+              d.account_id ?? prev.linkedin_config.account_id,
+            webhook_secret:
+              d.webhook_secret ?? prev.linkedin_config.webhook_secret,
+          };
+        }
+
+        // Campaign Email Settings
+        if (campaignEmailSettingsRes.status === "fulfilled") {
+          const d = campaignEmailSettingsRes.value?.data ?? {};
+          next.campaign_email_settings = {
+            from_email: d.from_email ?? prev.campaign_email_settings.from_email,
+            reply_to_email:
+              d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
+            from_name: d.from_name ?? prev.campaign_email_settings.from_name,
+            template_id:
+              d.template_id ?? prev.campaign_email_settings.template_id,
+            smtp_provider_name:
+              d.smtp_provider_name ??
+              prev.campaign_email_settings.smtp_provider_name,
+            credential:
+              d.credential ?? prev.campaign_email_settings.credential,
+            meeting_schedule:
+              d.meeting_schedule ??
+              prev.campaign_email_settings.meeting_schedule,
+            logged_in_user_email:
+              d.logged_in_user_email ??
+              prev.campaign_email_settings.logged_in_user_email,
+          };
+        }
+
         return next;
       });
 
@@ -8525,9 +8584,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, refreshTrigger]);
 
-  useEffect(() => {
-    fetchWhatsappMetrics();
-  }, [fetchWhatsappMetrics]);
+  // useEffect(() => {
+  //   fetchWhatsappMetrics();
+  // }, [fetchWhatsappMetrics]);
 
   const save = async (section) => {
     if (!canAccess) {
@@ -8608,6 +8667,26 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           call_service_provider: forms.appConfig.call_service_provider,
           skip_weekend_check: !!forms.appConfig.skip_weekend_check,
           enable_logs: !!forms.appConfig.enable_logs,
+        });
+      }
+      if (section === "linkedin_config") {
+        await axiosInstance.put("/api/admin/linkedin/config", {
+          api_key: forms.linkedin_config.api_key,
+          dsn: forms.linkedin_config.dsn,
+          account_id: forms.linkedin_config.account_id,
+          webhook_secret: forms.linkedin_config.webhook_secret,
+        });
+      }
+      if (section === "campaign_email_settings") {
+        await axiosInstance.put("/campaign-email-settings", {
+          from_email: forms.campaign_email_settings.from_email,
+          reply_to_email: forms.campaign_email_settings.reply_to_email,
+          from_name: forms.campaign_email_settings.from_name,
+          template_id: forms.campaign_email_settings.template_id,
+          smtp_provider_name: forms.campaign_email_settings.smtp_provider_name,
+          credential: forms.campaign_email_settings.credential,
+          meeting_schedule: forms.campaign_email_settings.meeting_schedule,
+          logged_in_user_email: forms.campaign_email_settings.logged_in_user_email,
         });
       }
       toast.success("Configuration saved successfully.");
@@ -8914,6 +8993,112 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 value={forms.whatsapp.WHATSAPP_WEBHOOK_VERIFY_TOKEN}
                 onChange={setField("whatsapp", "WHATSAPP_WEBHOOK_VERIFY_TOKEN")}
                 placeholder="my-secret-verify-token"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Linkedin className="h-4 w-4 text-sky-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  LinkedIn Configuration
+                </h3>
+              </div>
+              <SaveBtn section="linkedin_config" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field
+                label="API Key"
+                type="password"
+                value={forms.linkedin_config.api_key}
+                onChange={setField("linkedin_config", "api_key")}
+                placeholder="your-api-key"
+              />
+              <Field
+                label="DSN"
+                value={forms.linkedin_config.dsn}
+                onChange={setField("linkedin_config", "dsn")}
+                placeholder="https://xxxxx@xxxxx.ingest.sentry.io/xxxxx"
+              />
+              <Field
+                label="Account ID"
+                value={forms.linkedin_config.account_id}
+                onChange={setField("linkedin_config", "account_id")}
+                placeholder="account-id"
+              />
+              <Field
+                label="Webhook Secret"
+                type="password"
+                value={forms.linkedin_config.webhook_secret}
+                onChange={setField("linkedin_config", "webhook_secret")}
+                placeholder="webhook-secret-key"
+              />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-orange-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  Advance Campaign Configuration
+                </h3>
+              </div>
+              <SaveBtn section="campaign_email_settings" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field
+                label="From Email"
+                type="email"
+                value={forms.campaign_email_settings.from_email}
+                onChange={setField("campaign_email_settings", "from_email")}
+                placeholder="noreply@company.com"
+              />
+              <Field
+                label="Reply To Email"
+                type="email"
+                value={forms.campaign_email_settings.reply_to_email}
+                onChange={setField("campaign_email_settings", "reply_to_email")}
+                placeholder="support@company.com"
+              />
+              <Field
+                label="From Name"
+                value={forms.campaign_email_settings.from_name}
+                onChange={setField("campaign_email_settings", "from_name")}
+                placeholder="Your Company Name"
+              />
+              <Field
+                label="Template ID"
+                value={forms.campaign_email_settings.template_id}
+                onChange={setField("campaign_email_settings", "template_id")}
+                placeholder="template_id"
+              />
+              <Field
+                label="SMTP Provider Name"
+                value={forms.campaign_email_settings.smtp_provider_name}
+                onChange={setField("campaign_email_settings", "smtp_provider_name")}
+                placeholder="e.g., sendgrid, mailgun"
+              />
+              <Field
+                label="Credential"
+                type="password"
+                value={forms.campaign_email_settings.credential}
+                onChange={setField("campaign_email_settings", "credential")}
+                placeholder="API key or credentials"
+              />
+              <Field
+                label="Meeting Schedule"
+                value={forms.campaign_email_settings.meeting_schedule}
+                onChange={setField("campaign_email_settings", "meeting_schedule")}
+                placeholder="e.g., cron expression or schedule"
+              />
+              <Field
+                label="Logged In User Email"
+                type="email"
+                value={forms.campaign_email_settings.logged_in_user_email}
+                onChange={setField("campaign_email_settings", "logged_in_user_email")}
+                placeholder="current-user@company.com"
               />
             </div>
           </div>

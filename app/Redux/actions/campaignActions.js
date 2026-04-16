@@ -6,6 +6,9 @@ import {
   CAMPAIGN_REMOVE_REQUEST,
   CAMPAIGN_REMOVE_SUCCESS,
   CAMPAIGN_REMOVE_FAILURE,
+  APPROVE_EMAIL_DRAFTS_REQUEST,
+  APPROVE_EMAIL_DRAFTS_SUCCESS,
+  APPROVE_EMAIL_DRAFTS_FAILURE,
 } from "../types/campaignTypes";
 
 export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
@@ -103,6 +106,57 @@ export const removeCampaign = (campaignId) => async (dispatch) => {
         err?.response?.data?.detail ||
         err?.response?.data?.message ||
         "Failed to remove campaign.",
+    });
+  }
+};
+
+/**
+ * Approve email drafts and fetch fresh data
+ * Flow: POST approve → GET fresh email-drafts
+ */
+export const approveEmailDrafts = (campaignId, selectedLeadIds = [], totalLeadCount = 0) => async (dispatch) => {
+  const rawToken = typeof window !== "undefined" ? localStorage.getItem("session_token") : "";
+  const token = (rawToken || "").trim();
+  const isTokenValid = Boolean(token && token !== "undefined" && token !== "null");
+  if (!isTokenValid) {
+    dispatch({ type: APPROVE_EMAIL_DRAFTS_FAILURE, payload: "Unauthorized - login required" });
+    return;
+  }
+
+  dispatch({ type: APPROVE_EMAIL_DRAFTS_REQUEST });
+
+  try {
+    // Step 1: Approve the email drafts
+    const isAllSelected = totalLeadCount > 0 && selectedLeadIds.length === totalLeadCount;
+    const payload = {
+      lead_ids: isAllSelected ? [] : selectedLeadIds,
+      approve_all: isAllSelected,
+    };
+
+    const approveUrl = `/api/campaigns/${campaignId}/email-drafts/approve`;
+    const approveRes = await axiosInstance.post(approveUrl, payload);
+    const approvalData = approveRes?.data ?? {};
+
+    // Step 2: Fetch fresh email-drafts data after approval
+    const fetchUrl = `/api/campaigns/${campaignId}/email-drafts`;
+    const fetchRes = await axiosInstance.get(fetchUrl);
+    const freshDrafts = fetchRes?.data ?? [];
+
+    dispatch({
+      type: APPROVE_EMAIL_DRAFTS_SUCCESS,
+      payload: {
+        approvalResult: approvalData,
+        freshDrafts: freshDrafts,
+        approvedAt: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    dispatch({
+      type: APPROVE_EMAIL_DRAFTS_FAILURE,
+      payload:
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Failed to approve email drafts.",
     });
   }
 };
