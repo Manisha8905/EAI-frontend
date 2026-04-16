@@ -220,7 +220,7 @@ export default function CampaignPage() {
       }
       setAddLeadLoading(true);
       try {
-        await axiosInstance.post(`/campaigns/${selectedCampaign.id}/leads`, addLeadForm);
+        await axiosInstance.post(`/campaigns/${selectedCampaign.id}/leads/add`, addLeadForm);
         toast.success("Lead added successfully.");
         setShowAddLead(false);
         setAddLeadForm({
@@ -242,7 +242,7 @@ export default function CampaignPage() {
         });
         refreshCampaignJourney(selectedCampaign.id);
       } catch (err) {
-        toast.error(err?.response?.data?.message || "Failed to add lead.");
+        toast.error(err?.response?.data?.detail || "Failed to add lead.");
       } finally {
         setAddLeadLoading(false);
       }
@@ -3179,14 +3179,23 @@ export default function CampaignPage() {
                     Overview of all channel activities across campaigns
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow transition"
-                  onClick={() => setShowAddLead(true)}
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Lead
-                </button>
+                {/* Show "Add Lead" button only if no status is completed */}
+                {(() => {
+                  const showAddLeadButton = allData.length === 0 || !allData.some((lead) => {
+                    return Array.isArray(lead.channels) && lead.channels.some((ch) => (ch.status ?? "").toLowerCase() === "completed");
+                  });
+                  
+                  return showAddLeadButton ? (
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow transition"
+                      onClick={() => setShowAddLead(true)}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Lead
+                    </button>
+                  ) : null;
+                })()}
               </div>
             {leadListLoading ? (
               <div className="px-5 py-12 text-center text-[13px] text-gray-400">
