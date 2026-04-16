@@ -398,15 +398,21 @@ export default function CampaignPreviewPage() {
     if (!pendingDraft || !campaignId) return;
     setAccepting(true);
     try {
-      const res = await axiosInstance.post(`/api/campaigns/${campaignId}/email-drafts/${pendingDraft.newDraftId}/approve-regeneration`);
-      const rows = toRows(res.data).map(normalizeLead).filter((l) => !!l.id);
-      setLeads(rows);
+      await axiosInstance.post(`/api/campaigns/${campaignId}/email-drafts/${pendingDraft.newDraftId}/approve-regeneration`);
+      
+      // Refresh all email drafts after approval
+      const rows = await fetchPreviewLeads(campaignId);
+      const normalized = rows.map(normalizeLead).filter((l) => !!l.id);
+      setLeads(normalized);
+      
       // Update active preview with fresh data for this lead
-      const fresh = rows.find((l) => l.id === pendingDraft.newDraftId) ||
-        rows.find((l) => l.id === activePreviewLead?.id);
+      const fresh = normalized.find((l) => l.id === pendingDraft.newDraftId) ||
+        normalized.find((l) => l.id === activePreviewLead?.id);
       if (fresh) setActivePreviewLead(fresh);
+      
       setPendingDraft(null);
       setOriginalLead(null);
+      
       // Clear session prompt for this lead
       setLastPromptByLead((prev) => {
         const next = { ...prev };

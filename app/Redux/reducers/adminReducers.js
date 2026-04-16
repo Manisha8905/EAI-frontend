@@ -48,6 +48,10 @@ import {
   EMAIL_HISTORY_SUCCESS,
   EMAIL_HISTORY_FAILURE,
 
+  EMAIL_DRAFTS_REQUEST,
+  EMAIL_DRAFTS_SUCCESS,
+  EMAIL_DRAFTS_FAILURE,
+
   LINKEDIN_HISTORY_REQUEST,
   LINKEDIN_HISTORY_SUCCESS,
   LINKEDIN_HISTORY_FAILURE,
@@ -107,6 +111,10 @@ const initialState = {
   emailHistoryTotalCount: 0,
   emailHistoryTotalReplied: 0,
   emailHistoryTotalTasks: 0,
+  // 📧 Email Drafts
+  emailDrafts: [],
+  emailDraftsLoading: false,
+  emailDraftsError: null,
   // 💼 LinkedIn History
   linkedinHistory: [],
   linkedinHistoryTotal: 0,
@@ -386,7 +394,28 @@ const adminReducers = (state = initialState, action) => {
         emailHistoryTotalTasks: 0,
       };
 
-    // 💼 LinkedIn History
+    // � Email Drafts
+    case EMAIL_DRAFTS_REQUEST:
+      return {
+        ...state,
+        emailDraftsLoading: true,
+        emailDraftsError: null,
+        emailDrafts: [],
+      };
+    case EMAIL_DRAFTS_SUCCESS:
+      return {
+        ...state,
+        emailDraftsLoading: false,
+        emailDrafts: action.payload || [],
+      };
+    case EMAIL_DRAFTS_FAILURE:
+      return {
+        ...state,
+        emailDraftsLoading: false,
+        emailDraftsError: action.payload,
+      };
+
+    // �💼 LinkedIn History
     case LINKEDIN_HISTORY_REQUEST:
       return { ...state, linkedinHistoryLoading: true, linkedinHistoryError: null, linkedinHistory: [], linkedinHistoryTotal: 0 };
     case LINKEDIN_HISTORY_SUCCESS: {

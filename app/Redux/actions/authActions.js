@@ -42,6 +42,9 @@ import {
   EMAIL_HISTORY_REQUEST,
   EMAIL_HISTORY_SUCCESS,
   EMAIL_HISTORY_FAILURE,
+  EMAIL_DRAFTS_REQUEST,
+  EMAIL_DRAFTS_SUCCESS,
+  EMAIL_DRAFTS_FAILURE,
   LINKEDIN_HISTORY_REQUEST,
   LINKEDIN_HISTORY_SUCCESS,
   LINKEDIN_HISTORY_FAILURE,
@@ -1151,5 +1154,39 @@ export const deleteCampaign = (campaignId, onSuccess) => async (dispatch) => {
   } catch (err) {
     dispatch({ type: DELETE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.message || "Failed to delete campaign." });
     toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to delete campaign.");
+  }
+};
+
+// 📧 Email Drafts — GET /api/campaigns/{id}/email-drafts
+export const fetchEmailDrafts = (campaignId) => async (dispatch) => {
+  dispatch({ type: EMAIL_DRAFTS_REQUEST });
+  try {
+    const res = await axiosInstance.get(`/api/campaigns/${campaignId}/email-drafts`);
+    const raw = Array.isArray(res.data) ? res.data : (res.data?.drafts ?? res.data?.data ?? res.data?.items ?? res.data?.results ?? []);
+    
+    const normalized = raw.map((r) => ({
+      id: r.id ?? r.email_draft_id ?? r.draft_id ?? null,
+      email_history_id: r.email_history_id ?? r.id ?? null,
+      lead_name: r.lead_name ?? r.name ?? r.contact_name ?? "—",
+      to_email: r.to_email ?? r.email ?? r.email_address ?? r.contact_email ?? "—",
+      company_name: r.company_name ?? r.company ?? r.organization ?? "—",
+      email_subject: r.email_subject ?? r.subject ?? "—",
+      email_body: r.email_body ?? r.body ?? "",
+      subject: r.subject ?? r.email_subject ?? "—",
+      status: (r.status ?? r.email_status ?? "").toUpperCase(),
+      sent_at: r.sent_at ?? r.created_at ?? r.date ?? null,
+      campaign_name: r.campaign_name ?? "",
+      replies: r.replies ?? [],
+      follow_up_tasks: r.follow_up_tasks ?? [],
+      total_tasks: Number(r.total_tasks ?? 0) || 0,
+      ...r,
+    }));
+
+    dispatch({
+      type: EMAIL_DRAFTS_SUCCESS,
+      payload: normalized,
+    });
+  } catch (err) {
+    dispatch({ type: EMAIL_DRAFTS_FAILURE, payload: err?.response?.data?.message || "Failed to load email drafts." });
   }
 };

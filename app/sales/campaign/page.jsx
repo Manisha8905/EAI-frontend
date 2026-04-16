@@ -15,6 +15,7 @@ import {
   fetchEmailHistory,
   fetchLinkedinHistory,
   fetchWhatsappHistory,
+  fetchEmailDrafts,
 } from "../../Redux/actions/authActions";
 import axiosInstance from "../../Redux/axiosInstance";
 import { toast } from "react-toastify";
@@ -264,6 +265,8 @@ export default function CampaignPage() {
     emailHistoryTotalCount,
     emailHistoryTotalReplied,
     emailHistoryTotalTasks,
+    emailDrafts,
+    emailDraftsLoading,
     linkedinHistory,
     linkedinHistoryLoading,
     linkedinHistoryTotal,
@@ -590,6 +593,10 @@ export default function CampaignPage() {
       );
       toast.success("Regeneration approved successfully.");
       setApproveRegenModal(null);
+      // Refresh email drafts list to remove the processed draft
+      if (selectedCampaign?.id) {
+        dispatch(fetchEmailDrafts(selectedCampaign.id));
+      }
     } catch (err) {
       const msg =
         err?.response?.data?.detail ||
