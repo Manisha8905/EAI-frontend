@@ -68,6 +68,7 @@ import {
   AreaChart,
   Area,
 } from "recharts";
+import { boolean } from "yup";
 
 const CALL_STATUS_STYLE = {
   COMPLETED:   "bg-green-500 text-white",
@@ -899,7 +900,7 @@ export default function CampaignPage() {
         linkedin_max_attempts: liData.max_attempts ?? 3,
         reply_wait_hours: liData.reply_wait_hours ?? 72,
         reply_wait_minutes: liData.reply_wait_minutes ?? 0,
-        preview_mode: c.preview_mode ?? false,
+        preview_mode: c.preview_mode ?? true,
       });
       setEditingCampaignId(campaignId);
       setShowCreate(true);
@@ -2473,11 +2474,11 @@ export default function CampaignPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setForm((p) => ({ ...p, preview: !p.preview }))}
-                      className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.preview ? "bg-[#1e293b]" : "bg-gray-200"}`}
+                      onClick={() => setForm((p) => ({ ...p, preview_mode: !p.preview_mode }))}
+                      className={`ml-3 flex-shrink-0 relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${form.preview_mode ? "bg-[#1e293b]" : "bg-gray-200"}`}
                     >
                       <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.preview ? "translate-x-6" : "translate-x-1"}`}
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${form.preview_mode ? "translate-x-6" : "translate-x-1"}`}
                       />
                     </button>
                   </div>
@@ -4109,7 +4110,7 @@ export default function CampaignPage() {
                     <Download className="h-3.5 w-3.5" /> Export
                   </button>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="">
                   <table
                     className="w-full text-left"
                     style={{ minWidth: "780px" }}
@@ -4988,7 +4989,7 @@ export default function CampaignPage() {
                 <Download className="h-3.5 w-3.5" /> Export
               </button>
             </div>
-            <div className="overflow-x-auto">
+            <div className="">
               <table className="w-full text-left" style={{ minWidth: "800px" }}>
                 <thead>
                   <tr className="bg-[#1e293b]">
@@ -5484,11 +5485,6 @@ export default function CampaignPage() {
         "All Status",
         ...new Set(linkedinHistoryData.map((r) => r.status)),
       ];
-      const liTotalTasks = linkedinHistoryData.reduce((sum, r) => {
-        const names = normalizeFollowUpTasks(r.follow_up_tasks);
-        const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
-        return sum + cnt;
-      }, 0);
       const liRows = linkedinHistoryData.filter((r) => {
         const ms =
           r.name?.toLowerCase().includes(liSearch.toLowerCase()) ||
@@ -5502,18 +5498,25 @@ export default function CampaignPage() {
         }
         return true;
       });
-      const totalOutreach = linkedinHistoryTotal > 0 ? linkedinHistoryTotal : linkedinHistoryData.length;
-      const accepted = linkedinHistoryData.filter(
+      
+      // Calculate metrics from FILTERED data (liRows), not unfiltered data
+      const liTotalTasks = liRows.reduce((sum, r) => {
+        const names = normalizeFollowUpTasks(r.follow_up_tasks);
+        const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
+        return sum + cnt;
+      }, 0);
+      const totalOutreach = liRows.length;
+      const accepted = liRows.filter(
         (r) => r.connectionAccepted || r.status === "ACCEPTED" || r.status === "CONNECTED",
       ).length;
-      const replied = linkedinHistoryData.filter(
+      const replied = liRows.filter(
         (r) => r.replied || r.status === "REPLIED" || r.status === "MEETING SCHEDULED",
       ).length;
-      const noReply = linkedinHistoryData.filter(
+      const noReply = liRows.filter(
         (r) => !r.replied && (r.status === "NO REPLY" || r.status === "NOT CONNECTED" || r.status === "PENDING"),
       ).length;
       const meetingBooked =
-        linkedinHistoryData.filter((r) => r.meeting).length || c.meetings;
+        liRows.filter((r) => r.meeting).length || (liRows.length === 0 ? 0 : c.meetings);
       const responseRate =
         totalOutreach > 0
           ? Math.round(((accepted + replied) / totalOutreach) * 100)
@@ -5768,133 +5771,147 @@ export default function CampaignPage() {
                 <Download className="h-3.5 w-3.5" /> Export
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left" style={{ minWidth: "1200px" }}>
-                <thead>
-                  <tr className="bg-[#1e293b]">
-                    {[
-                      "Lead Name",
-                      "Company",
-                      "Title",
-                      // "Conn. Sent",
-                      // "Conn. Accepted",
-                      // "DM Sent",
-                      "Replied",
-                      // "Intent",
-                      "Status",
-                      "Date",
-                      "Meeting",
-                      "Tasks",
-                      "Actions",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-3 text-[11px] font-[600] uppercase tracking-wide text-white"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {liRows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={13}
-                        className="px-4 py-6 text-center text-[13px] text-gray-400"
-                      >
-                        No LinkedIn records available.
-                      </td>
-                    </tr>
-                  ) : (
-                    liRows.map((row, idx) => (
-                      <tr
-                        key={idx}
-                        className={`border-b border-gray-50 hover:bg-gray-50/70 transition ${idx % 2 !== 0 ? "bg-gray-50/30" : ""}`}
-                      >
-                        <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">{row.name}</td>
-                        <td className="px-3 py-3 text-[12px] text-blue-600 font-[500]">{row.company}</td>
-                        {/* <td className="px-3 py-3 text-[11px] text-gray-500">{row.title}</td> */}
-                        {/* <td className="px-3 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
-                            row.connectionSent ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-100 text-gray-500 border-gray-200"
-                          }`}>{row.connectionSent ? "Yes" : "No"}</span>
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
-                            row.connectionAccepted ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"
-                          }`}>{row.connectionAccepted ? "Yes" : "No"}</span>
-                        </td> */}
-                        {/* <td className="px-3 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
-                            row.messageSent ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-gray-100 text-gray-500 border-gray-200"
-                          }`}>{row.messageSent ? "Yes" : "No"}</span>
-                        </td> */}
-                        <td className="px-3 py-3 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
-                            row.replied ? "bg-teal-50 text-teal-700 border-teal-200" : "bg-gray-100 text-gray-500 border-gray-200"
-                          }`}>{row.replied ? "Yes" : "No"}</span>
-                        </td>
-                        {/* <td className="px-3 py-3">
-                          {row.lastReplyIntent !== "—" ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] bg-amber-50 text-amber-700 border border-amber-200 capitalize">
-                              {row.lastReplyIntent}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-gray-400">—</span>
-                          )}
-                        </td> */}
-                        <td className="px-3 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${LINKEDIN_STATUS_STYLE[row.status] ?? "bg-gray-100 text-gray-600"}`}>
-                            {row.status || "—"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 text-[11px] text-gray-600 whitespace-nowrap">
-                          {row.dateTime !== "—" ? new Date(row.dateTime).toLocaleDateString() : "—"}
-                        </td>
-                        <td className="px-3 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
-                            row.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"
-                          }`}>{row.meeting ? "Yes" : "No"}</span>
-                        </td>
-                        <td className="px-3 py-3">
-                          {(() => {
-                            const rawTasks = Array.isArray(row.follow_up_tasks) ? row.follow_up_tasks : [];
-                            const taskNames = normalizeFollowUpTasks(rawTasks);
-                            const taskCount = Math.max(Number(row.total_tasks) || 0, taskNames.length, rawTasks.length);
-                            const hasTasks = taskCount > 0;
-                            return (
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border cursor-default ${
-                                  hasTasks
-                                    ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
-                                    : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
-                                }`}
-                                onMouseEnter={hasTasks ? (e) => {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setLiTooltip({ taskNames, taskCount, rect });
-                                } : undefined}
-                                onMouseLeave={hasTasks ? () => setLiTooltip(null) : undefined}
-                              >
-                                {taskCount}
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-3 py-3">
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#1d4ed8] text-white text-[11px] font-[600] hover:bg-blue-700 transition"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> View
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className="w-full overflow-hidden">
+  <table className="w-full table-fixed border-collapse text-left text-[12px]">
+    
+    {/* HEADER */}
+    <thead>
+      <tr className="bg-[#1e293b]">
+        {[
+          "Lead Name",
+          "Company",
+          "Replied",
+          "Status",
+          "Date",
+          "Meeting",
+          "Tasks",
+          "Actions",
+        ].map((h, i) => (
+          <th
+            key={h}
+            className={`py-2 font-[600] uppercase tracking-wide text-white
+              ${i === 0 ? "pl-4 pr-2 w-[100px]" : "px-8"}
+            `}
+          >
+            {h}
+          </th>
+        ))}
+      </tr>
+    </thead>
+
+    {/* BODY */}
+    <tbody>
+      {liRows.length === 0 ? (
+        <tr>
+          <td
+            colSpan={8}
+            className="py-4 text-center text-gray-400"
+          >
+            No LinkedIn records available.
+          </td>
+        </tr>
+      ) : (
+        liRows.map((row, idx) => (
+          <tr
+            key={idx}
+            className={`border-b border-gray-100 hover:bg-gray-50 transition ${
+              idx % 2 !== 0 ? "bg-gray-50/30" : ""
+            }`}
+          >
+            
+            {/* Lead Name (less left space) */}
+            <td className="pl-5 pr-2 py-2 truncate">
+              {row.name}
+            </td>
+
+            {/* Company */}
+            <td className="px-2 py-2 truncate">
+              {row.company}
+            </td>
+
+            {/* Replied */}
+            <td className="px-2 py-2 pl-10">
+              <span
+                className={`inline-flex  px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
+                  row.replied
+                    ? "bg-teal-50 text-teal-700 border-teal-200"
+                    : "bg-gray-100 text-gray-500 border-gray-200"
+                }`}
+              >
+                {row.replied ? "Yes" : "No"}
+              </span>
+            </td>
+
+            {/* Status */}
+            <td className="px-2 py-2 pl-5 truncate">
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] ${
+                  LINKEDIN_STATUS_STYLE[row.status] ??
+                  "bg-gray-100 text-gray-600"
+                }`}
+              >
+                {row.status || "—"}
+              </span>
+            </td>
+
+            {/* Date */}
+            <td className="px-2 py-2 pl-5 text-[11px] text-gray-600 whitespace-nowrap">
+              {row.dateTime !== "—"
+                ? new Date(row.dateTime).toLocaleDateString()
+                : "—"}
+            </td>
+
+            {/* Meeting */}
+            <td className="px-2 py-2 pl-10">
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${
+                  row.meeting
+                    ? "bg-green-50 text-green-700 border-green-200"
+                    : "bg-gray-100 text-gray-500 border-gray-200"
+                }`}
+              >
+                {row.meeting ? "Yes" : "No"}
+              </span>
+            </td>
+
+            {/* Tasks */}
+            <td className="px-2 py-2 pl-10">
+              {(() => {
+                const rawTasks = Array.isArray(row.follow_up_tasks)
+                  ? row.follow_up_tasks
+                  : [];
+                const taskCount =
+                  Math.max(
+                    Number(row.total_tasks) || 0,
+                    rawTasks.length
+                  );
+
+                return (
+                  <span
+                    className={`inline-flex items-center  px-2 py-0.5 rounded-full text-[10px] border ${
+                      taskCount > 0
+                        ? "font-[700] bg-blue-50 text-blue-700 border-blue-200"
+                        : "font-[600] bg-gray-100 text-gray-500 border-gray-200"
+                    }`}
+                  >
+                    {taskCount}
+                  </span>
+                );
+              })()}
+            </td>
+
+            {/* Actions */}
+            <td className="px-2 py-2 pl-8">
+              <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 text-white text-[11px] font-[600] hover:bg-blue-700">
+                View <Eye className="h-3.5 w-3.5" /> 
+              </button>
+            </td>
+          </tr>
+        ))
+      )}
+    </tbody>
+  </table>
+</div>
             <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
               <p className="text-[12px] text-gray-400">
                 Showing {liRows.length} of {totalOutreach} records
@@ -6229,7 +6246,7 @@ export default function CampaignPage() {
                 <Download className="h-3.5 w-3.5" /> Export
               </button>
             </div>
-            <div className="overflow-x-auto">
+            <div className="">
               <table className="w-full text-left" style={{ minWidth: "720px" }}>
                 <thead>
                   <tr className="bg-[#1e293b]">

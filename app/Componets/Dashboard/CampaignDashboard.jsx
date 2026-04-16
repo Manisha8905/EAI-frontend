@@ -1309,14 +1309,16 @@ function LinkedInHistoryView({ campaign, onBack }) {
     return matchSearch && matchStatus;
   });
 
+  // Calculate metrics from filtered data (not unfiltered)
   const li = campaign.linkedinHistory;
-  const totalOutreach  = li.length;
-  const accepted       = li.filter((r) => r.status === "ACCEPTED").length;
-  const replied        = li.filter((r) => r.status === "REPLIED").length;
-  const noReply        = li.filter((r) => r.status === "NO REPLY").length;
-  const meetingBooked  = li.filter((r) => r.meeting).length;
-  const connRequests   = li.filter((r) => r.action === "Connection Request").length;
-  const inMailSent     = li.filter((r) => r.action === "InMail Sent").length;
+  const filteredLi = rows; // Use filtered data for metrics
+  const totalOutreach  = filteredLi.length;
+  const accepted       = filteredLi.filter((r) => r.status === "ACCEPTED").length;
+  const replied        = filteredLi.filter((r) => r.status === "REPLIED").length;
+  const noReply        = filteredLi.filter((r) => r.status === "NO REPLY").length;
+  const meetingBooked  = filteredLi.filter((r) => r.meeting).length;
+  const connRequests   = filteredLi.filter((r) => r.action === "Connection Request").length;
+  const inMailSent     = filteredLi.filter((r) => r.action === "InMail Sent").length;
   const responseRate   = totalOutreach > 0 ? Math.round(((accepted + replied) / totalOutreach) * 100) : 0;
 
   const outcomeDonut = [
