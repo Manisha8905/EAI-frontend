@@ -1457,26 +1457,27 @@ export default function ModuleDashboard({
         <div className="flex items-center gap-1 rounded-xl bg-white border border-gray-200 p-1 shadow-sm">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key;
-            const isDisabled = tab.key === "linkedin" || tab.key === "whatsapp";
+            // const isDisabled = tab.key === "linkedin" || tab.key === "whatsapp";
 
             return (
               <button
                 key={tab.key}
-                onClick={() => !isDisabled && setActiveTab(tab.key)}
+                // onClick={() => !isDisabled && setActiveTab(tab.key)}
+                onClick={() => setActiveTab(tab.key)}
                 type="button"
-                disabled={isDisabled}
+                // disabled={isDisabled}
                 className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${
-                  isDisabled
-                    ? "text-gray-300 cursor-not-allowed"
-                    : isActive
-                      ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-violet-400/30"
-                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                  isActive
+                    ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-violet-400/30"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                 }`}
-                //   className={`rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${ isActive
-                //       ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-violet-400/30"
-                //       : "text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                // }`}
               >
+                  {/* //   isDisabled
+                //     ? "text-gray-300 cursor-not-allowed"
+                //     : isActive
+                //       ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-violet-400/30"
+                //       : "text-gray-500 hover:bg-gray-100 hover:text-gray-800" */}
+               
                 {tab.label}
               </button>
             );
