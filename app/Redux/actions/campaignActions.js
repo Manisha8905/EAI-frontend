@@ -76,7 +76,7 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
       type: CAMPAIGN_LIST_FAILURE,
       payload:
         err?.response?.data?.detail ||
-        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
         "Failed to load campaigns.",
     });
   }
@@ -104,7 +104,7 @@ export const removeCampaign = (campaignId) => async (dispatch) => {
       type: CAMPAIGN_REMOVE_FAILURE,
       payload:
         err?.response?.data?.detail ||
-        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
         "Failed to remove campaign.",
     });
   }
@@ -155,7 +155,7 @@ export const approveEmailDrafts = (campaignId, selectedLeadIds = [], totalLeadCo
       type: APPROVE_EMAIL_DRAFTS_FAILURE,
       payload:
         err?.response?.data?.detail ||
-        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
         "Failed to approve email drafts.",
     });
   }

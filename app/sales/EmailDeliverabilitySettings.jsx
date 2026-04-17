@@ -33,7 +33,7 @@ export default function EmailDeliverabilitySettings() {
       // toast.success("Email deliverability settings loaded");
     } catch (err) {
       const errorMsg = err?.response?.data?.detail || 
-                       err?.response?.data?.message || 
+                       err?.response?.data?.detail || 
                        "Failed to load email deliverability settings";
       setError(errorMsg);
       toast.error(errorMsg);
@@ -61,7 +61,7 @@ export default function EmailDeliverabilitySettings() {
       toast.success(`Email deliverability provider set to ${selectedProvider}`);
     } catch (err) {
       const errorMsg = err?.response?.data?.detail || 
-                       err?.response?.data?.message || 
+                       err?.response?.data?.detail || 
                        "Failed to update email deliverability provider";
       setError(errorMsg);
       toast.error(errorMsg);

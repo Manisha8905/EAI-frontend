@@ -341,7 +341,7 @@ export default function CampaignPreviewPage() {
 
       // Stay on preview page after send. User can use Back button to return.
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to save selected leads.");
+      toast.error(err?.response?.data?.detail || "Failed to save selected leads.");
     } finally {
       setSending(false);
     }
@@ -400,7 +400,7 @@ export default function CampaignPreviewPage() {
       toast.success("Draft regenerated — review changes then Accept or Discard.");
       // Keep bar open so Accept/Discard buttons are visible; keep prompt text
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to regenerate draft.");
+      toast.error(err?.response?.data?.detail || "Failed to regenerate draft.");
     } finally {
       setReprocessing(false);
     }
@@ -433,7 +433,7 @@ export default function CampaignPreviewPage() {
       });
       toast.success("Email template accepted and updated.");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to accept draft.");
+      toast.error(err?.response?.data?.detail || "Failed to accept draft.");
     } finally {
       setAccepting(false);
     }
@@ -502,7 +502,8 @@ export default function CampaignPreviewPage() {
         <button
           type="button"
           onClick={goBackToCampaign}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm"
+          disabled={Sending}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Campaign
         </button>
@@ -525,7 +526,17 @@ export default function CampaignPreviewPage() {
         </p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden relative">
+        {/* Sending Overlay */}
+        {Sending && (
+          <div className="absolute inset-0 z-40 bg-white/70 backdrop-blur-sm flex items-center justify-center rounded-2xl">
+            <div className="flex flex-col items-center gap-3">
+              <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
+              <span className="text-[14px] font-[600] text-gray-800">Sending {selectedLeadIds.size} lead{selectedLeadIds.size !== 1 ? 's' : ''}...</span>
+            </div>
+          </div>
+        )}
+
         <div className="px-3 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
           <label className="inline-flex items-center gap-2 text-[13px] font-[600] text-gray-700">
             <input
@@ -533,6 +544,7 @@ export default function CampaignPreviewPage() {
               checked={allSelected}
               onChange={toggleSelectAll}
               className="h-4 w-4 rounded border-gray-300"
+              disabled={loading || Sending}
             />
             Select All
           </label>
@@ -579,6 +591,7 @@ export default function CampaignPreviewPage() {
                           checked={checked}
                           onChange={() => toggleLead(lead.id)}
                           className="h-4 w-4 rounded border-gray-300"
+                          disabled={loading || Sending}
                         />
                       </td>
                       <td className="px-3 py-3 text-[12px] font-[600] text-gray-800">{lead.name}</td>
@@ -591,7 +604,8 @@ export default function CampaignPreviewPage() {
                         <button
                           type="button"
                           onClick={() => openPreviewModal(lead)}
-                          className="inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50 transition duration-200 text-gray-600 hover:text-blue-600"
+                          disabled={loading || Sending}
+                          className="inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50 transition duration-200 text-gray-600 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                           title="Preview email content"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

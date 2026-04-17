@@ -2115,7 +2115,7 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
 
           {/* Row: Template ID + From Name + From Email */}
           <div className="grid grid-cols-3 gap-4">
-            <Field label="Template ID">
+            <Field label="Template Name">
               <div className="relative">
                 <select value={form.templateId} onChange={(e) => set("templateId", e.target.value)} className={selCls}>
                   <option value="">Select…</option>

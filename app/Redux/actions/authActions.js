@@ -94,7 +94,7 @@ export const loginUser = (values, router) => async (dispatch) => {
       type: LOGIN_SUCCESS,
       payload: response.data,
     });
-    toast.success(response?.data?.message ?? "Login Successful");
+    toast.success(response?.data?.detail ?? "Login Successful");
 
     // Notify backend of the current frontend base URL
     try {
@@ -119,7 +119,7 @@ export const loginUser = (values, router) => async (dispatch) => {
       router.push("/sales");
     }
   } catch (error) {
-    toast.error(error.response?.data?.message || "login failed");
+    toast.error(error.response?.data?.detail || "login failed");
   }
 };
 
@@ -134,7 +134,7 @@ export const logoutUser = () => async (dispatch) => {
 
 
 
-    toast.success(response?.data?.message ?? "Logout Successful");
+    toast.success(response?.data?.detail ?? "Logout Successful");
 
   } catch (error) {
     localStorage.removeItem("session_token");
@@ -143,7 +143,7 @@ export const logoutUser = () => async (dispatch) => {
       type: "LOGOUT_FAIL",
     });
 
-    toast.error(error.response?.data?.message || "Logout failed");
+    toast.error(error.response?.data?.detail || "Logout failed");
   }
 };
 
@@ -157,10 +157,10 @@ export const fetchUsers = () => async (dispatch) => {
       type: USERS_SUCCESS,
       payload: response.data,
     });
-    // toast.success(response?.data?.message ?? " User Successfully");
-    toast.success(response?.data?.message ?? "Users fetched successfully!");
+    // toast.success(response?.data?.detail ?? " User Successfully");
+    toast.success(response?.data?.detail ?? "Users fetched successfully!");
   } catch (error) {
-    toast.error(error.response?.data?.message ?? " User Failed");
+    toast.error(error.response?.data?.detail ?? " User Failed");
   }
 };
 export const createUser = (userData) => async (dispatch) => {
@@ -184,9 +184,9 @@ export const createUser = (userData) => async (dispatch) => {
       type: CREATE_USER_SUCCESS,
       payload: response.data,
     });
-    toast.success(response?.data?.message ?? "Create User Successfully");
+    toast.success(response?.data?.detail ?? "Create User Successfully");
   } catch (error) {
-    toast.error(error.response?.data?.message ?? "Create User Failed");
+    toast.error(error.response?.data?.detail ?? "Create User Failed");
   }
 };
 
@@ -201,14 +201,14 @@ export const getSingleUser = (user_id) => async (dispatch) => {
       payload: response.data,
     });
 
-    // toast.success(response?.data?.message ?? "User Fetched Successfully");
+    // toast.success(response?.data?.detail ?? "User Fetched Successfully");
   } catch (error) {
     dispatch({
       type: SINGLE_USER_FAIL,
-      payload: error.response?.data?.message,
+      payload: error.response?.data?.detail,
     });
 
-    toast.error(error.response?.data?.message ?? "Fetch User Failed");
+    toast.error(error.response?.data?.detail ?? "Fetch User Failed");
   }
 };
 export const editUser = (userData) => async (dispatch) => {
@@ -236,16 +236,16 @@ console.log("id", userData)
       type: "EDIT_USER_SUCCESS",
       payload: response.data,
     });
-    toast.success(response?.data?.message ?? "User updated successfully!");
+    toast.success(response?.data?.detail ?? "User updated successfully!");
 
   } catch (error) {
     console.log("EDIT ERROR:", error.response);
 
     dispatch({
       type: "EDIT_USER_FAIL",
-      payload: error.response?.data?.message || "Something went wrong",
+      payload: error.response?.data?.detail || "Something went wrong",
     });
-    toast.error(error.response?.data?.message || "Failed to update user.");
+    toast.error(error.response?.data?.detail || "Failed to update user.");
   }
 };
 export const deleteUser = (target_email) => async (dispatch) => {
@@ -266,14 +266,14 @@ export const deleteUser = (target_email) => async (dispatch) => {
       payload: response.data,
     });
 
-    toast.success(response?.data?.message ?? "User Deleted Successfully");
+    toast.success(response?.data?.detail ?? "User Deleted Successfully");
   } catch (error) {
     dispatch({
       type: DELETE_USER_FAIL,
-      payload: error.response?.data?.message,
+      payload: error.response?.data?.detail,
     });
 
-    toast.error(error.response?.data?.message ?? "Delete Failed");
+    toast.error(error.response?.data?.detail ?? "Delete Failed");
   }
 };
 
@@ -295,8 +295,8 @@ export const fetchOutboundCalls = (filter = "this_year") => async (dispatch) => 
     });
   } catch (error) {
     const errorMsg = error.response?.data?.detail || 
-                     error.response?.data?.message || 
-                     error.message || 
+                     error.response?.data?.detail || 
+                     error.detail || 
                      "Failed to fetch outbound calls";
     dispatch({
       type: OUTBOUND_CALLS_FAILURE,
@@ -327,8 +327,8 @@ export const fetchInboundCalls = (filter = "this_year") => async (dispatch) => {
     });
   } catch (error) {
     const errorMsg = error.response?.data?.detail || 
-                     error.response?.data?.message || 
-                     error.message || 
+                     error.response?.data?.detail || 
+                     error.detail || 
                      "Failed to fetch inbound calls";
     dispatch({
       type: INBOUND_CALLS_FAILURE,
@@ -359,8 +359,8 @@ export const fetchEmailCampaigns = (filter = "this_year") => async (dispatch) =>
     });
   } catch (error) {
     const errorMsg = error.response?.data?.detail || 
-                     error.response?.data?.message || 
-                     error.message || 
+                     error.response?.data?.detail || 
+                     error.detail || 
                      "Failed to fetch email campaigns";
     dispatch({
       type: EMAIL_CAMPAIGNS_FAILURE,
@@ -391,8 +391,8 @@ export const fetchLinkedinCampaigns = (filter = "this_year") => async (dispatch)
     });
   } catch (error) {
     const errorMsg = error.response?.data?.detail || 
-                     error.response?.data?.message || 
-                     error.message || 
+                     error.response?.data?.detail || 
+                     error.detail || 
                      "Failed to fetch LinkedIn campaigns";
     dispatch({
       type: LINKEDIN_CAMPAIGNS_FAILURE,
@@ -518,10 +518,10 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
       type: CAMPAIGN_LIST_FAILURE,
       payload:
         err?.response?.data?.detail ||
-        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
         "Failed to load campaigns.",
     });
-    toast.error(err?.response?.data?.message || "Failed to load campaigns.");
+    toast.error(err?.response?.data?.detail || "Failed to load campaigns.");
   }
 };
 
@@ -661,7 +661,7 @@ export const createCampaign = (formData, agent_id, onSuccess) => async (dispatch
       res?.data?.data?.campaign_id ??
       res?.data?.data?.id ??
       null;
-    toast.success(res?.data?.message ?? "Campaign created successfully!");
+    toast.success(res?.data?.detail ?? "Campaign created successfully!");
     dispatch(listCampaigns({ page: 1, page_size: 20 }));
     if (createdCampaignId) {
       patchCreatedCampaignUntilLeads(dispatch, createdCampaignId);
@@ -669,7 +669,7 @@ export const createCampaign = (formData, agent_id, onSuccess) => async (dispatch
     if (onSuccess) onSuccess(res?.data);
     return { success: true, campaignId: createdCampaignId, data: res?.data };
   } catch (err) {
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to create campaign.");
+    toast.error(err?.response?.data?.detail || err?.response?.data?.detail || "Failed to create campaign.");
     return { success: false, error: err };
   }
 };
@@ -678,12 +678,12 @@ export const createCampaign = (formData, agent_id, onSuccess) => async (dispatch
 export const toggleActivateCampaign = (campaignId, currentStatus, onDone) => async (dispatch) => {
   try {
     const res = await axiosInstance.post("/activate-campaign", { campaign_id: campaignId });
-    toast.success(res?.data?.message ?? "Campaign activated!");
+    toast.success(res?.data?.detail ?? "Campaign activated!");
     dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "ACTIVE" } });
     if (onDone) onDone();
     patchCampaignAfterActivation(dispatch, campaignId);
   } catch (err) {
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to activate campaign.");
+    toast.error(err?.response?.data?.detail || err?.response?.data?.detail || "Failed to activate campaign.");
   }
 };
 
@@ -691,11 +691,11 @@ export const toggleActivateCampaign = (campaignId, currentStatus, onDone) => asy
 export const pauseCampaign = (campaignId, onDone) => async (dispatch) => {
   try {
     const res = await axiosInstance.post("/pause-campaign", { campaign_id: campaignId });
-    toast.success(res?.data?.message ?? "Campaign paused!");
+    toast.success(res?.data?.detail ?? "Campaign paused!");
     dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "PAUSED" } });
     if (onDone) onDone();
   } catch (err) {
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to pause campaign.");
+    toast.error(err?.response?.data?.detail || err?.response?.data?.detail || "Failed to pause campaign.");
   }
 };
 
@@ -703,12 +703,12 @@ export const pauseCampaign = (campaignId, onDone) => async (dispatch) => {
 export const resumeCampaign = (campaignId, onDone) => async (dispatch) => {
   try {
     const res = await axiosInstance.post("/resume-campaign", { campaign_id: campaignId });
-    toast.success(res?.data?.message ?? "Campaign resumed!");
+    toast.success(res?.data?.detail ?? "Campaign resumed!");
     dispatch({ type: ACTIVATE_CAMPAIGN_SUCCESS, payload: { id: campaignId, status: "ACTIVE" } });
     if (onDone) onDone();
     patchCampaignAfterActivation(dispatch, campaignId);
   } catch (err) {
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to resume campaign.");
+    toast.error(err?.response?.data?.detail || err?.response?.data?.detail || "Failed to resume campaign.");
   }
 };
 
@@ -716,10 +716,10 @@ export const resumeCampaign = (campaignId, onDone) => async (dispatch) => {
 export const stopAllMultichannelCampaigns = (onDone) => async (dispatch) => {
   try {
     const res = await axiosInstance.post("/campaigns/stop-all-multichannel");
-    toast.success(res?.data?.message ?? "All campaigns stopped!");
+    toast.success(res?.data?.detail ?? "All campaigns stopped!");
     if (onDone) onDone();
   } catch (err) {
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to stop all campaigns.");
+    toast.error(err?.response?.data?.detail || err?.response?.data?.detail || "Failed to stop all campaigns.");
   }
 };
 
@@ -847,8 +847,8 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
     dispatch({ type: CALL_HISTORY_SUCCESS, payload: { data: normalized, total_tasks: totalTasks } });
     toast.success(`Call history loaded (${normalized.length} records)`);
   } catch (err) {
-    dispatch({ type: CALL_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load call history." });
-    toast.error(err?.response?.data?.message || "Failed to load call history.");
+    dispatch({ type: CALL_HISTORY_FAILURE, payload: err?.response?.data?.detail || "Failed to load call history." });
+    toast.error(err?.response?.data?.detail || "Failed to load call history.");
   }
 };
 
@@ -961,8 +961,8 @@ export const fetchEmailHistory = (campaignId) => async (dispatch) => {
     });
     toast.success(`Email history loaded (${normalized.length} records)`);
   } catch (err) {
-    dispatch({ type: EMAIL_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load email history." });
-    toast.error(err?.response?.data?.message || "Failed to load email history.");
+    dispatch({ type: EMAIL_HISTORY_FAILURE, payload: err?.response?.data?.detail || "Failed to load email history." });
+    toast.error(err?.response?.data?.detail || "Failed to load email history.");
   }
 };
 
@@ -985,6 +985,8 @@ export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
       const connectionStatus = (r.connection_status ?? r.status ?? r.linkedin_status ?? "").toUpperCase();
       const replied = !!(r.last_reply_at ?? r.replied ?? r.is_replied);
       const meetingBooked = !!(r.meeting_start_datetime ?? r.meeting_link ?? r.meeting_scheduled ?? r.meeting);
+      const followUpTasks = normalizeFollowUpTasks(r.follow_up_tasks);
+      const totalTasksForRow = Number(r.total_tasks ?? followUpTasks.length) || 0;
       return {
         name:                   info.name               ?? r.lead_name          ?? r.name           ?? "—",
         company:                info.company             ?? r.company            ?? r.organization    ?? "—",
@@ -1004,6 +1006,8 @@ export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
         meetingLink:            r.meeting_link           ?? null,
         recipientPublicId:      r.recipient_public_id    ?? null,
         messages:               Array.isArray(r.messages) ? r.messages : [],
+        follow_up_tasks:        followUpTasks,
+        total_tasks:            totalTasksForRow,
       };
     });
     dispatch({
@@ -1013,8 +1017,8 @@ export const fetchLinkedinHistory = (campaignId) => async (dispatch) => {
     toast.success(`LinkedIn history loaded (${normalized.length} records)`);
   } catch (err) {
     console.error('LinkedIn API error:', err.response);
-    dispatch({ type: LINKEDIN_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load LinkedIn history." });
-    toast.error(err?.response?.data?.message || "Failed to load LinkedIn history.");
+    dispatch({ type: LINKEDIN_HISTORY_FAILURE, payload: err?.response?.data?.detail || "Failed to load LinkedIn history." });
+    toast.error(err?.response?.data?.detail || "Failed to load LinkedIn history.");
   }
 };
 
@@ -1053,8 +1057,8 @@ export const fetchWhatsappHistory = (campaignId) => async (dispatch) => {
     dispatch({ type: WHATSAPP_HISTORY_SUCCESS, payload: { conversations: normalized, analytics } });
     toast.success(`WhatsApp history loaded (${normalized.length} records)`);
   } catch (err) {
-    dispatch({ type: WHATSAPP_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load WhatsApp history." });
-    toast.error(err?.response?.data?.message || "Failed to load WhatsApp history.");
+    dispatch({ type: WHATSAPP_HISTORY_FAILURE, payload: err?.response?.data?.detail || "Failed to load WhatsApp history." });
+    toast.error(err?.response?.data?.detail || "Failed to load WhatsApp history.");
   }
 };
 
@@ -1121,8 +1125,8 @@ export const fetchInboundCallHistory = (page = 1, pageSize = 10) => async (dispa
       },
     });
   } catch (err) {
-    dispatch({ type: INBOUND_HISTORY_FAILURE, payload: err?.response?.data?.message || "Failed to load inbound call history." });
-    toast.error(err?.response?.data?.message || "Failed to load inbound call history.");
+    dispatch({ type: INBOUND_HISTORY_FAILURE, payload: err?.response?.data?.detail || "Failed to load inbound call history." });
+    toast.error(err?.response?.data?.detail || "Failed to load inbound call history.");
   }
 };
 
@@ -1134,12 +1138,12 @@ export const updateCampaign = (campaignId, formData, agent_id, onSuccess) => asy
     if (agent_id) headers["X-Agent-ID"] = agent_id;
     const res = await axiosInstance.patch(`/update-campaign/${campaignId}`, formData, { headers });
     dispatch({ type: UPDATE_CAMPAIGN_SUCCESS });
-    toast.success(res?.data?.message ?? "Campaign updated successfully!");
+    toast.success(res?.data?.detail ?? "Campaign updated successfully!");
     dispatch(listCampaigns({ page: 1, page_size: 20 }));
     if (onSuccess) onSuccess();
   } catch (err) {
-    dispatch({ type: UPDATE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.message || "Failed to update campaign." });
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to update campaign.");
+    dispatch({ type: UPDATE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.detail || "Failed to update campaign." });
+    toast.error(err?.response?.data?.detail || err?.response?.data?.detail || "Failed to update campaign.");
   }
 };
 
@@ -1149,11 +1153,11 @@ export const deleteCampaign = (campaignId, onSuccess) => async (dispatch) => {
   try {
     const res = await axiosInstance.delete(`/remove-campaign/${campaignId}`);
     dispatch({ type: DELETE_CAMPAIGN_SUCCESS, payload: campaignId });
-    toast.success(res?.data?.message ?? "Campaign deleted successfully!");
+    toast.success(res?.data?.detail ?? "Campaign deleted successfully!");
     if (onSuccess) onSuccess();
   } catch (err) {
-    dispatch({ type: DELETE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.message || "Failed to delete campaign." });
-    toast.error(err?.response?.data?.detail || err?.response?.data?.message || "Failed to delete campaign.");
+    dispatch({ type: DELETE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.detail || "Failed to delete campaign." });
+    toast.error(err?.response?.data?.detail || err?.response?.data?.detail || "Failed to delete campaign.");
   }
 };
 
@@ -1187,6 +1191,6 @@ export const fetchEmailDrafts = (campaignId) => async (dispatch) => {
       payload: normalized,
     });
   } catch (err) {
-    dispatch({ type: EMAIL_DRAFTS_FAILURE, payload: err?.response?.data?.message || "Failed to load email drafts." });
+    dispatch({ type: EMAIL_DRAFTS_FAILURE, payload: err?.response?.data?.detail || "Failed to load email drafts." });
   }
 };

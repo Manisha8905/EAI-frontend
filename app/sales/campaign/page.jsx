@@ -21,6 +21,7 @@ import axiosInstance from "../../Redux/axiosInstance";
 import { toast } from "react-toastify";
 import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
 import WhatsAppConversationDetail from "../../Componets/Dashboard/WhatsAppConversationDetail";
+import LeadAdd from "../../Componets/UserManagement/LeadAdd";
 import {
   Plus,
   Search,
@@ -181,65 +182,27 @@ const getPreviewChannelKey = (campaign) => {
 };
 
 export default function CampaignPage() {
-    // Add Lead modal state (must be at top level)
+    // Add Lead modal state
     const [showAddLead, setShowAddLead] = useState(false);
-    const [addLeadForm, setAddLeadForm] = useState({
-      name: "",
-      contact_number: "",
-      email_address: "",
-      company: "",
-      title: "",
-      lead_source: "",
-      lead_status: "",
-      lead_rating: "",
-      address_street: "",
-      address_city: "",
-      address_state: "",
-      address_zip_code: "",
-      address_country: "",
-      website: "",
-      industry: "",
-      // Add more fields as needed
-    });
     const [addLeadLoading, setAddLeadLoading] = useState(false);
 
-    const handleAddLeadChange = (e) => {
-      const { name, value } = e.target;
-      setAddLeadForm((prev) => ({ ...prev, [name]: value }));
-    };
-
-    const handleAddLead = async (e) => {
-      e.preventDefault();
-      if (!addLeadForm.name.trim() || !addLeadForm.contact_number.trim() || !addLeadForm.email_address.trim()) {
-        toast.error("Name, Contact Number, and Email are required.");
-        return;
-      }
+    const handleAddLeadSubmit = async (formData) => {
       if (!selectedCampaign?.id) {
         toast.error("No campaign selected.");
         return;
       }
       setAddLeadLoading(true);
       try {
-        await axiosInstance.post(`/campaigns/${selectedCampaign.id}/leads/add`, addLeadForm);
+        const payload = {
+          name: formData.name,
+          contact_number: formData.contactNumber,
+          email_address: formData.email,
+          company: formData.company,
+          title: formData.title,
+        };
+        await axiosInstance.post(`/campaigns/${selectedCampaign.id}/leads/add`, payload);
         toast.success("Lead added successfully.");
         setShowAddLead(false);
-        setAddLeadForm({
-          name: "",
-          contact_number: "",
-          email_address: "",
-          company: "",
-          title: "",
-          lead_source: "",
-          lead_status: "",
-          lead_rating: "",
-          address_street: "",
-          address_city: "",
-          address_state: "",
-          address_zip_code: "",
-          address_country: "",
-          website: "",
-          industry: "",
-        });
         refreshCampaignJourney(selectedCampaign.id);
       } catch (err) {
         toast.error(err?.response?.data?.detail || "Failed to add lead.");
@@ -274,6 +237,7 @@ export default function CampaignPage() {
     whatsappHistory,
     whatsappAnalytics,
     whatsappHistoryLoading,
+    liTotal,
   } = useSelector((state) => state.admin);
 
   const PAGE_SIZE = 20;
@@ -366,12 +330,16 @@ export default function CampaignPage() {
   const [liStatus, setLiStatus] = useState("All Status");
   const [liTooltip, setLiTooltip] = useState(null);
   const [liTaskFilter, setLiTaskFilter] = useState(false);
+  const [liCardFilter, setLiCardFilter] = useState(new Set()); // Multi-select: Set of "accepted"|"replied"|"no_reply"|"meetings"
+  const [liConversationModal, setLiConversationModal] = useState(null); // conversation id/index
+  const [liConversationLoading, setLiConversationLoading] = useState(false);
+  const [liConversationData, setLiConversationData] = useState(null);
   const [waSearch, setWaSearch] = useState("");
   const [waStatus, setWaStatus] = useState("All Status");
   const [waTooltip, setWaTooltip] = useState(null);
   const [waTaskFilter, setWaTaskFilter] = useState(false);
   const [waConversationModal, setWaConversationModal] = useState(null); // conversation id
-  const [waCardFilter, setWaCardFilter] = useState(null); // "sent"|"delivered"|"read"|"replied"|"meetings"
+  const [waCardFilter, setWaCardFilter] = useState(new Set()); // Multi-select: Set of "sent"|"delivered"|"read"|"replied"|"meetings"
 
   /* ── Lead list leads for Lead Activity tab ── */
   const [leadListLeads, setLeadListLeads] = useState([]);
@@ -406,6 +374,23 @@ export default function CampaignPage() {
       setEmailSendingService(localStorage.getItem("emailSendingService") || "SMTP");
     }
   }, []);
+
+  /* ── Prevent body scroll when modals are open ── */
+  useEffect(() => {
+    const isModalOpen = liConversationModal != null || waConversationModal != null;
+    if (typeof document !== "undefined") {
+      if (isModalOpen) {
+        document.body.style.overflow = "hidden";
+      } else {
+        document.body.style.overflow = "unset";
+      }
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.body.style.overflow = "unset";
+      }
+    };
+  }, [liConversationModal, waConversationModal]);
 
   /* ── Email Config Toggle ── */
   const [showEmailConfig, setShowEmailConfig] = useState(false);
@@ -601,7 +586,7 @@ export default function CampaignPage() {
     } catch (err) {
       const msg =
         err?.response?.data?.detail ||
-        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
         err?.message ||
         "Failed to approve regeneration.";
       toast.error(msg);
@@ -907,7 +892,7 @@ export default function CampaignPage() {
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ||
-          err?.response?.data?.message ||
+          err?.response?.data?.detail ||
           "Failed to load campaign for editing.",
       );
     } finally {
@@ -1171,7 +1156,7 @@ export default function CampaignPage() {
         : (d?.items ?? d?.data ?? d?.results ?? d?.leads ?? d?.journeys ?? []);
       setJourneyData(rows);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to load campaign journey.");
+      toast.error(err?.response?.data?.detail || "Failed to load campaign journey.");
     } finally {
       setJourneyLoading(false);
     }
@@ -1196,7 +1181,7 @@ export default function CampaignPage() {
         : (d?.channels ?? d?.steps ?? d?.journey_steps ?? d?.activities ?? []);
       setLeadJourneyData(steps);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to load lead journey.");
+      toast.error(err?.response?.data?.detail || "Failed to load lead journey.");
     } finally {
       setLeadJourneyLoading(false);
     }
@@ -1236,7 +1221,7 @@ export default function CampaignPage() {
         fetchLeadJourney(campaignId, leadId, selectedLeadJourney.lead_name ?? "");
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to skip channel.");
+      toast.error(err?.response?.data?.detail || "Failed to skip channel.");
       setSkippedChannels((s) => { const ns = new Set(s); ns.delete(tKey); return ns; }); // revert
       refreshCampaignJourney(campaignId);
     } finally {
@@ -1260,7 +1245,7 @@ export default function CampaignPage() {
         fetchLeadJourney(campaignId, leadId, selectedLeadJourney.lead_name ?? "");
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to re-enable channel.");
+      toast.error(err?.response?.data?.detail || "Failed to re-enable channel.");
       setSkippedChannels((s) => new Set([...s, tKey])); // revert
       refreshCampaignJourney(campaignId);
     } finally {
@@ -1303,7 +1288,7 @@ export default function CampaignPage() {
       toast.success(`${channelName} ${currentlyEnabled ? "disabled" : "enabled"}.`);
       refreshCampaignJourney(campaignId);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to update channel.");
+      toast.error(err?.response?.data?.detail || "Failed to update channel.");
       refreshCampaignJourney(campaignId);
     } finally {
       setTogglingLeadChannel((s) => { const ns = new Set(s); ns.delete(tKey); return ns; });
@@ -1458,7 +1443,7 @@ export default function CampaignPage() {
       closeLeadEditor();
       refreshCampaignJourney(campaignId);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to save lead details.");
+      toast.error(err?.response?.data?.detail || "Failed to save lead details.");
     } finally {
       setLeadEditModal((s) => ({ ...s, saving: false }));
     }
@@ -1477,7 +1462,7 @@ export default function CampaignPage() {
       setLeadDeleteConfirm(null);
       refreshCampaignJourney(campaignId);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to delete lead.");
+      toast.error(err?.response?.data?.detail || "Failed to delete lead.");
     }
   };
 
@@ -3482,86 +3467,11 @@ export default function CampaignPage() {
             </table>
             )}
             {/* Add Lead Modal */}
-            {showAddLead && (
-              <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 backdrop-blur-sm">
-                <div className="flex min-h-full items-center justify-center p-0 sm:p-4">
-                <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border border-gray-100 w-full sm:max-w-lg flex flex-col max-h-screen sm:max-h-[90vh]">
-                  <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
-                    <h3 className="text-[15px] font-[700] text-gray-900">Add Lead</h3>
-                    <button onClick={() => setShowAddLead(false)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition">✕</button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
-                  <form onSubmit={handleAddLead} className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                    <div className="sm:col-span-2">
-                      <label className="text-[12px] font-[600] text-gray-600">Name <span className="text-red-500">*</span></label>
-                      <input name="name" type="text" value={addLeadForm.name} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" required />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Contact Number <span className="text-red-500">*</span></label>
-                      <input name="contact_number" type="text" value={addLeadForm.contact_number} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" required />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Email <span className="text-red-500">*</span></label>
-                      <input name="email_address" type="email" value={addLeadForm.email_address} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" required />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Company</label>
-                      <input name="company" type="text" value={addLeadForm.company} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Title</label>
-                      <input name="title" type="text" value={addLeadForm.title} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Lead Source</label>
-                      <input name="lead_source" type="text" value={addLeadForm.lead_source} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Lead Status</label>
-                      <input name="lead_status" type="text" value={addLeadForm.lead_status} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Lead Rating</label>
-                      <input name="lead_rating" type="text" value={addLeadForm.lead_rating} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-[12px] font-[600] text-gray-600">Street</label>
-                      <input name="address_street" type="text" value={addLeadForm.address_street} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">City</label>
-                      <input name="address_city" type="text" value={addLeadForm.address_city} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">State</label>
-                      <input name="address_state" type="text" value={addLeadForm.address_state} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Zip Code</label>
-                      <input name="address_zip_code" type="text" value={addLeadForm.address_zip_code} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Country</label>
-                      <input name="address_country" type="text" value={addLeadForm.address_country} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Website</label>
-                      <input name="website" type="text" value={addLeadForm.website} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-[12px] font-[600] text-gray-600">Industry</label>
-                      <input name="industry" type="text" value={addLeadForm.industry} onChange={handleAddLeadChange} className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none" />
-                    </div>
-                    <div className="sm:col-span-2 flex gap-3 pt-2 pb-1">
-                      <button type="button" onClick={() => setShowAddLead(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition">Cancel</button>
-                      <button type="submit" disabled={addLeadLoading} className="flex-1 py-2.5 rounded-xl bg-green-600 text-white text-[13px] font-[700] hover:bg-green-700 transition disabled:opacity-60 disabled:cursor-not-allowed">{addLeadLoading ? "Adding..." : "Add Lead"}</button>
-                    </div>
-                  </form>
-                  </div>
-                </div>
-                </div>
-              </div>
-            )}
+            <LeadAdd
+              isOpen={showAddLead}
+              onClose={() => setShowAddLead(false)}
+              onSubmit={handleAddLeadSubmit}
+            />
           </div>
           </div>{/* end main content */}
 
@@ -3604,88 +3514,145 @@ export default function CampaignPage() {
 
           {/* ── Lead Edit Modal ── */}
           {leadEditModal.open && leadEditModal.lead && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-              <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-2xl max-h-[90vh] flex flex-col">
-                {/* Header — sticky */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-                  <h3 className="text-[15px] font-[700] text-gray-900">Edit Lead</h3>
-                  <button onClick={closeLeadEditor} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition">✕</button>
-                </div>
-                {/* Scrollable body */}
-                <div className="overflow-y-auto flex-1 px-6 py-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Name</label>
-                      <input
-                        type="text"
-                        value={leadEditModal.lead.name ?? leadEditModal.lead.lead_name ?? ""}
-                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, name: e.target.value, lead_name: e.target.value } }))}
-                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Email</label>
-                      <input
-                        type="email"
-                        value={leadEditModal.lead.email_address ?? leadEditModal.lead.email ?? ""}
-                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, email_address: e.target.value, email: e.target.value } }))}
-                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Contact Number</label>
-                      <input
-                        type="text"
-                        value={leadEditModal.lead.contact_number ?? leadEditModal.lead.phone ?? ""}
-                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, contact_number: e.target.value, phone: e.target.value } }))}
-                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Company</label>
-                      <input
-                        type="text"
-                        value={leadEditModal.lead.company ?? ""}
-                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, company: e.target.value } }))}
-                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-[600] text-gray-600">Title</label>
-                      <input
-                        type="text"
-                        value={leadEditModal.lead.title ?? ""}
-                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, title: e.target.value } }))}
-                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none"
-                      />
-                    </div>
-                    {/* Full-width fields */}
-                    <div className="sm:col-span-2">
-                      <label className="text-[12px] font-[600] text-gray-600">Notes</label>
-                      <textarea
-                        rows={3}
-                        value={leadEditModal.lead.notes ?? ""}
-                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, notes: e.target.value } }))}
-                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none resize-none"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-[12px] font-[600] text-gray-600">Record Prompt</label>
-                      <textarea
-                        rows={3}
-                        value={leadEditModal.lead.record_prompt ?? ""}
-                        onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, record_prompt: e.target.value } }))}
-                        className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:border-indigo-500 focus:outline-none resize-none"
-                      />
-                    </div>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-[440px] flex flex-col" style={{ maxHeight: "90vh" }} onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+                  <div>
+                    <h2 className="font-poppins text-[15px] font-[700] text-[#0a0a0a] leading-tight">
+                      Edit Lead Details
+                    </h2>
+                    <p className="font-inter text-[12px] text-gray-500 mt-0.5">
+                      Update the lead information below
+                    </p>
                   </div>
-                </div>
-                {/* Footer — sticky */}
-                <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
                   <button
                     type="button"
                     onClick={closeLeadEditor}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition"
+                    className="mt-0.5 inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Body (scrollable with hidden scrollbar) */}
+                <style>{`
+                  .lead-form-scrollable {
+                    scrollbar-width: none;
+                    -ms-overflow-style: none;
+                  }
+                  .lead-form-scrollable::-webkit-scrollbar {
+                    display: none;
+                  }
+                `}</style>
+                <div className="flex-1 overflow-y-auto px-5 py-4 lead-form-scrollable">
+                  <form id="lead-edit-form" noValidate>
+                    {/* Required fields section */}
+                    <div className="grid grid-cols-2 gap-3.5">
+                      <div className="flex flex-col">
+                        <label className="block text-[12px] font-[600] text-[#0a0a0a] mb-1.5">
+                          Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter lead name"
+                          value={leadEditModal.lead.name ?? leadEditModal.lead.lead_name ?? ""}
+                          onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, name: e.target.value, lead_name: e.target.value } }))}
+                          className="w-full px-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                          style={{ color: "#111827", caretColor: "#111827" }}
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="block text-[12px] font-[600] text-[#0a0a0a] mb-1.5">
+                          Email Address <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="Enter email address"
+                          value={leadEditModal.lead.email_address ?? leadEditModal.lead.email ?? ""}
+                          onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, email_address: e.target.value, email: e.target.value } }))}
+                          className="w-full px-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                          style={{ color: "#111827", caretColor: "#111827" }}
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="block text-[12px] font-[600] text-[#0a0a0a] mb-1.5">
+                          Contact Number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter phone number"
+                          value={leadEditModal.lead.contact_number ?? leadEditModal.lead.phone ?? ""}
+                          onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, contact_number: e.target.value, phone: e.target.value } }))}
+                          className="w-full px-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                          style={{ color: "#111827", caretColor: "#111827" }}
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="block text-[12px] font-[600] text-[#0a0a0a] mb-1.5">
+                          Company <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter company name"
+                          value={leadEditModal.lead.company ?? ""}
+                          onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, company: e.target.value } }))}
+                          className="w-full px-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                          style={{ color: "#111827", caretColor: "#111827" }}
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="block text-[12px] font-[600] text-[#0a0a0a] mb-1.5">
+                          Title <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter job title"
+                          value={leadEditModal.lead.title ?? ""}
+                          onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, title: e.target.value } }))}
+                          className="w-full px-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-all placeholder:text-gray-400"
+                          style={{ color: "#111827", caretColor: "#111827" }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Optional fields section */}
+                    <div className="mt-5 pt-4 border-t border-gray-200">
+                      <p className="text-[11px] font-[600] text-gray-400 mb-3.5">Additional Information (Optional)</p>
+                      <div className="grid grid-cols-2 gap-3.5">
+                        <div className="flex flex-col">
+                          <label className="block text-[12px] font-[600] text-[#0a0a0a] mb-1.5">Notes</label>
+                          <textarea
+                            rows={3}
+                            placeholder="Add notes..."
+                            value={leadEditModal.lead.notes ?? ""}
+                            onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, notes: e.target.value } }))}
+                            className="w-full px-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-all placeholder:text-gray-400 resize-none"
+                            style={{ color: "#111827", caretColor: "#111827" }}
+                          />
+                        </div>
+                        <div className="flex flex-col">
+                          <label className="block text-[12px] font-[600] text-[#0a0a0a] mb-1.5">Record Prompt</label>
+                          <textarea
+                            rows={3}
+                            placeholder="Add record prompt..."
+                            value={leadEditModal.lead.record_prompt ?? ""}
+                            onChange={(e) => setLeadEditModal((s) => ({ ...s, lead: { ...s.lead, record_prompt: e.target.value } }))}
+                            className="w-full px-3 py-2 text-[12px] rounded-lg border border-gray-200 bg-gray-50 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-all placeholder:text-gray-400 resize-none"
+                            style={{ color: "#111827", caretColor: "#111827" }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Footer */}
+                <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-100 shrink-0">
+                  <button
+                    type="button"
+                    onClick={closeLeadEditor}
+                    className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
                   >
                     Cancel
                   </button>
@@ -3693,9 +3660,16 @@ export default function CampaignPage() {
                     type="button"
                     disabled={leadEditModal.saving}
                     onClick={saveLeadEditor}
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-[13px] font-[700] hover:bg-indigo-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-[13px] font-[600] text-white hover:bg-blue-700 disabled:opacity-50 transition"
                   >
-                    {leadEditModal.saving ? "Saving…" : "Save Changes"}
+                    {leadEditModal.saving ? (
+                      <>
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        Saving…
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
                   </button>
                 </div>
               </div>
@@ -4317,7 +4291,7 @@ export default function CampaignPage() {
                     <div>
                       <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 mb-3">
                         <p className="text-[9px] font-[700] uppercase tracking-widest text-violet-500 mb-1.5">
-                          Follow-up Tasks &nbsp;<span className="bg-violet-200 text-violet-700 rounded-full px-1.5 py-px text-[9px]">{transcriptTaskNames.length}</span>
+                          Follow up Tasks &nbsp;<span className="bg-violet-200 text-violet-700 rounded-full px-1.5 py-px text-[9px]">{transcriptTaskNames.length}</span>
                         </p>
                         <ul className="space-y-0.5">
                           {transcriptTaskNames.map((task, idx) => (
@@ -5307,7 +5281,7 @@ export default function CampaignPage() {
                           return (
                             <div className="shrink-0 border-b border-violet-100 bg-violet-50 px-6 py-2">
                               <p className="text-[9px] font-[700] uppercase tracking-widest text-violet-500 mb-1.5">
-                                Follow-up Tasks &nbsp;<span className="bg-violet-200 text-violet-700 rounded-full px-1.5 py-px text-[9px]">{modalTasks.length}</span>
+                                Follow up Tasks &nbsp;<span className="bg-violet-200 text-violet-700 rounded-full px-1.5 py-px text-[9px]">{modalTasks.length}</span>
                               </p>
                               <ul className="space-y-0.5">
                                 {modalTasks.map((task, ti) => (
@@ -5468,7 +5442,7 @@ export default function CampaignPage() {
                 </>
               ) : (
                 <>
-                  <p className="font-[600] mb-1">Follow-up Tasks</p>
+                  <p className="font-[600] mb-1">Follow up Tasks</p>
                   {emailTooltip.taskNames.length > 0 ? (
                     <ul className="space-y-0.5 text-gray-200 w-[340px] max-w-[calc(100vw-2rem)]">
                       {emailTooltip.taskNames.map((task, ti) => (
@@ -5486,7 +5460,6 @@ export default function CampaignPage() {
         </main>
       );
     }
-
     /* ─── LINKEDIN HISTORY ─── */
     if (activeTab === "LINKEDIN") {
       const linkedinHistoryData = linkedinHistory ?? [];
@@ -5494,38 +5467,56 @@ export default function CampaignPage() {
         "All Status",
         ...new Set(linkedinHistoryData.map((r) => r.status)),
       ];
-      const liRows = linkedinHistoryData.filter((r) => {
+      
+      // First filter: Apply search + status (for card metrics calculation)
+      const liBaseFiltered = linkedinHistoryData.filter((r) => {
         const ms =
           r.name?.toLowerCase().includes(liSearch.toLowerCase()) ||
           r.company?.toLowerCase().includes(liSearch.toLowerCase());
         const ss = liStatus === "All Status" || r.status === liStatus;
-        if (!ms || !ss) return false;
+        return ms && ss;
+      });
+      
+      // Second filter: Apply task filter + card filter (for table display)
+      const liRows = liBaseFiltered.filter((r) => {
         if (liTaskFilter) {
           const names = normalizeFollowUpTasks(r.follow_up_tasks);
           const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
           if (cnt === 0) return false;
         }
+        // If no card filters selected, show all. If filters selected, record must match ANY selected filter (OR logic).
+        if (liCardFilter.size > 0) {
+          const matchesAny = Array.from(liCardFilter).some((filter) => {
+            if (filter === "accepted") return r.connectionAccepted || r.status === "ACCEPTED" || r.status === "CONNECTED";
+            if (filter === "replied") return r.replied || r.status === "REPLIED" || r.status === "MEETING SCHEDULED";
+            if (filter === "no_reply") return !r.replied && (r.status === "NO REPLY" || r.status === "NOT CONNECTED" || r.status === "PENDING");
+            if (filter === "meetings") return r.meeting && r.meeting_link;
+            return true;
+          });
+          if (!matchesAny) return false;
+        }
         return true;
       });
       
-      // Calculate metrics from FILTERED data (liRows), not unfiltered data
-      const liTotalTasks = liRows.reduce((sum, r) => {
+      // Metrics from BASE FILTERED (search + status only) - stable counts that don't change with card/task filters
+      const liTotalTasks = liBaseFiltered.reduce((sum, r) => {
         const names = normalizeFollowUpTasks(r.follow_up_tasks);
         const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
         return sum + cnt;
       }, 0);
-      const totalOutreach = liRows.length;
-      const accepted = liRows.filter(
+      const accepted = liBaseFiltered.filter(
         (r) => r.connectionAccepted || r.status === "ACCEPTED" || r.status === "CONNECTED",
       ).length;
-      const replied = liRows.filter(
+      const replied = liBaseFiltered.filter(
         (r) => r.replied || r.status === "REPLIED" || r.status === "MEETING SCHEDULED",
       ).length;
-      const noReply = liRows.filter(
+      const noReply = liBaseFiltered.filter(
         (r) => !r.replied && (r.status === "NO REPLY" || r.status === "NOT CONNECTED" || r.status === "PENDING"),
       ).length;
       const meetingBooked =
-        liRows.filter((r) => r.meeting).length || (liRows.length === 0 ? 0 : c.meetings);
+        liBaseFiltered.filter((r) => r.meeting).length || (liBaseFiltered.length === 0 ? 0 : c.meetings);
+      // Total Outreach = total records available (search + status filtered), NOT affected by task/card filters
+      const totalOutreach = liBaseFiltered.length;
       const responseRate =
         totalOutreach > 0
           ? Math.round(((accepted + replied) / totalOutreach) * 100)
@@ -5560,6 +5551,7 @@ export default function CampaignPage() {
               <p className="text-[13px] text-gray-500 mt-0.5">
                 Track all LinkedIn connection requests and messages
               </p>
+
             </div>
             <button
               type="button"
@@ -5584,7 +5576,7 @@ export default function CampaignPage() {
               {
                 label: "Total Tasks",
                 value: liTotalTasks,
-                sub: "follow-up tasks",
+                sub: "follow up tasks",
                 color: liTaskFilter ? "text-blue-700" : "text-blue-600",
                 ring: liTaskFilter ? "ring-blue-400" : "ring-blue-200",
                 isTaskCard: true,
@@ -5593,29 +5585,33 @@ export default function CampaignPage() {
                 label: "Accepted",
                 value: accepted,
                 sub: "connections",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
+                color: liCardFilter.has("accepted") ? "text-blue-700" : "text-blue-600",
+                ring: liCardFilter.has("accepted") ? "ring-blue-400" : "ring-blue-200",
+                filter: "accepted",
               },
               {
                 label: "Replied",
                 value: replied,
                 sub: "InMail replies",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
+                color: liCardFilter.has("replied") ? "text-blue-700" : "text-blue-600",
+                ring: liCardFilter.has("replied") ? "ring-blue-400" : "ring-blue-200",
+                filter: "replied",
               },
               {
                 label: "No Reply",
                 value: noReply,
                 sub: "no response",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
+                color: liCardFilter.has("no_reply") ? "text-blue-700" : "text-blue-600",
+                ring: liCardFilter.has("no_reply") ? "ring-blue-400" : "ring-blue-200",
+                filter: "no_reply",
               },
               {
                 label: "Meetings",
                 value: meetingBooked,
                 sub: "booked",
-                color: "text-blue-600",
-                ring: "ring-blue-200",
+                color: liCardFilter.has("meetings") ? "text-blue-700" : "text-blue-600",
+                ring: liCardFilter.has("meetings") ? "ring-blue-400" : "ring-blue-200",
+                filter: "meetings",
               },
               {
                 label: "Response Rate",
@@ -5624,11 +5620,31 @@ export default function CampaignPage() {
                 color: "text-blue-600",
                 ring: "ring-blue-200",
               },
-            ].map((k) => (
-              <article
-                key={k.label}
-                onClick={k.isTaskCard ? () => setLiTaskFilter((v) => !v) : undefined}
-                className={`rounded-2xl bg-white border border-gray-100 shadow-sm p-4 flex flex-col gap-0.5 ring-1 ${k.ring} ${k.isTaskCard ? "cursor-pointer select-none hover:shadow-md" : ""} ${k.isTaskCard && liTaskFilter ? "ring-2 shadow-md" : ""}`}
+            ].map((k) => {
+              const isActive = k.isTaskCard ? liTaskFilter : (k.filter && liCardFilter.has(k.filter));
+              return (
+                <article
+                  key={k.label}
+                  onClick={
+                    k.isTaskCard
+                      ? () => setLiTaskFilter((v) => !v)
+                      : k.filter
+                      ? () => setLiCardFilter((v) => {
+                          const newSet = new Set(v);
+                          if (newSet.has(k.filter)) {
+                            newSet.delete(k.filter);
+                          } else {
+                            newSet.add(k.filter);
+                          }
+                          return newSet;
+                        })
+                      : undefined
+                  }
+                  className={`rounded-2xl bg-white border shadow-sm p-4 flex flex-col gap-0.5 ring-1 cursor-pointer select-none hover:shadow-md transition-all ${
+                    isActive
+                      ? "ring-2 ring-blue-300 border-blue-200 shadow-md"
+                      : `border-gray-100 ${k.ring}`
+                  }`}
               >
                 <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">
                   {k.label}
@@ -5637,8 +5653,10 @@ export default function CampaignPage() {
                   {k.value}
                 </p>
                 <p className="text-[11px] text-gray-400">{k.sub}</p>
+                {isActive }
               </article>
-            ))}
+              );
+            })}
           </section>
           {/* Charts */}
           {engagementData.some((d) => d.value > 0) && (
@@ -5911,7 +5929,14 @@ export default function CampaignPage() {
 
             {/* Actions */}
             <td className="px-2 py-2 pl-8">
-              <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 text-white text-[11px] font-[600] hover:bg-blue-700">
+              <button 
+                onClick={() => {
+                  setLiConversationModal(idx);
+                  setLiConversationData(row);
+                  setLiConversationLoading(false);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-600 text-white text-[11px] font-[600] hover:bg-blue-700 transition"
+              >
                 View <Eye className="h-3.5 w-3.5" /> 
               </button>
             </td>
@@ -5931,6 +5956,151 @@ export default function CampaignPage() {
               </span>
             </div>
           </div>
+
+          {/* LinkedIn Conversation Detail Modal */}
+          {liConversationModal != null && liConversationData && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-3 py-2 md:px-4 md:py-3" onClick={() => setLiConversationModal(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto flex flex-col" style={{ height: "100%", maxHeight: "calc(100vh - 16px)" }} onClick={(e) => e.stopPropagation()}>
+                {/* Header - LinkedIn Blue Theme */}
+                <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0 bg-gradient-to-r from-blue-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                      <Linkedin className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-[15px] font-[700] text-gray-900">LinkedIn Conversation</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Message history and details</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLiConversationModal(null)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 transition border border-blue-200"
+                    title="Close conversation"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  {/* Meta Information Grid */}
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-5">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-[700] uppercase tracking-widest text-gray-400">Lead Name</span>
+                      <span className="text-[12px] font-[600] text-gray-900">{liConversationData.name ?? "—"}</span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-[700] uppercase tracking-widest text-gray-400">Company</span>
+                      <span className="text-[12px] font-[600] text-blue-600">{liConversationData.company ?? "—"}</span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-[700] uppercase tracking-widest text-gray-400">Status</span>
+                      <span className={`inline-flex w-fit items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${LINKEDIN_STATUS_STYLE[liConversationData.status] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                        {liConversationData.status ?? "—"}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-[700] uppercase tracking-widest text-gray-400">Replied</span>
+                      <span className={`inline-flex w-fit items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${liConversationData.replied ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                        {liConversationData.replied ? "Yes" : "No"}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-[700] uppercase tracking-widest text-gray-400">Meeting</span>
+                      <span className={`inline-flex w-fit items-center px-2 py-0.5 rounded-full text-[10px] font-[600] border ${liConversationData.meeting ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                        {liConversationData.meeting ? "Yes" : "No"}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[9px] font-[700] uppercase tracking-widest text-gray-400">Date</span>
+                      <span className="text-[11px] font-[500] text-gray-700">
+                        {liConversationData.dateTime ? new Date(liConversationData.dateTime).toLocaleDateString() : "—"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Follow-up Tasks */}
+                  {liConversationData.follow_up_tasks && Array.isArray(liConversationData.follow_up_tasks) && liConversationData.follow_up_tasks.length > 0 && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 mb-5">
+                      <p className="text-[11px] font-[700] uppercase tracking-wide text-blue-700 mb-2.5 flex items-center gap-2">
+                        <span>Follow-up Tasks</span>
+                        <span className="bg-blue-200 text-blue-800 rounded-full px-2 py-0.5 text-[10px] font-[700]">{liConversationData.follow_up_tasks.length}</span>
+                      </p>
+                      <ul className="space-y-2">
+                        {liConversationData.follow_up_tasks.map((task, i) => (
+                          <li key={i} className="flex items-start gap-2.5 text-[12px] text-gray-800 leading-relaxed">
+                            <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white text-[9px] font-[800] flex items-center justify-center">{i + 1}</span>
+                            <span>{typeof task === "string" ? task : task.name || JSON.stringify(task)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Messages (LinkedIn Style) */}
+                  <div className="flex flex-col bg-gradient-to-b from-gray-50 to-white rounded-lg border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100 bg-white">
+                      <p className="text-[11px] font-[700] uppercase tracking-wide text-gray-600 flex items-center gap-2">
+                        <span>Conversation</span>
+                        {liConversationData.messages && Array.isArray(liConversationData.messages) && (
+                          <span className="bg-gray-200 text-gray-700 rounded-full px-2 py-0.5 text-[10px]">{liConversationData.messages.length}</span>
+                        )}
+                      </p>
+                    </div>
+                    
+                    {liConversationData.messages && Array.isArray(liConversationData.messages) && liConversationData.messages.length > 0 ? (
+                      <div className="flex flex-col gap-3 max-h-[480px] overflow-y-auto p-4 pr-3 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                        {liConversationData.messages.map((msg, idx) => {
+                          const isOutbound = msg.direction === "OUTBOUND";
+                          return (
+                            <div key={idx} className={`flex gap-2 ${isOutbound ? "justify-end" : "justify-start"}`}>
+                              <div className={`flex flex-col max-w-xs ${isOutbound ? "items-end" : "items-start"}`}>
+                                {/* Message bubble - LinkedIn professional style */}
+                                <div className={`rounded-lg px-3.5 py-2 shadow-sm ${
+                                  isOutbound
+                                    ? "bg-blue-600 text-white rounded-tr-none"
+                                    : "bg-white text-gray-900 border border-gray-300 rounded-tl-none"
+                                }`}>
+                                  <p className="text-[13px] font-[500] leading-relaxed break-words whitespace-pre-wrap">{msg.body}</p>
+                                </div>
+                                
+                                {/* Timestamp */}
+                                <span className={`text-[11px] font-[500] mt-1 ${isOutbound ? "text-blue-600" : "text-gray-500"}`}>
+                                  {msg.sent_at ? new Date(msg.sent_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="px-4 py-12 text-center">
+                        <p className="text-[13px] text-gray-400 italic">No messages yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer - LinkedIn Blue Theme */}
+                <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 shrink-0 bg-blue-50">
+                  <button
+                    type="button"
+                    onClick={() => setLiConversationModal(null)}
+                    className="px-5 py-2.5 rounded-lg border-2 border-blue-400 bg-blue-600 text-[13px] font-[600] text-white hover:bg-blue-700 hover:border-blue-500 transition"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {liTooltip && (() => {
             const { rect } = liTooltip;
             const left = Math.min(Math.max(rect.left + rect.width / 2, 10), (typeof window !== "undefined" ? window.innerWidth : 1200) - 10);
@@ -5940,7 +6110,7 @@ export default function CampaignPage() {
                 style={{ position: "fixed", top, left, transform: "translate(-50%, -100%)", zIndex: 9999, pointerEvents: "none" }}
                 className="rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg"
               >
-                <p className="font-[600] mb-1">Follow-up Tasks</p>
+                <p className="font-[600] mb-1">Follow up Tasks</p>
                 {liTooltip.taskNames.length > 0 ? (
                   <ul className="space-y-0.5 text-gray-200 w-[340px] max-w-[calc(100vw-2rem)]">
                     {liTooltip.taskNames.map((task, ti) => (
@@ -5999,17 +6169,17 @@ export default function CampaignPage() {
           const cnt = Math.max(Number(r.total_tasks) || 0, names.length);
           if (cnt === 0) return false;
         }
-        if (waCardFilter === "delivered") {
-          if ((r.status ?? "").toUpperCase() !== "DELIVERED") return false;
-        }
-        if (waCardFilter === "read") {
-          if ((r.status ?? "").toUpperCase() !== "READ") return false;
-        }
-        if (waCardFilter === "replied") {
-          if (!r.is_replied) return false;
-        }
-        if (waCardFilter === "meetings") {
-          if (!r.meeting && !r.meeting_link) return false;
+        // If no card filters selected, show all. If filters selected, record must match ANY selected filter (OR logic).
+        if (waCardFilter.size > 0) {
+          const matchesAny = Array.from(waCardFilter).some((filter) => {
+            if (filter === "sent") return true; // All sent messages
+            if (filter === "delivered") return (r.status ?? "").toUpperCase() === "DELIVERED";
+            if (filter === "read") return (r.status ?? "").toUpperCase() === "READ";
+            if (filter === "replied") return r.is_replied;
+            if (filter === "meetings") return r.meeting || r.meeting_link;
+            return true;
+          });
+          if (!matchesAny) return false;
         }
         return true;
       });
@@ -6091,7 +6261,7 @@ export default function CampaignPage() {
                 isTaskCard: true,
               },
             ].map((k) => {
-              const isActive = k.isTaskCard ? waTaskFilter : (k.filter && waCardFilter === k.filter);
+              const isActive = k.isTaskCard ? waTaskFilter : (k.filter && waCardFilter.has(k.filter));
               return (
                 <article
                   key={k.label}
@@ -6099,7 +6269,15 @@ export default function CampaignPage() {
                     k.isTaskCard
                       ? () => setWaTaskFilter((v) => !v)
                       : k.filter
-                      ? () => setWaCardFilter((v) => (v === k.filter ? null : k.filter))
+                      ? () => setWaCardFilter((v) => {
+                          const newSet = new Set(v);
+                          if (newSet.has(k.filter)) {
+                            newSet.delete(k.filter);
+                          } else {
+                            newSet.add(k.filter);
+                          }
+                          return newSet;
+                        })
                       : undefined
                   }
                   className={`rounded-2xl bg-white border shadow-sm p-4 flex flex-col gap-0.5 ring-1 cursor-pointer select-none hover:shadow-md transition-all ${
@@ -6111,7 +6289,7 @@ export default function CampaignPage() {
                   <p className="text-[10px] font-[600] uppercase tracking-wider text-gray-400">{k.label}</p>
                   <p className={`text-[28px] font-[800] leading-none ${isActive && !k.isTaskCard ? "text-indigo-700" : k.color}`}>{k.value}</p>
                   <p className="text-[11px] text-gray-400">{k.sub}</p>
-                  {isActive && <span className="text-[9px] font-[600] text-indigo-500 uppercase tracking-wide">● filtered</span>}
+                  {isActive }
                 </article>
               );
             })}
@@ -6371,7 +6549,7 @@ export default function CampaignPage() {
                 style={{ position: "fixed", top, left, transform: "translate(-50%, -100%)", zIndex: 9999, pointerEvents: "none" }}
                 className="rounded-lg bg-gray-800 px-3 py-2 text-[11px] text-white shadow-lg"
               >
-                <p className="font-[600] mb-1">Follow-up Tasks</p>
+                <p className="font-[600] mb-1">Follow up Tasks</p>
                 {waTooltip.taskNames.length > 0 ? (
                   <ul className="space-y-0.5 text-gray-200 w-[340px] max-w-[calc(100vw-2rem)]">
                     {waTooltip.taskNames.map((task, ti) => (
@@ -6385,23 +6563,49 @@ export default function CampaignPage() {
             );
           })()}
 
-          {/* Conversation Detail Modal */}
+          {/* WhatsApp Conversation Detail Modal */}
           {waConversationModal != null && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setWaConversationModal(null)}>
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-0" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-[700] text-gray-900 flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-green-500" /> WhatsApp Conversation
-                  </h2>
-                  <button type="button" onClick={() => setWaConversationModal(null)} className="text-gray-400 hover:text-gray-600 transition">
-                    <X className="h-5 w-5" />
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-3 py-2 md:px-4 md:py-3" onClick={() => setWaConversationModal(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto flex flex-col" style={{ height: "100%", maxHeight: "calc(100vh - 16px)" }} onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0 bg-gradient-to-r from-emerald-50 to-white">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100">
+                      <MessageCircle className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-[15px] font-[700] text-gray-900">WhatsApp Conversation</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Chat history and insights</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWaConversationModal(null)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 transition border border-emerald-200"
+                    title="Close conversation"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="text-[12px] font-[600]">Close</span>
                   </button>
                 </div>
-                <div className="p-5">
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6">
                   <WhatsAppConversationDetail
                     conversationId={waConversationModal}
                     onClose={() => setWaConversationModal(null)}
                   />
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 shrink-0 bg-emerald-50">
+                  <button
+                    type="button"
+                    onClick={() => setWaConversationModal(null)}
+                    className="px-5 py-2.5 rounded-lg border-2 border-emerald-400 bg-emerald-600 text-[13px] font-[600] text-white hover:bg-emerald-700 hover:border-emerald-500 transition"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>

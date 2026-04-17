@@ -6651,12 +6651,21 @@ function LeadsPage({ onBack }) {
           <Modal
             title="Edit Lead Details"
             onClose={closeLeadEditor}
-            width="max-w-2xl"
+            width="max-w-lg"
           >
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <style>{`
+              .lead-form-scrollable {
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+              }
+              .lead-form-scrollable::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+            <div className="max-h-96 overflow-y-auto lead-form-scrollable">
+              <div className="grid grid-cols-2 gap-3.5">
                 <Field
-                  label="Name"
+                  label={<>Name <span className="text-red-500">*</span></>}
                   type="text"
                   placeholder="Enter lead name"
                   value={leadEditModal.data.name}
@@ -6668,7 +6677,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Email Address"
+                  label={<>Email Address <span className="text-red-500">*</span></>}
                   type="email"
                   placeholder="Enter email address"
                   value={leadEditModal.data.email_address}
@@ -6680,7 +6689,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Contact Number"
+                  label={<>Contact Number <span className="text-red-500">*</span></>}
                   type="text"
                   placeholder="Enter phone number"
                   value={leadEditModal.data.contact_number}
@@ -6692,7 +6701,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Company"
+                  label={<>Company <span className="text-red-500">*</span></>}
                   type="text"
                   placeholder="Enter company name"
                   value={leadEditModal.data.company}
@@ -6704,7 +6713,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Title"
+                  label={<>Title <span className="text-red-500">*</span></>}
                   type="text"
                   placeholder="Enter job title"
                   value={leadEditModal.data.title}
@@ -6715,161 +6724,26 @@ function LeadsPage({ onBack }) {
                     }))
                   }
                 />
-                <Field
-                  label="Lead Source"
-                  type="text"
-                  placeholder="Enter lead source"
-                  value={leadEditModal.data.lead_source}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, lead_source: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Lead Status"
-                  type="text"
-                  placeholder="Enter lead status"
-                  value={leadEditModal.data.lead_status}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, lead_status: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Lead Rating"
-                  type="text"
-                  placeholder="Enter lead rating"
-                  value={leadEditModal.data.lead_rating}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, lead_rating: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address Street"
-                  type="text"
-                  placeholder="Enter street address"
-                  value={leadEditModal.data.address_street}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_street: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address City"
-                  type="text"
-                  placeholder="Enter city"
-                  value={leadEditModal.data.address_city}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_city: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address State"
-                  type="text"
-                  placeholder="Enter state"
-                  value={leadEditModal.data.address_state}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_state: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address Zip Code"
-                  type="text"
-                  placeholder="Enter zip code"
-                  value={leadEditModal.data.address_zip_code}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_zip_code: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address Country"
-                  type="text"
-                  placeholder="Enter country"
-                  value={leadEditModal.data.address_country}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_country: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Website"
-                  type="url"
-                  placeholder="Enter website URL"
-                  value={leadEditModal.data.website}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, website: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Industry"
-                  type="text"
-                  placeholder="Enter industry"
-                  value={leadEditModal.data.industry}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, industry: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="LinkedIn URL"
-                  type="url"
-                  placeholder="Enter LinkedIn URL"
-                  value={leadEditModal.data.linkedin_url}
-                  onChange={(value) =>
-                    setLeadEditModal((s) => ({
-                      ...s,
-                      data: { ...s.data, linkedin_url: value },
-                    }))
-                  }
-                />
               </div>
-              <TextareaField
-                label="Notes"
-                placeholder="Enter notes"
-                value={leadEditModal.data.notes}
-                onChange={(value) =>
-                  setLeadEditModal((s) => ({
-                    ...s,
-                    data: { ...s.data, notes: value },
-                  }))
-                }
-              />
-              <TextareaField
-                label="Description"
-                placeholder="Enter description"
-                value={leadEditModal.data.description}
-                onChange={(value) =>
-                  setLeadEditModal((s) => ({
-                    ...s,
-                    data: { ...s.data, description: value },
-                  }))
-                }
-              />
+              
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <p className="text-[11px] font-[600] text-gray-400 mb-3">Additional Information (Optional)</p>
+                <div className="grid grid-cols-2 gap-3.5">
+                  <Field label="Lead Source" type="text" placeholder="e.g. Referral" value={leadEditModal.data.lead_source} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, lead_source: value } }))} />
+                  <Field label="Lead Status" type="text" placeholder="e.g. Active" value={leadEditModal.data.lead_status} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, lead_status: value } }))} />
+                  <Field label="Lead Rating" type="text" placeholder="e.g. Hot" value={leadEditModal.data.lead_rating} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, lead_rating: value } }))} />
+                  <Field label="Address Street" type="text" placeholder="e.g. 123 Main St" value={leadEditModal.data.address_street} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_street: value } }))} />
+                  <Field label="Address City" type="text" placeholder="e.g. New York" value={leadEditModal.data.address_city} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_city: value } }))} />
+                  <Field label="Address State" type="text" placeholder="e.g. NY" value={leadEditModal.data.address_state} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_state: value } }))} />
+                  <Field label="Address Zip Code" type="text" placeholder="e.g. 10001" value={leadEditModal.data.address_zip_code} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_zip_code: value } }))} />
+                  <Field label="Address Country" type="text" placeholder="e.g. USA" value={leadEditModal.data.address_country} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_country: value } }))} />
+                  <Field label="Website" type="text" placeholder="e.g. www.example.com" value={leadEditModal.data.website} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, website: value } }))} />
+                  <Field label="Industry" type="text" placeholder="e.g. Technology" value={leadEditModal.data.industry} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, industry: value } }))} />
+                  <div className="col-span-2"><Field label="LinkedIn URL" type="text" placeholder="e.g. linkedin.com/in/username" value={leadEditModal.data.linkedin_url} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, linkedin_url: value } }))} /></div>
+                  <div className="col-span-2"><Field label="Notes" type="textarea" placeholder="Add notes..." value={leadEditModal.data.notes} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, notes: value } }))} /></div>
+                  <div className="col-span-2"><Field label="Description" type="textarea" placeholder="Add description..." value={leadEditModal.data.description} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, description: value } }))} /></div>
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
@@ -6899,12 +6773,21 @@ function LeadsPage({ onBack }) {
           <Modal
             title="Add Lead"
             onClose={closeLeadCreateModal}
-            width="max-w-2xl"
+            width="max-w-lg"
           >
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <style>{`
+              .lead-form-scrollable {
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+              }
+              .lead-form-scrollable::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+            <div className="max-h-96 overflow-y-auto lead-form-scrollable">
+              <div className="grid grid-cols-2 gap-3.5">
                 <Field
-                  label="Name"
+                  label={<>Name <span className="text-red-500">*</span></>}
                   required
                   type="text"
                   placeholder="Enter lead name"
@@ -6917,7 +6800,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Email Address"
+                  label={<>Email Address <span className="text-red-500">*</span></>}
                   required
                   type="email"
                   placeholder="Enter email address"
@@ -6930,7 +6813,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Contact Number"
+                  label={<>Contact Number <span className="text-red-500">*</span></>}
                   required
                   type="text"
                   placeholder="Enter phone number"
@@ -6943,7 +6826,8 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Company"
+                  label={<>Company <span className="text-red-500">*</span></>}
+                  required
                   type="text"
                   placeholder="Enter company name"
                   value={leadCreateModal.data.company}
@@ -6955,7 +6839,8 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label="Title"
+                  label={<>Title <span className="text-red-500">*</span></>}
+                  required
                   type="text"
                   placeholder="Enter job title"
                   value={leadCreateModal.data.title}
@@ -6966,161 +6851,26 @@ function LeadsPage({ onBack }) {
                     }))
                   }
                 />
-                <Field
-                  label="Lead Source"
-                  type="text"
-                  placeholder="Enter lead source"
-                  value={leadCreateModal.data.lead_source}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, lead_source: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Lead Status"
-                  type="text"
-                  placeholder="Enter lead status"
-                  value={leadCreateModal.data.lead_status}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, lead_status: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Lead Rating"
-                  type="text"
-                  placeholder="Enter lead rating"
-                  value={leadCreateModal.data.lead_rating}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, lead_rating: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address Street"
-                  type="text"
-                  placeholder="Enter street address"
-                  value={leadCreateModal.data.address_street}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_street: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address City"
-                  type="text"
-                  placeholder="Enter city"
-                  value={leadCreateModal.data.address_city}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_city: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address State"
-                  type="text"
-                  placeholder="Enter state"
-                  value={leadCreateModal.data.address_state}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_state: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address Zip Code"
-                  type="text"
-                  placeholder="Enter zip code"
-                  value={leadCreateModal.data.address_zip_code}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_zip_code: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Address Country"
-                  type="text"
-                  placeholder="Enter country"
-                  value={leadCreateModal.data.address_country}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, address_country: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Website"
-                  type="url"
-                  placeholder="Enter website URL"
-                  value={leadCreateModal.data.website}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, website: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="Industry"
-                  type="text"
-                  placeholder="Enter industry"
-                  value={leadCreateModal.data.industry}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, industry: value },
-                    }))
-                  }
-                />
-                <Field
-                  label="LinkedIn URL"
-                  type="url"
-                  placeholder="Enter LinkedIn URL"
-                  value={leadCreateModal.data.linkedin_url}
-                  onChange={(value) =>
-                    setLeadCreateModal((s) => ({
-                      ...s,
-                      data: { ...s.data, linkedin_url: value },
-                    }))
-                  }
-                />
               </div>
-              <TextareaField
-                label="Notes"
-                placeholder="Enter notes"
-                value={leadCreateModal.data.notes}
-                onChange={(value) =>
-                  setLeadCreateModal((s) => ({
-                    ...s,
-                    data: { ...s.data, notes: value },
-                  }))
-                }
-              />
-              <TextareaField
-                label="Description"
-                placeholder="Enter description"
-                value={leadCreateModal.data.description}
-                onChange={(value) =>
-                  setLeadCreateModal((s) => ({
-                    ...s,
-                    data: { ...s.data, description: value },
-                  }))
-                }
-              />
+              
+              <div className="mt-4 pt-3 border-t border-gray-200">
+                <p className="text-[11px] font-[600] text-gray-400 mb-3">Additional Information (Optional)</p>
+                <div className="grid grid-cols-2 gap-3.5">
+                  <Field label="Lead Source" type="text" placeholder="e.g. Referral" value={leadCreateModal.data.lead_source} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_source: value } }))} />
+                  <Field label="Lead Status" type="text" placeholder="e.g. Active" value={leadCreateModal.data.lead_status} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_status: value } }))} />
+                  <Field label="Lead Rating" type="text" placeholder="e.g. Hot" value={leadCreateModal.data.lead_rating} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_rating: value } }))} />
+                  <Field label="Address Street" type="text" placeholder="e.g. 123 Main St" value={leadCreateModal.data.address_street} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_street: value } }))} />
+                  <Field label="Address City" type="text" placeholder="e.g. New York" value={leadCreateModal.data.address_city} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_city: value } }))} />
+                  <Field label="Address State" type="text" placeholder="e.g. NY" value={leadCreateModal.data.address_state} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_state: value } }))} />
+                  <Field label="Address Zip Code" type="text" placeholder="e.g. 10001" value={leadCreateModal.data.address_zip_code} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_zip_code: value } }))} />
+                  <Field label="Address Country" type="text" placeholder="e.g. USA" value={leadCreateModal.data.address_country} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_country: value } }))} />
+                  <Field label="Website" type="text" placeholder="e.g. www.example.com" value={leadCreateModal.data.website} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, website: value } }))} />
+                  <Field label="Industry" type="text" placeholder="e.g. Technology" value={leadCreateModal.data.industry} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, industry: value } }))} />
+                  <div className="col-span-2"><Field label="LinkedIn URL" type="text" placeholder="e.g. linkedin.com/in/username" value={leadCreateModal.data.linkedin_url} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, linkedin_url: value } }))} /></div>
+                  <div className="col-span-2"><Field label="Notes" type="textarea" placeholder="Add notes..." value={leadCreateModal.data.notes} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, notes: value } }))} /></div>
+                  <div className="col-span-2"><Field label="Description" type="textarea" placeholder="Add description..." value={leadCreateModal.data.description} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, description: value } }))} /></div>
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
