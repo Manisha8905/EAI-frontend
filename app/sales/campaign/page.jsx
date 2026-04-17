@@ -6876,6 +6876,8 @@ export default function CampaignPage() {
             <option value="EMAIL">EMAIL</option>
             <option value="CALL">CALL</option>
             <option value="LINKEDIN">LINKEDIN</option>
+                        <option value="WHATSAPP">WHATSAPP</option>
+
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
         </div>

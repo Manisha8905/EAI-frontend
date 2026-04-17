@@ -354,9 +354,7 @@ const Sidebar = () => {
       {/* ── Header ── */}
       <div className="px-5 pt-5 pb-4 border-b border-gray-100">
         <h2 className="font-poppins text-[14px] font-[700] text-[#0a0a0a]">
-          {isSuperAdmin
-            ? "All Modules"
-            : normalizedRole === "SUPPORT"
+          {isOnSupportModule
             ? "Customer Support"
             : "Sales"}
         </h2>
@@ -444,8 +442,8 @@ const Sidebar = () => {
 
       {/* ── Bottom ── */}
       <div className="px-3 py-4 border-t border-gray-100 space-y-0.5">
-        {/* User Management — plain ADMIN only (not SUPERADMIN) */}
-        {userIsAdmin && !isSuperAdmin && (
+        {/* User Management — ADMIN and SUPERADMIN only */}
+        {(isSuperAdmin || (userIsAdmin && !isSuperAdmin)) && (
           <Link
             href="/user-management"
             className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${

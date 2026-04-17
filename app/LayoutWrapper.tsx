@@ -42,14 +42,17 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     const role = (localStorage.getItem("userRole") || "").toUpperCase().replace(/[\s_-]/g, "");
     // Redirect root "/" to role-appropriate home
     if (pathname === "/") {
-      if (isAdminRole(role)) {
+      if (role === "SUPERADMIN" || role === "SALES") {
+        router.replace("/metrics");
+      } else if (isAdminRole(role)) {
+        // plain ADMIN goes to user management
         router.replace("/user-management");
       } else if (role === "FINANCE") {
         router.replace("/finance");
       } else if (role === "SUPPORT") {
         router.replace("/support");
       } else {
-        router.replace("/sales");
+        router.replace("/metrics");
       }
       return;
     }

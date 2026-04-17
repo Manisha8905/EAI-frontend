@@ -779,15 +779,15 @@ export default function ModuleDashboard({
       trend: "", // You can calculate trend if available
     },
     meetings: {
-      today: whatsappSm.replies_received_today,
-      week: whatsappSm.replies_received_this_week,
-      month: whatsappSm.replies_received_this_month,
+      today: whatsappSm.meetings_scheduled_today,
+      week: whatsappSm.meetings_scheduled_this_week,
+      month: whatsappSm.meetings_scheduled_this_month,
       trend: "",
     },
     tasks: {
-      today: whatsappSm.read_today,
-      week: whatsappSm.read_this_week,
-      month: whatsappSm.read_this_month,
+      today: whatsappSm.delivered_today,
+      week: whatsappSm.delivered_this_week,
+      month: whatsappSm.delivered_this_month,
       trend: "",
     },
     duration: whatsappSm.avg_time_to_first_reply_hours,
@@ -911,13 +911,13 @@ export default function ModuleDashboard({
           }
         : d.meetings;
 
-  // Card 3: Tasks Created (calls) / Leads Engaged (email) / Messages Exchanged (linkedin)
+  // Card 3: Tasks Created (calls) / Leads Engaged (email) / Meetings Scheduled (linkedin)
   const tasks = linkedinSm
     ? {
-        today: linkedinSm.messages_exchanged_today,
-        week: linkedinSm.messages_exchanged_this_week,
-        month: linkedinSm.messages_exchanged_this_month,
-        trend: `${linkedinSm.messages_exchanged_total ?? 0} total`,
+        today: linkedinSm.meetings_scheduled_today,
+        week: linkedinSm.meetings_scheduled_this_week,
+        month: linkedinSm.meetings_scheduled_this_month,
+        trend: `${linkedinSm.meetings_scheduled_total ?? 0} total`,
       }
     : emailSm
       ? {
@@ -957,6 +957,30 @@ export default function ModuleDashboard({
         : 0) ??
       0,
   );
+
+  // LinkedIn-specific: replies received card data
+  const linkedinReplies = linkedinSm
+    ? {
+        today: linkedinSm.replies_received_today,
+        week: linkedinSm.replies_received_this_week,
+        month: linkedinSm.replies_received_this_month,
+        trend: `${linkedinSm.replies_received_total ?? 0} total`,
+      }
+    : null;
+
+  // WhatsApp-specific: replies received card data
+  const whatsappReplies = activeTab === "whatsapp"
+    ? {
+        today: whatsappSm.replies_received_today,
+        week: whatsappSm.replies_received_this_week,
+        month: whatsappSm.replies_received_this_month,
+        trend: "",
+      }
+    : null;
+
+  // LinkedIn avg time metrics
+  const linkedinAvgAcceptance = linkedinSm?.avg_time_to_acceptance_hours ?? 0;
+  const linkedinAvgFirstReply = linkedinSm?.avg_time_to_first_reply_hours ?? 0;
 
   // Card 4: Avg Call Duration / Avg Emails per Lead / Avg Response Time (linkedin)
   const duration = linkedinSm
@@ -1510,7 +1534,7 @@ export default function ModuleDashboard({
       </div>
 
       {/* ── KPI cards ── */}
-      <section className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <section className={`mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 ${(activeTab === "linkedin" || activeTab === "whatsapp") ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {/* {activeTab === "whatsapp" && whatsappLoading && <div>Loading WhatsApp metrics...</div>}
         {activeTab === "whatsapp" && whatsappError && <div className="text-red-500">{whatsappError}</div>} */}
 
@@ -1546,7 +1570,7 @@ export default function ModuleDashboard({
             activeTab === "linkedin"
               ? "Connections Accepted"
               : activeTab === "whatsapp"
-                ? "Replies Received"
+                ? "Meetings Scheduled"
                 : "Meetings Scheduled"
           }
           today={isLoading ? "…" : meetings.today}
@@ -1554,7 +1578,7 @@ export default function ModuleDashboard({
           month={isLoading ? "…" : meetings.month}
         />
 
-        {/* Card 3: Tasks / Engagement */}
+        {/* Card 3: Tasks / Engagement / Meetings Scheduled (linkedin) */}
         <KpiCard
           gradient="border bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none shadow-lg"
           shadow="shadow-lg shadow-purple-400/25"
@@ -1564,9 +1588,9 @@ export default function ModuleDashboard({
             activeTab === "email"
               ? "Leads Engaged"
               : activeTab === "linkedin"
-                ? "Messages Exchanged"
+                ? "Meetings Scheduled"
                 : activeTab === "whatsapp"
-                  ? "Chats Started"
+                  ? "Delivered"
                   : "Tasks Created"
           }
           today={isLoading ? "…" : tasks.today}
@@ -1574,7 +1598,21 @@ export default function ModuleDashboard({
           month={isLoading ? "…" : tasks.month}
         />
 
-        {/* Card 4: Avg time / Avg emails */}
+        {/* Card 4 (LinkedIn / WhatsApp): Replies Received */}
+        {(activeTab === "linkedin" || activeTab === "whatsapp") && (
+          <KpiCard
+            gradient="border bg-gradient-to-br from-orange-500 to-orange-600 text-white border-none shadow-lg"
+            shadow="shadow-lg shadow-orange-400/25"
+            icon={ArrowUpRight}
+            trend={activeTab === "linkedin" ? (linkedinReplies?.trend ?? "0 total") : ""}
+            title="Replies Received"
+            today={isLoading ? "…" : (activeTab === "linkedin" ? linkedinReplies?.today : whatsappReplies?.today) ?? 0}
+            week={isLoading ? "…" : (activeTab === "linkedin" ? linkedinReplies?.week : whatsappReplies?.week) ?? 0}
+            month={isLoading ? "…" : (activeTab === "linkedin" ? linkedinReplies?.month : whatsappReplies?.month) ?? 0}
+          />
+        )}
+
+        {/* Card 5: Avg time / Avg emails / LinkedIn avg times */}
         <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-5 text-white">
           <div className="flex items-center justify-between mb-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
@@ -1584,15 +1622,51 @@ export default function ModuleDashboard({
               {activeTab === "email" ? "per lead" : "avg. time"}
             </span>
           </div>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
-            {activeTab === "email" ? "Avg Emails / Lead" : "Avg Call Duration"}
-          </p>
-          <p className="text-[36px] font-bold leading-none">
-            {isLoading ? "…" : durationDisplay}
-          </p>
-          <p className="text-[12px] text-white/60 mt-1">
-            {activeTab === "email" ? "Emails per lead" : "minutes per call"}
-          </p>
+          {activeTab === "linkedin" ? (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
+                Avg Time Metrics
+              </p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-[10px] text-white/60">To Acceptance</p>
+                  <p className="text-[24px] font-bold leading-none">
+                    {isLoading ? "…" : `${linkedinAvgAcceptance}h`}
+                  </p>
+                </div>
+                <div className="border-t border-white/20 pt-2">
+                  <p className="text-[10px] text-white/60">To First Reply</p>
+                  <p className="text-[24px] font-bold leading-none">
+                    {isLoading ? "…" : `${linkedinAvgFirstReply}h`}
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : activeTab === "whatsapp" ? (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
+                Avg Time to First Reply
+              </p>
+              <p className="text-[36px] font-bold leading-none">
+                {isLoading ? "…" : whatsappSm.avg_time_to_first_reply_hours != null
+                  ? `${whatsappSm.avg_time_to_first_reply_hours}h`
+                  : "N/A"}
+              </p>
+              <p className="text-[12px] text-white/60 mt-1">hours to first reply</p>
+            </>
+          ) : (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
+                {activeTab === "email" ? "Avg Emails / Lead" : "Avg Call Duration"}
+              </p>
+              <p className="text-[36px] font-bold leading-none">
+                {isLoading ? "…" : durationDisplay}
+              </p>
+              <p className="text-[12px] text-white/60 mt-1">
+                {activeTab === "email" ? "Emails per lead" : "minutes per call"}
+              </p>
+            </>
+          )}
         </article>
       </section>
 
