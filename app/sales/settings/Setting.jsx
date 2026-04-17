@@ -44,6 +44,8 @@ import {
   ShieldCheck,
   ShieldOff,
   FileDown,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8019,6 +8021,11 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
     conversation_status_distribution: [],
   });
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [enrichmentFetchLoading, setEnrichmentFetchLoading] = useState({
+    xai: false,
+    grokEnrichment: false,
+    emailStyle: false,
+  });
 
   const setField = (section, key) => (input) => {
     const value = input?.target
@@ -8337,6 +8344,113 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   // useEffect(() => {
   //   fetchWhatsappMetrics();
   // }, [fetchWhatsappMetrics]);
+
+  /* ═══════════════════════ ENRICHMENT API FETCHERS ═══════════════════════ */
+  const fetchXaiConfig = async () => {
+    try {
+      setEnrichmentFetchLoading((prev) => ({ ...prev, xai: true }));
+      const res = await axiosInstance.get("/api/globalsetting/xai");
+      const d = res.data?.data ?? res.data ?? {};
+      setForms((prev) => ({
+        ...prev,
+        enrichment: {
+          ...prev.enrichment,
+          xai_api_key: d.xai_api_key ?? d.API_KEY ?? prev.enrichment.xai_api_key,
+        },
+      }));
+      toast.success("XAI API Key loaded successfully.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail ?? "Failed to load XAI config");
+    } finally {
+      setEnrichmentFetchLoading((prev) => ({ ...prev, xai: false }));
+    }
+  };
+
+  const fetchGrokEnrichmentConfig = async () => {
+    try {
+      setEnrichmentFetchLoading((prev) => ({ ...prev, grokEnrichment: true }));
+      const res = await axiosInstance.get("/api/globalsetting/grok-enrichment");
+      const d = res.data?.data ?? res.data ?? {};
+      setForms((prev) => ({
+        ...prev,
+        enrichment: {
+          ...prev.enrichment,
+          grok_enrichment:
+            d.grok_enrichment ??
+            d.value ??
+            d.model ??
+            prev.enrichment.grok_enrichment,
+          enable_grok_enrichment:
+            d.enable_grok_enrichment ?? prev.enrichment.enable_grok_enrichment,
+          _enrichmentOptions: Array.isArray(d.options) ? d.options : prev.enrichment._enrichmentOptions,
+        },
+      }));
+      toast.success("Enrichment Level loaded successfully.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail ?? "Failed to load Enrichment config");
+    } finally {
+      setEnrichmentFetchLoading((prev) => ({ ...prev, grokEnrichment: false }));
+    }
+  };
+
+  const fetchEmailStyleConfig = async () => {
+    try {
+      setEnrichmentFetchLoading((prev) => ({ ...prev, emailStyle: true }));
+      const res = await axiosInstance.get("/api/globalsetting/grok-email-style");
+      const d = res.data?.data ?? res.data ?? {};
+      setForms((prev) => ({
+        ...prev,
+        enrichment: {
+          ...prev.enrichment,
+          grok_email_style:
+            d.grok_email_style ??
+            d.value ??
+            d.style ??
+            prev.enrichment.grok_email_style,
+          _emailStyleOptions: Array.isArray(d.options) ? d.options : prev.enrichment._emailStyleOptions,
+        },
+      }));
+      toast.success("Email Style loaded successfully.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail ?? "Failed to load Email Style config");
+    } finally {
+      setEnrichmentFetchLoading((prev) => ({ ...prev, emailStyle: false }));
+    }
+  };
+
+  const saveEnrichmentField = async (fieldName) => {
+    try {
+      let loadingKey, endpoint, payload;
+
+      if (fieldName === "xai_api_key") {
+        loadingKey = "xai";
+        endpoint = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/api/globalsetting/xai";
+        payload = { xai_api_key: forms.enrichment.xai_api_key };
+      } else if (fieldName === "enable_grok_enrichment") {
+        loadingKey = "grokEnrichment";
+        endpoint = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/api/globalsetting/grok-enrichment";
+        payload = { enable_grok_enrichment: forms.enrichment.enable_grok_enrichment };
+      } else if (fieldName === "grok_email_style") {
+        loadingKey = "emailStyle";
+        endpoint = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/api/globalsetting/grok-email-style";
+        payload = { grok_email_style: forms.enrichment.grok_email_style };
+      }
+
+      setEnrichmentFetchLoading((prev) => ({ ...prev, [loadingKey]: true }));
+
+      const res = await axiosInstance.put(endpoint, payload);
+
+      toast.success(`${fieldName.replace(/_/g, " ")} saved successfully.`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail ?? `Failed to save ${fieldName.replace(/_/g, " ")}`);
+    } finally {
+      const loadingKey = 
+        fieldName === "xai_api_key" ? "xai" :
+        fieldName === "enable_grok_enrichment" ? "grokEnrichment" :
+        fieldName === "grok_email_style" ? "emailStyle" : "xai";
+      setEnrichmentFetchLoading((prev) => ({ ...prev, [loadingKey]: false }));
+    }
+  };
 
   const save = async (section) => {
     if (!canAccess) {
@@ -8953,58 +9067,113 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                   Enrichment
                 </h3>
               </div>
-              <SaveBtn section="enrichment" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <Field
-                  label="API Key"
-                  type="password"
-                  value={forms.enrichment.xai_api_key}
-                  onChange={setField("enrichment", "xai_api_key")}
-                  placeholder="api-xxxxxxxxxxxxxxxx"
-                />
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <Field
+                      label="API Key (XAI)"
+                      type="password"
+                      value={forms.enrichment.xai_api_key}
+                      onChange={setField("enrichment", "xai_api_key")}
+                      placeholder="api-xxxxxxxxxxxxxxxx"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => saveEnrichmentField("xai_api_key")}
+                    disabled={enrichmentFetchLoading.xai}
+          className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
+                    title="Save XAI API Key"
+                  >
+                    {enrichmentFetchLoading.xai ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+<Settings className="h-3.5 w-3.5" />                    )}
+                    {enrichmentFetchLoading.xai ? "Saving..." : "Save"}
+                  </button>
+                </div>
               </div>
-            <SelectField
-  label="Enrichment Level"
-  value={String(!!forms.enrichment.enable_grok_enrichment)}
-  onChange={(e) =>
-    setForms((prev) => ({
-      ...prev,
-      enrichment: {
-        ...prev.enrichment,
-        enable_grok_enrichment: e.target.value === "true",
-      },
-    }))
-  }
-  options={[
-    { label: "Advanced", value: "true" },
-    { label: "Base", value: "false" },
-  ]}
-/>
-
-<SelectField
-  label="Email Style"
-  value={forms.enrichment.grok_email_style}
-  onChange={setField("enrichment", "grok_email_style")}
-  options={
-    forms.enrichment._emailStyleOptions?.length > 0
-      ? forms.enrichment._emailStyleOptions.map((o) =>
-          typeof o === "string"
-            ? { label: o, value: o }
-            : {
-                label: o.label ?? o.name ?? o.value,
-                value: o.value ?? o.name,
-              },
-        )
-      : [
-          { label: "Select…", value: "" },
-          { label: "Business", value: "business" },
-          { label: "Personal", value: "personal" },
-          { label: "Automated", value: "automated" },
-        ]
-  }
-/>
+              <div>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <SelectField
+                      label="Enrichment Level"
+                      value={String(!!forms.enrichment.enable_grok_enrichment)}
+                      onChange={(e) =>
+                        setForms((prev) => ({
+                          ...prev,
+                          enrichment: {
+                            ...prev.enrichment,
+                            enable_grok_enrichment: e.target.value === "true",
+                          },
+                        }))
+                      }
+                      options={[
+                        { label: "Advanced", value: "true" },
+                        { label: "Base", value: "false" },
+                      ]}
+                    />
+                  </div>
+          
+                  <button
+                    type="button"
+                    onClick={() => saveEnrichmentField("enable_grok_enrichment")}
+                    disabled={enrichmentFetchLoading.grokEnrichment}
+          className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
+                    title="Save Enrichment Level"
+                  >
+                    {enrichmentFetchLoading.grokEnrichment ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Settings className="h-3.5 w-3.5" />
+                    )}
+                    {enrichmentFetchLoading.grokEnrichment ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <SelectField
+                      label="Email Style"
+                      value={forms.enrichment.grok_email_style}
+                      onChange={setField("enrichment", "grok_email_style")}
+                      options={
+                        forms.enrichment._emailStyleOptions?.length > 0
+                          ? forms.enrichment._emailStyleOptions.map((o) =>
+                              typeof o === "string"
+                                ? { label: o, value: o }
+                                : {
+                                    label: o.label ?? o.name ?? o.value,
+                                    value: o.value ?? o.name,
+                                  },
+                            )
+                          : [
+                              { label: "Select…", value: "" },
+                              { label: "Business", value: "business" },
+                              { label: "Personal", value: "personal" },
+                              { label: "Automated", value: "automated" },
+                            ]
+                      }
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => saveEnrichmentField("grok_email_style")}
+                    disabled={enrichmentFetchLoading.emailStyle}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
+                    title="Save Email Style"
+                  >
+                    {enrichmentFetchLoading.emailStyle ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+<Settings className="h-3.5 w-3.5" />                    )}
+                    {enrichmentFetchLoading.emailStyle ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
