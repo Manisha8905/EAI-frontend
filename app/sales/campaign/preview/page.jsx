@@ -96,6 +96,29 @@ const stripHtml = (value) => {
     .trim();
 };
 
+const normalizeAvailableOnSystem = (availableOnSystem) => {
+  if (!availableOnSystem || typeof availableOnSystem !== "object" || Array.isArray(availableOnSystem)) {
+    return null;
+  }
+
+  return Object.entries(availableOnSystem).reduce((acc, [key, rawValue]) => {
+    if (rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) && "value" in rawValue) {
+      acc[key] = rawValue.value;
+    } else {
+      acc[key] = rawValue;
+    }
+    return acc;
+  }, {});
+};
+
+const hasDisplayValue = (value) => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.some((item) => hasDisplayValue(item));
+  if (typeof value === "object") return Object.values(value).some((v) => hasDisplayValue(v));
+  return true;
+};
+
 const normalizeLead = (lead) => {
   const leadData = lead?.lead_data ?? {};
   const id = resolveLeadId(lead);
@@ -111,7 +134,9 @@ const normalizeLead = (lead) => {
     previewSubject: preview.subject,
     previewBody: preview.body,
     previewBodyHtml: preview.bodyHtml,
-    availableOnSystem: lead?.available_on_system ?? null,
+    availableOnSystem: normalizeAvailableOnSystem(
+      lead?.available_on_system ?? leadData?.available_on_system ?? null
+    ),
     fetchedByAi: lead?.fetched_by_ai ?? null,
     aiEngine: lead?.ai_engine ?? null,
   };
@@ -963,7 +988,18 @@ export default function CampaignPreviewPage() {
   "sender_company",
   "no_of_employees",
   "company_description"];
-                            return expectedKeys.map((key) => {
+                            const extraKeys = Object.keys(sys).filter((k) => !expectedKeys.includes(k));
+                            const orderedKeys = [...expectedKeys, ...extraKeys].filter((key) => hasDisplayValue(sys[key]));
+
+                            if (orderedKeys.length === 0) {
+                              return (
+                                <div className="flex items-center justify-center py-8">
+                                  <p className="text-[13px] text-gray-400">No data available.</p>
+                                </div>
+                              );
+                            }
+
+                            return orderedKeys.map((key) => {
                               const val = sys[key];
                               const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
                               const renderValue = (v) => {
@@ -1033,7 +1069,7 @@ export default function CampaignPreviewPage() {
                             }
                             const renderSection = (title, data) => {
                               if (!data || typeof data !== "object") return null;
-                              const entries = Object.entries(data);
+                              const entries = Object.entries(data).filter(([, val]) => hasDisplayValue(val));
                               if (entries.length === 0) return null;
                               return (
                                 <div>
@@ -1087,10 +1123,21 @@ export default function CampaignPreviewPage() {
                                 </div>
                               );
                             };
+                            const personalSection = renderSection("Personal Details", ai.personalDetails);
+                            const businessSection = renderSection("Business Details", ai.businessDetails);
+
+                            if (!personalSection && !businessSection) {
+                              return (
+                                <div className="flex items-center justify-center py-8">
+                                  <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
+                                </div>
+                              );
+                            }
+
                             return (
                               <>
-                                {renderSection("Personal Details", ai.personalDetails)}
-                                {renderSection("Business Details", ai.businessDetails)}
+                                {personalSection}
+                                {businessSection}
                               </>
                             );
                           })()}

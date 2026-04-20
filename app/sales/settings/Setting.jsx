@@ -418,7 +418,11 @@ function CRMPage({ onBack, onConnectionChange }) {
     }
   };
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k) => (input) =>
+    setForm((f) => ({
+      ...f,
+      [k]: input?.target?.value ?? input ?? "",
+    }));
 
   /* Build full_oauth_url → POST all 5 fields to /auth_cred → check status → redirect if needed */
   const handleSave = async (e) => {
@@ -8002,7 +8006,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       webhook_secret: "",
     },
     campaign_email_settings: {
-      from_email: "",
+      email: "",
       reply_to_email: "",
       from_name: "",
       template_id: "",
@@ -8313,7 +8317,10 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         if (campaignEmailSettingsRes.status === "fulfilled") {
           const d = campaignEmailSettingsRes.value?.data ?? {};
           next.campaign_email_settings = {
-            from_email: d.from_email ?? prev.campaign_email_settings.from_email,
+            email:
+              d.email ??
+              d.from_email ??
+              prev.campaign_email_settings.email,
             reply_to_email:
               d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
             from_name: d.from_name ?? prev.campaign_email_settings.from_name,
@@ -8543,7 +8550,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       }
       if (section === "campaign_email_settings") {
         await axiosInstance.put("/campaign-email-settings", {
-          from_email: forms.campaign_email_settings.from_email,
+          email: forms.campaign_email_settings.email,
           reply_to_email: forms.campaign_email_settings.reply_to_email,
           from_name: forms.campaign_email_settings.from_name,
           template_id: forms.campaign_email_settings.template_id,
@@ -8915,8 +8922,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <Field
                 label="From Email"
                 type="email"
-                value={forms.campaign_email_settings.from_email}
-                onChange={setField("campaign_email_settings", "from_email")}
+                value={forms.campaign_email_settings.email}
+                onChange={setField("campaign_email_settings", "email")}
                 placeholder="noreply@company.com"
               />
               <Field

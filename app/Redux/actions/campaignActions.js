@@ -62,7 +62,7 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
       convRate:          c.campaign_conversion_rate      ?? 0,
       agentPerf:         c.agent_performance_percentage  ?? 0,
       fromName:          c.from_name                    ?? "",
-      fromEmail:         c.from_email                   ?? "",
+      fromEmail:         c.email                        ?? c.from_email ?? "",
       isSmtp:            c.is_smtp                      ?? false,
       isProcessing:      c.is_processing                ?? false,
       parallelCalls:     c.campaign_parallel_calls      ?? 1,
@@ -140,7 +140,10 @@ export const approveEmailDrafts = (campaignId, selectedLeadIds = [], totalLeadCo
     // Step 2: Fetch fresh email-drafts data after approval
     const fetchUrl = `/api/campaigns/${campaignId}/email-drafts`;
     const fetchRes = await axiosInstance.get(fetchUrl);
-    const freshDrafts = fetchRes?.data ?? [];
+    const freshPayload = fetchRes?.data;
+    const freshDrafts = Array.isArray(freshPayload)
+      ? freshPayload
+      : (freshPayload?.drafts ?? freshPayload?.data ?? freshPayload?.items ?? freshPayload?.results ?? []);
 
     dispatch({
       type: APPROVE_EMAIL_DRAFTS_SUCCESS,

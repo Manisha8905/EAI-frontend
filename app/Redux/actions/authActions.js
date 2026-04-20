@@ -495,7 +495,7 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
       convRate:          toNumber(c.campaign_conversion_rate),
       agentPerf:         toNumber(c.agent_performance_percentage),
       fromName:          c.from_name                    ?? "",
-      fromEmail:         c.from_email                   ?? "",
+      fromEmail:         c.email                        ?? c.from_email ?? "",
       isSmtp:            c.is_smtp                      ?? false,
       isProcessing:      c.is_processing                ?? false,
       parallelCalls:     toNumber(c.campaign_parallel_calls, 1),
@@ -590,7 +590,7 @@ const normalizeCampaign = (c) => ({
   convRate:          toNumber(c.campaign_conversion_rate),
   agentPerf:         toNumber(c.agent_performance_percentage),
   fromName:          c.from_name                    ?? "",
-  fromEmail:         c.from_email                   ?? "",
+  fromEmail:         c.email                        ?? c.from_email ?? "",
   isSmtp:            c.is_smtp                      ?? false,
   isProcessing:      c.is_processing                ?? false,
   parallelCalls:     toNumber(c.campaign_parallel_calls, 1),
@@ -1168,6 +1168,21 @@ export const fetchEmailDrafts = (campaignId) => async (dispatch) => {
   try {
     const res = await axiosInstance.get(`/api/campaigns/${campaignId}/email-drafts`);
     const raw = Array.isArray(res.data) ? res.data : (res.data?.drafts ?? res.data?.data ?? res.data?.items ?? res.data?.results ?? []);
+
+    const normalizeAvailableOnSystem = (availableOnSystem) => {
+      if (!availableOnSystem || typeof availableOnSystem !== "object" || Array.isArray(availableOnSystem)) {
+        return null;
+      }
+
+      return Object.entries(availableOnSystem).reduce((acc, [key, rawValue]) => {
+        if (rawValue && typeof rawValue === "object" && !Array.isArray(rawValue) && "value" in rawValue) {
+          acc[key] = rawValue.value;
+        } else {
+          acc[key] = rawValue;
+        }
+        return acc;
+      }, {});
+    };
     
     const normalized = raw.map((r) => ({
       id: r.id ?? r.email_draft_id ?? r.draft_id ?? null,
@@ -1185,6 +1200,7 @@ export const fetchEmailDrafts = (campaignId) => async (dispatch) => {
       follow_up_tasks: r.follow_up_tasks ?? [],
       total_tasks: Number(r.total_tasks ?? 0) || 0,
       ...r,
+      available_on_system: normalizeAvailableOnSystem(r?.available_on_system),
     }));
 
     dispatch({
