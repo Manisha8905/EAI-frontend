@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Download,
   MessageCircle,
+  MoreVertical,
   Plus,
   Search,
   ShieldAlert,
@@ -116,12 +117,26 @@ const CONVERSATION_TABS = [
 const STATUS_FILTER_OPTIONS = ["open", "responded", "closed", "all"];
 
 const TAB_TO_FILTER = {
-  "Open Chats": { status: "open", escalated: false },
-  "Escalated Chats": { status: "all", escalated: true },
-  "Responded Chats": { status: "responded", escalated: false },
-  "Closed Chats": { status: "closed", escalated: false },
+  "Open Chats": { status: "open", escalated: undefined },
+  "Escalated Chats": { status: "open", escalated: true },
+  "Responded Chats": { status: "responded", escalated: undefined },
+  "Closed Chats": { status: "closed", escalated: undefined },
 };
 
+// const TAB_TO_FILTER = {
+//   "Open Chats": { status: ["open"] },
+
+//   "Escalated Chats": { 
+//     status: ["open", "responded"], 
+//     escalated: true 
+//   },
+
+//   "Responded Chats": { 
+//     status: ["responded", "partial"] 
+//   },
+
+//   "Closed Chats": { status: ["closed"] },
+// };
 
 const INITIAL_RULES = [
   {
@@ -147,17 +162,28 @@ const normalizeConversation = (row = {}) => {
     String(row.status ?? "").toLowerCase() === "escalated";
 
   const rawStatus = String(row.status ?? "open").toLowerCase();
-  const stage = isEscalated
-    ? "Escalated Chats"
-    : rawStatus.includes("closed")
-      ? "Closed Chats"
-      : "Open Chats";
+
+  // Determine stage: status takes priority so responded/closed go to their tabs;
+  // escalated flag only applies to open conversations
+  const stage = rawStatus.includes("closed")
+    ? "Closed Chats"
+    : rawStatus.includes("respond")
+      ? "Responded Chats"
+      : isEscalated
+        ? "Escalated Chats"
+        : "Open Chats";
 
   return {
     id: String(row.id ?? row.chat_id ?? row.conversation_id ?? ""),
     session_id: row.session_id ?? null,
     lead:
-      row.lead_name ?? row.lead ?? row.customer_name ?? row.user_name ?? row.name ?? "Unknown Lead",
+      row.title ??
+      row.lead_name ??
+      row.lead ??
+      row.customer_name ??
+      row.user_name ??
+      row.name ??
+      "Unknown Lead",
     email: row.email ?? row.customer_email ?? row.user_email ?? "No email",
     preview:
       row.preview ?? row.last_message ?? row.message_preview ?? row.message ?? "No message preview",
@@ -171,6 +197,7 @@ const normalizeConversation = (row = {}) => {
     stage,
     status: rawStatus,
     escalated: isEscalated,
+    messageCount: row.message_count ?? null,
     assignedTo: row.assigned_to ?? row.assignee ?? null,
   };
 };
@@ -204,37 +231,23 @@ function SkeletonMessage({ isBot }) {
 
 function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
   const tones = {
-    blue: {
-      card: "bg-[#e9f1ff] border-[#b8d2ff]",
-      iconWrap: "bg-[#cfe2ff] text-[#2563eb]",
-    },
-    red: {
-      card: "bg-[#ffeef0] border-[#f8b4bc]",
-      iconWrap: "bg-[#ffd8dd] text-[#ef4444]",
-    },
-    green: {
-      card: "bg-[#e9f9ef] border-[#9de3b0]",
-      iconWrap: "bg-[#c8efcf] text-[#16a34a]",
-    },
-    purple: {
-      card: "bg-[#f3ebff] border-[#dcc6ff]",
-      iconWrap: "bg-[#e5d4ff] text-[#9333ea]",
-    },
+    blue: "from-blue-500 to-blue-600",
+    red: "from-rose-500 to-red-600",
+    green: "from-emerald-500 to-green-600",
+    purple: "from-violet-500 to-fuchsia-600",
   };
 
   return (
-    <article className={`rounded-2xl border px-5 py-6 ${tones[tone].card}`}>
-      <div className="flex items-start justify-between">
-        <div className="">
-          <p className="text-[14px] font-[500] text-[#314f7d]">{title}</p>
-          <p className="text-[30px] font-[800] leading-none text-[#091a44]">
+    <article className={`rounded-2xl bg-gradient-to-br px-5 py-4 text-white shadow-lg ${tones[tone]}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-[500] text-white/80">{title}</p>
+          <p className="mt-0.5 text-[32px] font-[800] leading-none tracking-tight text-white">
             {formatter ? formatter(value) : value}
           </p>
         </div>
-        <span
-          className={`inline-flex h-12 w-12 items-center justify-center rounded-xl ${tones[tone].iconWrap}`}
-        >
-          <Icon className="h-6 w-6" />
+        <span className="inline-flex shrink-0 rounded-xl bg-white/20 p-3">
+          <Icon className="h-5 w-5" />
         </span>
       </div>
     </article>
@@ -251,10 +264,14 @@ export default function SupportChatbotReporting() {
   const [isAgentsOpen, setIsAgentsOpen] = useState(false);
   const [selectedChats, setSelectedChats] = useState(new Set());
   const [isConvPanelAssignOpen, setIsConvPanelAssignOpen] = useState(false);
+  const [isRightAssignOpen, setIsRightAssignOpen] = useState(false);
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
   const agentsDropdownRef = useRef(null);
   const convAssignDropdownRef = useRef(null);
+  const rightAssignDropdownRef = useRef(null);
+  const statusMenuRef = useRef(null);
 
-  // Close Agents and ConvPanel-Assign dropdowns when clicking outside
+  // Close Agents, ConvPanel-Assign, and RightAssign dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (agentsDropdownRef.current && !agentsDropdownRef.current.contains(e.target)) {
@@ -262,6 +279,12 @@ export default function SupportChatbotReporting() {
       }
       if (convAssignDropdownRef.current && !convAssignDropdownRef.current.contains(e.target)) {
         setIsConvPanelAssignOpen(false);
+      }
+      if (rightAssignDropdownRef.current && !rightAssignDropdownRef.current.contains(e.target)) {
+        setIsRightAssignOpen(false);
+      }
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target)) {
+        setIsStatusMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -280,6 +303,8 @@ export default function SupportChatbotReporting() {
   const [agents, setAgents] = useState([]);
   const [isAssignedToast, setIsAssignedToast] = useState(false);
   const [isRightAssignToast, setIsRightAssignToast] = useState(false);
+  const [assignToastMessage, setAssignToastMessage] = useState("");
+  const [assignResponseData, setAssignResponseData] = useState(null);
   const [businessRules, setBusinessRules] = useState(INITIAL_RULES);
   const [isBusinessRulesListOpen, setIsBusinessRulesListOpen] = useState(false);
   const [isRulesInlineAddOpen, setIsRulesInlineAddOpen] = useState(false);
@@ -312,7 +337,12 @@ export default function SupportChatbotReporting() {
 
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
-      const inTab = c.stage === activeConversationTab;
+      const inTab =
+        activeConversationTab === "Escalated Chats"
+          ? c.escalated === true
+          : activeConversationTab === "Open Chats"
+            ? c.status === "open"
+            : c.stage === activeConversationTab;
       const q = search.trim().toLowerCase();
       const matchesSearch =
         !q ||
@@ -343,7 +373,7 @@ export default function SupportChatbotReporting() {
         limit: pagination.limit,
         offset: pagination.offset,
         status_filter: safeStatus,
-        escalated: filters.escalated,
+        ...(filters.escalated !== undefined && { escalated: filters.escalated }),
         ...(filters.startDate && { start_date: filters.startDate }),
         ...(filters.endDate && { end_date: filters.endDate }),
         ...params,
@@ -388,7 +418,15 @@ export default function SupportChatbotReporting() {
     if (!sessionId) return;
     try {
       setChatHistoryLoading(true);
-      const response = await axiosInstance.get(`/api/chatbot/chat/history/${sessionId}`);
+      // .catch(() => null) prevents the rejected promise from surfacing
+      // in the Next.js dev overlay before the try-catch can handle it
+      const response = await axiosInstance
+        .get(`/api/chatbot/chat/history/${sessionId}`)
+        .catch(() => null);
+      if (!response) {
+        setChatHistory([]);
+        return;
+      }
       const payload = response?.data?.data ?? response?.data ?? [];
       const msgs = Array.isArray(payload)
         ? payload
@@ -408,8 +446,7 @@ export default function SupportChatbotReporting() {
           timestamp: msg.timestamp ?? msg.created_at ?? null,
         }))
       );
-    } catch (error) {
-      console.error("Error fetching chat history:", error);
+    } catch {
       setChatHistory([]);
     } finally {
       setChatHistoryLoading(false);
@@ -472,34 +509,71 @@ export default function SupportChatbotReporting() {
     }
   };
 
-  const assignChat = async (chatIds, agentId) => {
+  const assignChat = async (convIds, agentId) => {
     try {
+      // API expects session_id values in chat_ids, not conversation id
+      const sessionIds = convIds
+        .map((convId) => {
+          const conv = conversations.find((c) => String(c.id) === String(convId));
+          return conv?.session_id ?? null;
+        })
+        .filter(Boolean);
+      if (!sessionIds.length) {
+        setAssignToastMessage("Could not find session ID for selected conversation.");
+        setAssignResponseData(null);
+        setIsAssignedToast(true);
+        setTimeout(() => setIsAssignedToast(false), 3000);
+        return;
+      }
       const response = await axiosInstance.post("/api/chatbot/assign", {
-        chat_ids: chatIds,
+        chat_ids: sessionIds,
         agent_id: agentId,
       });
+      const apiMsg =
+           response?.data?.message ||
+          response?.data?.detail ||
+        "Conversation assigned successfully";
+      setAssignToastMessage(apiMsg);
+      setAssignResponseData(response.data ?? null);
       setIsAssignedToast(true);
-      setTimeout(() => setIsAssignedToast(false), 3000);
+      setTimeout(() => { setIsAssignedToast(false); setAssignResponseData(null); }, 3000);
       await fetchConversations();
       return response.data;
     } catch (error) {
       console.error("Error assigning chat:", error);
-      setConversationsError(error.message);
+      setConversationsError(          error?.response?.data?.message ||
+          error?.response?.data?.detail ||
+          "Failed to assign conversation."
+);
     }
   };
 
   const updateChatStatus = async (chatId, status) => {
     try {
       const response = await axiosInstance.post("/api/chatbot/update-status", {
-        chat_id: chatId,
+        chat_ids: [chatId],
         status,
       });
+      const apiMsg =
+        response?.data?.message ||
+        response?.data?.detail ||
+        `Status updated to "${status}"` ;
+      setAssignToastMessage(apiMsg);
+      setAssignResponseData(null);
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
       await fetchConversations();
       return response.data;
     } catch (error) {
       console.error("Error updating chat status:", error);
       setConversationsError(error.message);
     }
+  };
+
+  const handleUpdateStatus = async (status) => {
+    if (!selectedConversationId) return;
+    setIsStatusMenuOpen(false);
+    await updateChatStatus(selectedConversationId, status);
   };
 
   const exportConversations = async () => {
@@ -542,18 +616,12 @@ export default function SupportChatbotReporting() {
     }
   };
 
-  const handleRightAssignClick = async () => {
+  const handleRightAssignToAgent = async (agentId) => {
     if (!selectedConversationId) return;
-    try {
-      await axiosInstance.post("/api/chatbot/assign", {
-        chat_ids: [selectedConversationId],
-        assigned_to: "current_user",
-      });
-      setIsRightAssignToast(true);
-      setTimeout(() => setIsRightAssignToast(false), 3000);
-    } catch (error) {
-      console.error("Error assigning chat:", error);
-    }
+    await assignChat([selectedConversationId], agentId);
+    setIsRightAssignOpen(false);
+    setIsRightAssignToast(true);
+    setTimeout(() => setIsRightAssignToast(false), 3000);
   };
 
   const handleAddRuleInList = () => {
@@ -634,7 +702,9 @@ export default function SupportChatbotReporting() {
 
   const handleTabChange = (tab) => {
     setActiveConversationTab(tab);
-    const next = TAB_TO_FILTER[tab] ?? { status: "open", escalated: false };
+    setSelectedChats(new Set());
+    setIsConvPanelAssignOpen(false);
+    const next = TAB_TO_FILTER[tab] ?? { status: "open", escalated: undefined };
     setFilters((prev) => ({
       ...prev,
       status: next.status,
@@ -724,6 +794,35 @@ export default function SupportChatbotReporting() {
 
   return (
     <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-6">
+      {/* Global Assign Toast — fixed so overflow-hidden never clips it */}
+      {(isRightAssignToast || isAssignedToast) && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-2xl" style={{ minWidth: 260 }}>
+          <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#061a43]">
+            <Check className="h-4 w-4 text-white" />
+          </span>
+          <div className="flex flex-col gap-0.5">
+            <p className="text-[14px] font-[700] text-[#061a43]">{assignToastMessage || "Conversation assigned successfully"}</p>
+            {assignResponseData?.assigned_to && (
+              <p className="text-[12px] text-gray-500">
+                <span className="font-[600] text-[#253b69]">Assigned to:</span> {assignResponseData.assigned_to}
+              </p>
+            )}
+            {assignResponseData?.agent_email && (
+              <p className="text-[12px] text-gray-400">{assignResponseData.agent_email}</p>
+            )}
+            <div className="mt-1 flex items-center gap-3">
+              {assignResponseData?.count != null && (
+                <span className="text-[11px] font-[600] text-[#6d28d9]">{assignResponseData.count} chat{assignResponseData.count !== 1 ? "s" : ""} assigned</span>
+              )}
+              {assignResponseData?.email_sent != null && (
+                <span className={`text-[11px] font-[600] ${assignResponseData.email_sent ? "text-green-600" : "text-gray-400"}`}>
+                  {assignResponseData.email_sent ? "Email sent" : "No email sent"}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
             {/* Error Display */}
             {/* {conversationsError && (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-[14px] text-red-600">
@@ -917,35 +1016,36 @@ export default function SupportChatbotReporting() {
         {/* Conversations Panel */}
         <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between">
               <h3 className="text-[16px] font-[800] text-[#061a43]">Conversations</h3>
-              <div className="relative" ref={convAssignDropdownRef}>
-                <button
-                  type="button"
-                  disabled={selectedChats.size === 0}
-                  onClick={() => setIsConvPanelAssignOpen((v) => !v)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <UserCog className="h-4 w-4" />
-                  Assign{selectedChats.size > 0 ? ` (${selectedChats.size})` : ""}
-                </button>
-                {isConvPanelAssignOpen && selectedChats.size > 0 && (
-                  <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Assign to agent</p>
-                    {agents.map((agent) => (
-                      <button
-                        key={agent.id}
-                        type="button"
-                        onClick={() => handleAssignSelectedChats(agent.id)}
-                        className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
-                      >
-                        <span className="font-[600]">{agent.name}</span>
-                        <span className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}>{agent.is_active ? "Online" : "Offline"}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {selectedChats.size > 0 && (
+                <div className="relative" ref={convAssignDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsConvPanelAssignOpen((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[13px] font-[600] text-white transition-colors ${isConvPanelAssignOpen ? "border-[#6d28d9] bg-[#6d28d9]" : "border-[#7c3aed] bg-[#7c3aed] hover:bg-[#6d28d9]"}`}
+                  >
+                    <UserCog className="h-4 w-4" />
+                    Assign ({selectedChats.size})
+                  </button>
+                  {isConvPanelAssignOpen && (
+                    <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                      <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Assign to agent</p>
+                      {agents.map((agent) => (
+                        <button
+                          key={agent.id}
+                          type="button"
+                          onClick={() => handleAssignSelectedChats(agent.id)}
+                          className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
+                        >
+                          <span className="font-[600]">{agent.name}</span>
+                          <span className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}>{agent.is_active ? "Online" : "Offline"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1003,23 +1103,25 @@ export default function SupportChatbotReporting() {
                       : "border-l-transparent"
                   }`}
                 >
-                  {/* Checkbox */}
-                  <div className="flex shrink-0 items-start pt-5 pl-4">
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleSelectChat(e, conv.id)}
-                      className={`flex h-4.5 w-4.5 items-center justify-center rounded border transition-colors ${
-                        selectedChats.has(conv.id)
-                          ? "border-[#7c3aed] bg-[#7c3aed]"
-                          : "border-gray-300 bg-white hover:border-[#7c3aed]"
-                      }`}
-                      aria-label="Select conversation"
-                    >
-                      {selectedChats.has(conv.id) && (
-                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                      )}
-                    </button>
-                  </div>
+                  {/* Checkbox — only on Escalated Chats tab */}
+                  {activeConversationTab === "Escalated Chats" && (
+                    <div className="flex shrink-0 items-start pt-5 pl-4">
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleSelectChat(e, conv.id)}
+                        className={`flex h-4.5 w-4.5 items-center justify-center rounded border transition-colors ${
+                          selectedChats.has(conv.id)
+                            ? "border-[#7c3aed] bg-[#7c3aed]"
+                            : "border-gray-300 bg-white hover:border-[#7c3aed]"
+                        }`}
+                        aria-label="Select conversation"
+                      >
+                        {selectedChats.has(conv.id) && (
+                          <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                        )}
+                      </button>
+                    </div>
+                  )}
                   {/* Row content */}
                   <button
                     type="button"
@@ -1048,6 +1150,21 @@ export default function SupportChatbotReporting() {
                             Escalated
                           </span>
                         )}
+                        {conv.assignedTo && (
+                          <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-[600] text-[#4a5d81]">
+                            {conv.assignedTo}
+                          </span>
+                        )}
+                        {conv.status && (
+                          <span className={`rounded-full px-3 py-1 text-[11px] font-[600] ${
+                            conv.status === "open" ? "bg-blue-100 text-blue-700" :
+                            conv.status === "responded" ? "bg-green-100 text-green-700" :
+                            conv.status === "closed" ? "bg-gray-100 text-gray-500" :
+                            "bg-yellow-100 text-yellow-700"
+                          }`}>
+                            {conv.status.charAt(0).toUpperCase() + conv.status.slice(1)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -1062,14 +1179,67 @@ export default function SupportChatbotReporting() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 sm:px-6">
             <h3 className="text-[16px] font-[800] text-[#061a43]">Messages</h3>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleRightAssignClick}
-                disabled={!selectedConversationId}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <User className="h-4 w-4" /> Assign
-              </button>
+              {/* Three-dots status menu */}
+              <div className="relative" ref={statusMenuRef}>
+             
+                {isStatusMenuOpen && (
+                  <div className="absolute right-0 z-30 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Update Status</p>
+                    {[
+                      // { label: "Mark as open", status: "open" },
+                      { label: "Mark as responded", status: "responded" },
+                      { label: "Mark as closed", status: "closed" },
+                    ].map((item) => (
+                      <button
+                        key={item.status}
+                        type="button"
+                        onClick={() => handleUpdateStatus(item.status)}
+                        className="flex w-full items-center px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
+                      >
+                        <span className={`mr-2 h-2 w-2 rounded-full ${
+                          item.status === "open" ? "bg-blue-500" :
+                          item.status === "responded" ? "bg-green-500" :
+                          "bg-gray-400"
+                        }`} />
+                        <span className="font-[600]">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="relative" ref={rightAssignDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsRightAssignOpen((v) => !v)}
+                  disabled={!selectedConversationId}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 ${isRightAssignOpen ? "border-[#7c3aed] bg-[#f5f0ff]" : "border-gray-200 bg-white"}`}
+                >
+                  <User className="h-4 w-4" />
+                  {selectedConversationCard?.assignedTo
+                    ? `Assigned: ${selectedConversationCard.assignedTo}`
+                    : "Assign"}
+                </button>
+                {isRightAssignOpen && (
+                  <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
+                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Assign to agent</p>
+                    {agents.length === 0 ? (
+                      <p className="px-3 py-3 text-[13px] text-gray-400">No agents available</p>
+                    ) : (
+                      agents.map((agent) => (
+                        <button
+                          key={agent.id}
+                          type="button"
+                          onClick={() => handleRightAssignToAgent(agent.id)}
+                          className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
+                        >
+                          <span className="font-[600]">{agent.name}</span>
+                          <span className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}>{agent.is_active ? "Online" : "Offline"}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={openAddRuleModal}
@@ -1077,11 +1247,20 @@ export default function SupportChatbotReporting() {
               >
                 <ClipboardList className="h-4 w-4" /> Add Business Rules
               </button>
+                 <button
+                  type="button"
+                  onClick={() => setIsStatusMenuOpen((v) => !v)}
+                  disabled={!selectedConversationId}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Update status"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
             </div>
           </div>
 
           <div>
-            {selectedConversationCard && (
+            {/* {selectedConversationCard && (
               <div className="border-b border-gray-100 bg-[#f8fbff] px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -1098,7 +1277,7 @@ export default function SupportChatbotReporting() {
                   </div>
                 </div>
               </div>
-            )}
+            )} */}
 
             <div className="overflow-y-auto" style={{ maxHeight: 420 }}>
               {chatHistoryLoading ? (
@@ -1156,18 +1335,6 @@ export default function SupportChatbotReporting() {
             </div>
           </div>
 
-          {/* Assigned toast (right panel) */}
-          {isRightAssignToast && (
-            <div className="absolute bottom-4 right-4 z-20 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-xl">
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#061a43]">
-                <Check className="h-4 w-4 text-white" />
-              </span>
-              <div>
-                <p className="text-[14px] font-[700] text-[#061a43]">Assigned</p>
-                <p className="text-[13px] text-gray-500">Conversation assigned successfully</p>
-              </div>
-            </div>
-          )}
         </article>
       </section>
 

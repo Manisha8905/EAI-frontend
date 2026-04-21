@@ -68,6 +68,7 @@ export const listCampaigns = (page = 1, pageSize = 20) => async (dispatch) => {
       parallelCalls:     c.campaign_parallel_calls      ?? 1,
       preview:           c.preview          ?? false,
       preview_mode:      c.preview_mode     ?? false,
+      campaign_prompt:   c.campaign_prompt ?? "", // <-- Add this line
     }));
 
     dispatch({ type: CAMPAIGN_LIST_SUCCESS, payload: { campaigns, preview, total } });

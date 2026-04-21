@@ -887,6 +887,7 @@ export default function CampaignPage() {
         reply_wait_hours: liData.reply_wait_hours ?? 72,
         reply_wait_minutes: liData.reply_wait_minutes ?? 0,
         preview_mode: c.preview_mode ?? true,
+        campaign_prompt: c.campaign_prompt ?? "",
       });
       setEditingCampaignId(campaignId);
       setShowCreate(true);
@@ -5133,14 +5134,14 @@ export default function CampaignPage() {
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" />
                             </button>
-                            <button
+                            {/* <button
                               type="button"
                               onClick={() => setApproveRegenModal({ row })}
                               className="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 transition"
                               title="Approve Regeneration"
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
-                            </button>
+                            </button> */}
                           </div>
                         </td>
                       </tr>
@@ -6877,7 +6878,7 @@ export default function CampaignPage() {
             <option value="EMAIL">EMAIL</option>
             <option value="CALL">CALL</option>
             <option value="LINKEDIN">LINKEDIN</option>
-                        <option value="WHATSAPP">WHATSAPP</option>
+            <option value="WHATSAPP">WHATSAPP</option>
 
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />

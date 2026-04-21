@@ -518,7 +518,27 @@ export default function CampaignPreviewPage() {
 
   const htmlPreview = useMemo(() => {
     if (!activePreviewLead) return "";
-    return activePreviewLead.previewBodyHtml || activePreviewLead.previewBody || "";
+    const raw = activePreviewLead.previewBodyHtml || activePreviewLead.previewBody || "";
+    if (!raw) return "";
+
+    const noScrollbarCss = `*::-webkit-scrollbar{display:none}*{-ms-overflow-style:none;scrollbar-width:none}`;
+
+    // If the content already contains real HTML markup, wrap in a minimal email shell
+    const hasHtmlTags = /<[a-z][\s\S]*>/i.test(raw);
+    if (hasHtmlTags) {
+      // Already HTML — just ensure it has a proper document shell with base styles
+      if (/<!doctype|<html/i.test(raw)) return raw;
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.75;color:#1f2937;padding:24px 28px;margin:0;}p{margin:0 0 1em 0;}${noScrollbarCss}</style></head><body>${raw}</body></html>`;
+    }
+
+    // Plain text with \n line breaks — convert to styled HTML so spacing is preserved
+    const escaped = raw
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\n/g, "<br>");
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.75;color:#1f2937;padding:24px 28px;margin:0;}${noScrollbarCss}</style></head><body>${escaped}</body></html>`;
   }, [activePreviewLead]);
 
   return (
@@ -722,7 +742,7 @@ export default function CampaignPreviewPage() {
               </div>
 
               {/* ── Email Preview Content ── */}
-              <div className="flex-1 overflow-y-auto bg-gray-50 relative">
+              <div className="flex-1 overflow-y-auto bg-gray-50 relative scrollbar-hide">
 
                 {/* ── Reprocess Overlay Bar ── */}
                 <AnimatePresence initial={false}>
@@ -929,7 +949,7 @@ export default function CampaignPreviewPage() {
               </div>
 
               {/* Panel Content */}
-              <div className="flex-1 overflow-y-auto bg-gray-50">
+              <div className="flex-1 overflow-y-auto bg-gray-50 scrollbar-hide">
 
                 {/* ── Enrichment Panel ── */}
                 {activePanel === "enrichment" && (

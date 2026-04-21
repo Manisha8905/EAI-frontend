@@ -1634,12 +1634,12 @@ export default function ModuleDashboard({
                     {isLoading ? "…" : `${linkedinAvgAcceptance}h`}
                   </p>
                 </div>
-                <div className="border-t border-white/20 pt-2">
+                {/* <div className="border-t border-white/20 pt-2">
                   <p className="text-[10px] text-white/60">To First Reply</p>
                   <p className="text-[24px] font-bold leading-none">
                     {isLoading ? "…" : `${linkedinAvgFirstReply}h`}
                   </p>
-                </div>
+                </div> */}
               </div>
             </>
           ) : activeTab === "whatsapp" ? (

@@ -213,6 +213,20 @@ const SUPPORT_SECTIONS = [
   },
 ];
 
+const FINANCE_SECTIONS = [
+  {
+    key: "invoice_processing",
+    label: "Invoice Processing",
+    subtitle: "Automated invoice workflows",
+    icon: null,
+    activeRoutes: ["/finance"],
+    links: [
+      { href: "/finance", label: "Metrics",   img: Metrics,   exact: true },
+      { href: "/finance/reporting", label: "Reporting", img: Reporting, exact: true },
+    ],
+  },
+];
+
 // const SETTINGS_SECTION = [
 //   {
 //     key: "settings",
@@ -231,7 +245,7 @@ const SUPPORT_SECTIONS = [
 
 /* ─── All sections combined (for SUPERADMIN) ─────────────────── */
 /* SUPERADMIN sees every module plus the full settings accordion */
-const SUPERADMIN_NAV_SECTIONS = [...SALES_SECTIONS, ...SUPPORT_SECTIONS];
+const SUPERADMIN_NAV_SECTIONS = [...SALES_SECTIONS, ...SUPPORT_SECTIONS, ...FINANCE_SECTIONS];
 
 /* ─── Role helper ─────────────────────────────────────────────── */
 const isAdmin = (role) => {
@@ -269,20 +283,26 @@ const Sidebar = () => {
   /* derive visible sections based on role — normalize spaces/underscores from both sources */
   const normalizedRole = (storedRole || (auth?.role || "")).toUpperCase().replace(/[\s_-]/g, "");
   const isSuperAdmin = normalizedRole === "SUPERADMIN";
+  const isFinanceRole = normalizedRole === "FINANCE";
   // SUPERADMIN sees every section; plain ADMIN hides the nav (only User Management)
   const hideNav = userIsAdmin && !isSuperAdmin;
   // Determine active navbar module from pathname
-  const isOnSupportModule = pathname.startsWith("/support");
+  const isOnSupportModule  = pathname.startsWith("/support");
+  const isOnFinanceModule  = pathname.startsWith("/finance");
   const roleSections =
     isSuperAdmin
       ? SUPERADMIN_NAV_SECTIONS
       : normalizedRole === "SUPPORT"
       ? SUPPORT_SECTIONS
+      : isFinanceRole
+      ? FINANCE_SECTIONS
       : SALES_SECTIONS;
   const allowedKeys = ROLE_SECTION_KEYS[normalizedRole] ?? null; // null = all sections
-  // For SUPERADMIN: show only the sidebar sections that belong to the active navbar tab
+  // For SUPERADMIN: show only sidebar sections belonging to the active navbar tab
   const visibleSections = isSuperAdmin
-    ? (isOnSupportModule ? SUPPORT_SECTIONS : SALES_SECTIONS)
+    ? (isOnFinanceModule ? FINANCE_SECTIONS : isOnSupportModule ? SUPPORT_SECTIONS : SALES_SECTIONS)
+    : isFinanceRole
+    ? FINANCE_SECTIONS
     : allowedKeys
     ? roleSections.filter((s) => allowedKeys.includes(s.key))
     : roleSections;
@@ -354,7 +374,9 @@ const Sidebar = () => {
       {/* ── Header ── */}
       <div className="px-5 pt-5 pb-4 border-b border-gray-100">
         <h2 className="font-poppins text-[14px] font-[700] text-[#0a0a0a]">
-          {isOnSupportModule
+          {isOnFinanceModule
+            ? "Finance"
+            : isOnSupportModule
             ? "Customer Support"
             : "Sales"}
         </h2>
@@ -443,7 +465,7 @@ const Sidebar = () => {
       {/* ── Bottom ── */}
       <div className="px-3 py-4 border-t border-gray-100 space-y-0.5">
         {/* User Management — ADMIN and SUPERADMIN only */}
-        {(isSuperAdmin || (userIsAdmin && !isSuperAdmin)) && (
+        {(userIsAdmin && !isSuperAdmin) && (
           <Link
             href="/user-management"
             className={`sb-usermgmt flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-[500] ${

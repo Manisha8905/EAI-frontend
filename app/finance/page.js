@@ -1,5 +1,5 @@
-import ModuleDashboard from "../Componets/Dashboard/ModuleDashboard";
+import FinanceDashboard from "../Componets/Dashboard/FinanceDashboard";
 
 export default function Page() {
-  return <ModuleDashboard moduleName="Finance" />;
+  return <FinanceDashboard />;
 }

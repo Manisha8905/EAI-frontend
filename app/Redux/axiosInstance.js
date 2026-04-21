@@ -3,7 +3,7 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: "https://architessa-api.technologymindz.net/",
+  baseURL: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/",
     // baseURL: "https://6336-2405-201-5c1a-80e7-60a8-a13d-d8e1-e609.ngrok-free.app/",
 
   headers: {

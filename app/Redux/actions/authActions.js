@@ -603,6 +603,7 @@ const normalizeCampaign = (c) => ({
                    })),
   preview:           c.preview          ?? false,
   preview_mode:      c.preview_mode     ?? false,
+  campaign_prompt
 });
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

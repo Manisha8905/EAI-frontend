@@ -8057,6 +8057,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       credential: "",
       meeting_schedule: "",
       logged_in_user_email: "",
+      campaign_prompt: "",
     },
   });
   const [loading, setLoading] = useState(true);
@@ -8380,6 +8381,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             logged_in_user_email:
               d.logged_in_user_email ??
               prev.campaign_email_settings.logged_in_user_email,
+            campaign_prompt:
+              d.campaign_prompt ??
+              prev.campaign_email_settings.campaign_prompt,
           };
         }
 
@@ -8601,6 +8605,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           credential: forms.campaign_email_settings.credential,
           meeting_schedule: forms.campaign_email_settings.meeting_schedule,
           logged_in_user_email: forms.campaign_email_settings.logged_in_user_email,
+          campaign_prompt: forms.campaign_email_settings.campaign_prompt,
         });
       }
       toast.success("Configuration saved successfully.");
@@ -8994,13 +8999,13 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 onChange={setField("campaign_email_settings", "smtp_provider_name")}
                 placeholder="e.g., sendgrid, mailgun"
               />
-              <Field
+              {/* <Field
                 label="Credential"
                 type="password"
                 value={forms.campaign_email_settings.credential}
                 onChange={setField("campaign_email_settings", "credential")}
                 placeholder="API key or credentials"
-              />
+              /> */}
               <Field
                 label="Meeting Schedule"
                 value={forms.campaign_email_settings.meeting_schedule}
@@ -9014,6 +9019,18 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 onChange={setField("campaign_email_settings", "logged_in_user_email")}
                 placeholder="current-user@company.com"
               />
+              <div className="sm:col-span-2">
+                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+                  Campaign Prompt
+                </label>
+                <textarea
+                  rows={4}
+                  value={forms.campaign_email_settings.campaign_prompt}
+                  onChange={(e) => setField("campaign_email_settings", "campaign_prompt")(e.target.value)}
+                  placeholder="Enter the campaign prompt or instructions for the AI agent..."
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
+                />
+              </div>
             </div>
           </div>
 
