@@ -302,6 +302,7 @@ export default function CampaignPage() {
     reply_wait_hours: 72,
     reply_wait_minutes: 0,
     preview_mode: false,
+    campaign_prompt:""
   };
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(blankForm);

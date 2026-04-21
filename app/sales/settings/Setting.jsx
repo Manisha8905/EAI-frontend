@@ -62,6 +62,12 @@ import {
   CartesianGrid,
 } from "recharts";
 
+const baseURL =
+  (axiosInstance?.defaults?.baseURL
+    ? String(axiosInstance.defaults.baseURL).replace(/\/$/, "")
+    : "") ||
+  (typeof window !== "undefined" ? window.location.origin : "");
+
 const isAdminRole = (role) => {
   const normalizedRole = String(role || "")
     .toUpperCase()
@@ -346,7 +352,7 @@ function AnimStyles() {
 /* ── CRM Integration ── */
 // const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
 const OAUTH_REDIRECT_URI =
-  "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
+ baseURL + "/oauth/callback";
 
 function CRMPage({ onBack, onConnectionChange }) {
   const [form, setForm] = useState({
@@ -5492,6 +5498,7 @@ function LeadsPage({ onBack }) {
   /* ── List-level selection & download (lists view) ── */
   const [checkedListIds, setCheckedListIds] = useState(new Set());
   const [downloadingListId, setDownloadingListId] = useState(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
 
   /* ── Lead-level selection & download (detail view) ── */
   const [checkedLeadIds, setCheckedLeadIds] = useState(new Set());
@@ -6025,7 +6032,6 @@ function LeadsPage({ onBack }) {
 
   /* ── PATCH /lead-lists/{listId}/leads/{leadId}/channel-flags ── */
   const [togglingChannel, setTogglingChannel] = useState(new Set());
-
   const handleToggleLeadChannel = async (leadId, channelKey, currentValue) => {
     if (!viewList) return;
     const tKey = `${leadId}_${channelKey}`;
@@ -6907,6 +6913,30 @@ function LeadsPage({ onBack }) {
   }
 
   /* ════ LISTS VIEW ════ */
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      const res = await axiosInstance.get("/lead-lists/download-template", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers?.["content-disposition"] ?? "";
+      const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      const filename =
+        match?.[1]?.replace(/['"]/g, "") ?? "lead-list-template.xlsx";
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("Template downloaded successfully.");
+    } catch (err) {
+      toast.error(getApiError(err, "Failed to download template."));
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
   const handleListDownload = async (listId) => {
     try {
       setDownloadingListId(listId);
@@ -6950,6 +6980,19 @@ function LeadsPage({ onBack }) {
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
             </button> */}
+            <button
+              onClick={handleDownloadTemplate}
+              disabled={downloadingTemplate}
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+              title="Download template"
+            >
+              {downloadingTemplate ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              Download Template
+            </button>
             <button
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
@@ -8431,15 +8474,15 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
       if (fieldName === "xai_api_key") {
         loadingKey = "xai";
-        endpoint = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/api/globalsetting/xai";
+        endpoint = baseURL + "/api/globalsetting/xai";
         payload = { xai_api_key: forms.enrichment.xai_api_key };
       } else if (fieldName === "enable_grok_enrichment") {
         loadingKey = "grokEnrichment";
-        endpoint = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/api/globalsetting/grok-enrichment";
+        endpoint = baseURL + "/api/globalsetting/grok-enrichment";
         payload = { enable_grok_enrichment: forms.enrichment.enable_grok_enrichment };
       } else if (fieldName === "grok_email_style") {
         loadingKey = "emailStyle";
-        endpoint = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/api/globalsetting/grok-email-style";
+        endpoint = baseURL + "/api/globalsetting/grok-email-style";
         payload = { grok_email_style: forms.enrichment.grok_email_style };
       }
 
