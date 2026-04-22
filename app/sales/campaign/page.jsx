@@ -408,6 +408,7 @@ export default function CampaignPage() {
         from_email: null,
         reply_to_email: null,
         emails_per_batch: null,
+        campaign_prompt: null,
         delay_between_batches_seconds: null,
       }));
     } else {
@@ -425,6 +426,7 @@ export default function CampaignPage() {
           from_email: d.from_email ?? prev.from_email ?? "",
           reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
           emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
+          campaign_prompt: d.campaign_prompt ?? prev.campaign_prompt ?? "",
           delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
         }));
       } catch (err) {
@@ -1002,6 +1004,24 @@ export default function CampaignPage() {
             false
           ),
         })));
+      })
+      .catch(() => {});
+    axiosInstance
+      .get("/campaign-email-settings")
+      .then((res) => {
+        const d = res?.data ?? {};
+        setForm((prev) => ({
+          ...prev,
+          logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
+          smtp_provider_name: d.smtp_provider_name ?? prev.smtp_provider_name ?? "",
+          template_id: d.template_id ?? prev.template_id ?? "",
+          from_name: d.from_name ?? prev.from_name ?? "",
+          from_email: d.from_email ?? prev.from_email ?? "",
+          reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
+          emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
+          campaign_prompt: d.campaign_prompt ?? prev.campaign_prompt ?? "",
+          delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
+        }));
       })
       .catch(() => {});
   }, [showCreate]);
