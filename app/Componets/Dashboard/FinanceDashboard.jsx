@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import axiosInstance from "../../Redux/axiosInstance";
 import {
   Mail,
   FileText,
@@ -212,7 +213,8 @@ function PieOutsideLabel({ cx, cy, midAngle, outerRadius, name, value, fill }) {
   );
 }
 
-function JobStatusChart() {
+function JobStatusChart({ data }) {
+  const chartData = data ?? JOB_STATUS_DATA;
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <h3 className="text-[15px] font-[700] text-gray-900">Jobs by Status</h3>
@@ -220,7 +222,7 @@ function JobStatusChart() {
       <ResponsiveContainer width="100%" height={280}>
         <PieChart>
           <Pie
-            data={JOB_STATUS_DATA}
+            data={chartData}
             cx="50%" cy="50%"
             outerRadius={95}
             dataKey="value"
@@ -229,7 +231,7 @@ function JobStatusChart() {
             label={<PieOutsideLabel />}
             labelLine={{ stroke: "#d1d5db", strokeWidth: 1.2 }}
           >
-            {JOB_STATUS_DATA.map((entry) => (
+            {chartData.map((entry) => (
               <Cell key={entry.name} fill={entry.fill} />
             ))}
           </Pie>
@@ -244,13 +246,14 @@ function JobStatusChart() {
 }
 
 /* ─── Processing Trend — grouped bar chart ───────────────────── */
-function ProcessingTrendChart({ filterLabel }) {
+function ProcessingTrendChart({ filterLabel, data }) {
+  const chartData = data ?? PROCESSING_TREND;
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <h3 className="text-[15px] font-[700] text-gray-900">Processing Trend ({filterLabel})</h3>
       <p className="text-[12px] text-gray-400 mb-4">Jobs and invoices processed over time</p>
       <ResponsiveContainer width="100%" height={230}>
-        <BarChart data={PROCESSING_TREND} margin={{ top: 4, right: 8, left: -18, bottom: 0 }} barSize={12} barGap={3}>
+        <BarChart data={chartData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }} barSize={12} barGap={3}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
           <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
           <YAxis
@@ -273,13 +276,14 @@ function ProcessingTrendChart({ filterLabel }) {
 }
 
 /* ─── System Failure Rate — area + line combo ───────────────── */
-function FailureRateChart() {
+function FailureRateChart({ data }) {
+  const chartData = data ?? FAILURE_RATE_DATA;
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <h3 className="text-[15px] font-[700] text-gray-900">System Failure Rate</h3>
       <p className="text-[12px] text-gray-400 mb-4">Percentage of failed processing over time</p>
       <ResponsiveContainer width="100%" height={230}>
-        <ComposedChart data={FAILURE_RATE_DATA} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+        <ComposedChart data={chartData} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
           <defs>
             <linearGradient id="gradFailure" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%"  stopColor="#ef4444" stopOpacity={0.18} />
@@ -316,15 +320,64 @@ export default function FinanceDashboard() {
   const [allowed, setAllowed] = useState(null);
   const [filter, setFilter]   = useState("all");
 
+  // ── Live metrics from API ──────────────────────────────────────
+  const [apiMetrics,    setApiMetrics]    = useState(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+
+  const loadMetrics = useCallback(async () => {
+    setMetricsLoading(true);
+    try {
+      const res = await axiosInstance.get("/invoice-processing/metrics");
+      const payload = res.data?.data ?? res.data;
+      setApiMetrics(payload);
+    } catch (err) {
+      console.error("[FinanceDashboard] metrics error:", err?.response?.data?.detail ?? err.message);
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const role = typeof window !== "undefined" ? localStorage.getItem("userRole") || "" : "";
     setAllowed(isAllowedRole(role));
-  }, []);
+    loadMetrics();
+  }, [loadMetrics]);
 
-  const kpi         = KPI_DATA[filter] ?? KPI_DATA["all"];
+  // ── Derive KPI values: live API first, then static fallback ───
+  const sc  = apiMetrics?.summary_cards;
+  const sd  = apiMetrics?.status_distribution ?? [];
+  const ptApi = apiMetrics?.processing_trend  ?? [];
+  const frApi = apiMetrics?.failure_rate       ?? [];
+
+  const staticKpi  = KPI_DATA[filter] ?? KPI_DATA["all"];
+  const kpi = sc
+    ? {
+        jobs:     { value: sc.total_jobs.count,             trend: sc.total_jobs.change_pct,     freight: sc.total_jobs.freight,     trade: sc.total_jobs.trade     },
+        invoices: { value: sc.total_invoices.count,         trend: sc.total_invoices.change_pct, freight: sc.total_invoices.freight, trade: sc.total_invoices.trade },
+        amount:   { value: sc.total_amount_processed.formatted, note: sc.total_amount_processed.period_label },
+        failed:   { value: sc.failed_invoices.count, system: sc.failed_invoices.system, data: sc.failed_invoices.data, backend: sc.failed_invoices.backend },
+      }
+    : staticKpi;
+
+  // ── Job status pie — live if available ────────────────────────
+  const STATUS_COLOR = { SUCCESS: "#22c55e", FAILED: "#ef4444", PARTIAL: "#f97316" };
+  const jobStatusData = sd.length
+    ? sd.map((d) => ({ name: d.status.charAt(0) + d.status.slice(1).toLowerCase(), value: d.pct, fill: STATUS_COLOR[d.status] ?? "#6366f1" }))
+    : JOB_STATUS_DATA;
+
+  // ── Processing trend — live if available ─────────────────────
+  const processingTrend = ptApi.length
+    ? ptApi.map((d) => ({ period: d.bucket, jobs: d.jobs, freight: d.freight_invoices, trade: d.trade_invoices }))
+    : PROCESSING_TREND;
+
+  // ── Failure rate — live if available ─────────────────────────
+  const failureRateData = frApi.length
+    ? frApi.map((d) => ({ date: d.bucket, rate: d.rate_pct }))
+    : FAILURE_RATE_DATA;
+
   const filterLabel = FILTER_OPTIONS.find((f) => f.value === filter)?.label ?? "All";
 
-  if (allowed === null) {
+  if (allowed === null || metricsLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] gap-2 text-[13px] text-gray-500">
         <RefreshCw className="h-4 w-4 animate-spin text-blue-500" /> Loading…
@@ -359,7 +412,7 @@ export default function FinanceDashboard() {
     <div className="p-6 space-y-5 bg-[#f4f5f7] min-h-screen">
 
       {/* ── Filter bar — label left, select+chevron right ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 flex items-center justify-between">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 flex items-center justify-between">
         <div>
           <p className="text-[15px] font-[700] text-gray-900">Filter Data</p>
           <p className="text-[12px] text-gray-400 mt-0.5">Select time period for metrics</p>
@@ -433,9 +486,9 @@ export default function FinanceDashboard() {
 
       {/* ── Charts row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <JobStatusChart />
-        <ProcessingTrendChart filterLabel={filterLabel} />
-        <FailureRateChart />
+        <JobStatusChart data={jobStatusData} />
+        <ProcessingTrendChart filterLabel={filterLabel} data={processingTrend} />
+        <FailureRateChart data={failureRateData} />
       </div>
     </div>
   );
