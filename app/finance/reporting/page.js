@@ -621,7 +621,7 @@ export default function FinanceReportingPage() {
           accentColor="sky"
         />
       )}
-      {/* {activeTab === "TradeInvoices" && <TradeInvoicesTable rows={tradeRows} />} */}
+      {activeTab === "TradeInvoices" && <TradeInvoicesTable rows={tradeRows} />}
       {activeTab === "Reprocess" && <ReprocessPanel />}
 
       {/* ── Summary KPI cards ── */}
