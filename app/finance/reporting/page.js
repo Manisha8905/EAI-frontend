@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import axiosInstance from "../../Redux/axiosInstance";
 
 import {
   Mail,
@@ -213,17 +214,29 @@ function Td({ children, className = "" }) {
 }
 
 /* ─── Jobs table ─────────────────────────────────────────────── */
-function JobsTable({ rows }) {
+function JobsTable({ rows, loading, error, onRetry }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-6 pt-6 pb-4 flex items-center gap-3">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-50">
-          <Mail className="h-5 w-5 text-indigo-600" />
+      <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-50">
+            <Mail className="h-5 w-5 text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-900">Jobs Processing History</p>
+            <p className="text-[12px] text-gray-400 mt-0.5">One job = one email processed</p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-bold text-slate-900">Jobs Processing History</p>
-          <p className="text-[12px] text-gray-400 mt-0.5">One job = one email processed</p>
-        </div>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[12px] font-[600] text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -240,7 +253,21 @@ function JobsTable({ rows }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={8} className="py-16 text-center text-[13px] text-gray-400">
+                  <RefreshCw className="inline h-5 w-5 animate-spin mr-2 text-indigo-400" />
+                  Loading jobs…
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={8} className="py-16 text-center text-[13px] text-red-400">
+                  {error} —{" "}
+                  <button onClick={onRetry} className="text-indigo-500 underline">retry</button>
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
               <tr><td colSpan={8} className="py-16 text-center text-[13px] text-gray-400">No jobs match your filters.</td></tr>
             ) : rows.map((job) => (
               <tr key={job.id} className="hover:bg-indigo-50/30 transition-colors">
@@ -254,7 +281,7 @@ function JobsTable({ rows }) {
                   {job.failed > 0 && <span className="ml-1.5 text-[12px] text-red-500 font-[600]">({job.failed} failed)</span>}
                 </Td>
                 <Td>{statusBadge(job.status)}</Td>
-                <Td><span className="text-gray-500 whitespace-pre-line leading-snug">{job.createdAt.replace(", ", ",\n")}</span></Td>
+                <Td><span className="text-gray-500 whitespace-pre-line leading-snug">{job.createdAt}</span></Td>
               </tr>
             ))}
           </tbody>
@@ -265,20 +292,32 @@ function JobsTable({ rows }) {
 }
 
 /* ─── Invoices table (Freight & Trade share same layout) ─────── */
-function InvoicesTable({ rows, title, subtitle, icon: Icon, accentColor = "sky" }) {
+function InvoicesTable({ rows, loading, error, onRetry, title, subtitle, icon: Icon, accentColor = "sky" }) {
   const iconBg  = accentColor === "purple" ? "bg-purple-50" : "bg-sky-50";
   const iconCls = accentColor === "purple" ? "text-purple-600" : "text-sky-600";
   const rowHover = accentColor === "purple" ? "hover:bg-purple-50/20" : "hover:bg-sky-50/20";
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-6 pt-6 pb-4 flex items-center gap-3">
-        <div className={`flex items-center justify-center w-9 h-9 rounded-xl ${iconBg}`}>
-          <Icon className={`h-5 w-5 ${iconCls}`} />
+      <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`flex items-center justify-center w-9 h-9 rounded-xl ${iconBg}`}>
+            <Icon className={`h-5 w-5 ${iconCls}`} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-900">{title}</p>
+            <p className="text-[12px] text-gray-400 mt-0.5">{subtitle}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-bold text-slate-900">{title}</p>
-          <p className="text-[12px] text-gray-400 mt-0.5">{subtitle}</p>
-        </div>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[12px] font-[600] text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -298,7 +337,21 @@ function InvoicesTable({ rows, title, subtitle, icon: Icon, accentColor = "sky" 
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={11} className="py-16 text-center text-[13px] text-gray-400">
+                  <RefreshCw className="inline h-5 w-5 animate-spin mr-2 text-indigo-400" />
+                  Loading invoices…
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={11} className="py-16 text-center text-[13px] text-red-400">
+                  {error} —{" "}
+                  <button onClick={onRetry} className="text-indigo-500 underline">retry</button>
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
               <tr><td colSpan={11} className="py-16 text-center text-[13px] text-gray-400">No invoices match your filters.</td></tr>
             ) : rows.map((inv) => (
               <tr key={inv.id} className={`${rowHover} transition-colors`}>
@@ -765,11 +818,107 @@ function ReprocessPanel() {
 /* ══════════════════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════════════════ */
+/* ─── Helper: format ISO date → "Mar 25, 2026, 09:00 AM" ─── */
+function formatCreatedAt(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+/* ─── Helper: normalise API status → title-case ─────────── */
+function normaliseStatus(s) {
+  if (!s) return "";
+  const m = { SUCCESS: "Success", PARTIAL: "Partial", FAILED: "Failed" };
+  return m[s.toUpperCase()] ?? (s.charAt(0).toUpperCase() + s.slice(1).toLowerCase());
+}
+
+/* ─── Helper: normalise API invoice_type → title-case ────── */
+function normaliseType(t) {
+  if (!t) return "";
+  const m = { FREIGHT: "Freight", TRADE: "Trade" };
+  return m[t.toUpperCase()] ?? t;
+}
+
 export default function FinanceReportingPage() {
   const [activeTab,    setActiveTab]    = useState("Jobs");
   const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [dateFilter,   setDateFilter]   = useState("Last 30 Days");
+
+  /* ── Jobs API state ── */
+  const [apiJobs,        setApiJobs]        = useState([]);
+  const [jobsLoading,    setJobsLoading]    = useState(false);
+  const [jobsError,      setJobsError]      = useState(null);
+  const [jobsSummary,    setJobsSummary]    = useState(null);
+
+  /* ── Freight API state ── */
+  const [apiFreight,     setApiFreight]     = useState([]);
+  const [freightLoading, setFreightLoading] = useState(false);
+  const [freightError,   setFreightError]   = useState(null);
+  const [freightSummary, setFreightSummary] = useState(null);
+
+  const fetchJobs = useCallback(async () => {
+    setJobsLoading(true);
+    setJobsError(null);
+    try {
+      const res = await axiosInstance.get("/invoice-processing/reporting/jobs");
+      const data = res.data?.data ?? {};
+      const mapped = (data.jobs ?? []).map((j) => ({
+        id:          j.id,
+        subject:     j.email_subject,
+        sender:      j.email_sender,
+        type:        normaliseType(j.invoice_type),
+        carrier:     j.carrier,
+        attachments: j.total_attachments,
+        failed:      j.failed_attachments,
+        status:      normaliseStatus(j.status),
+        createdAt:   formatCreatedAt(j.created_at),
+      }));
+      setApiJobs(mapped);
+      setJobsSummary(data.summary ?? null);
+    } catch (err) {
+      // Silently fall back to mock data while the endpoint is being implemented
+      setApiJobs(MOCK_JOBS);
+    } finally {
+      setJobsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchJobs(); }, [fetchJobs]);
+
+  const fetchFreight = useCallback(async () => {
+    setFreightLoading(true);
+    setFreightError(null);
+    try {
+      const res = await axiosInstance.get("/invoice-processing/reporting/freight-invoices");
+      const data = res.data?.data ?? {};
+      const mapped = (data.invoices ?? []).map((inv) => ({
+        id:               inv.id,
+        vendor:           inv.vendor_name,
+        invoiceNumber:    inv.invoice_number,
+        invoiceDate:      inv.invoice_date,
+        dueDate:          inv.invoice_due_date,
+        posoNumber:       Array.isArray(inv.po_so_number) ? inv.po_so_number.join(", ") : (inv.po_so_number ?? ""),
+        description:      inv.description,
+        amount:           inv.freight_amount != null ? `$${parseFloat(inv.freight_amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—",
+        status:           normaliseStatus(inv.status),
+        errorLog:         inv.error_log,
+        resolutionStatus: inv.resolution_status,
+      }));
+      setApiFreight(mapped);
+      setFreightSummary(data.summary ?? null);
+    } catch (err) {
+      // Silently fall back to mock data while the endpoint is being implemented
+      setApiFreight(MOCK_FREIGHT);
+    } finally {
+      setFreightLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchFreight(); }, [fetchFreight]);
 
   const filterRows = (rows) => {
     let r = rows;
@@ -781,8 +930,8 @@ export default function FinanceReportingPage() {
     return r;
   };
 
-  const jobRows     = useMemo(() => filterRows(MOCK_JOBS),    [search, statusFilter]);
-  const freightRows = useMemo(() => filterRows(MOCK_FREIGHT), [search, statusFilter]);
+  const jobRows     = useMemo(() => filterRows(apiJobs),      [search, statusFilter, apiJobs]);
+  const freightRows = useMemo(() => filterRows(apiFreight),   [search, statusFilter, apiFreight]);
   const tradeRows   = useMemo(() => filterRows(MOCK_TRADE),   [search, statusFilter]);
 
   const activeRows =
@@ -793,6 +942,26 @@ export default function FinanceReportingPage() {
   const isInvoiceTab = activeTab === "FreightInvoices" || activeTab === "TradeInvoices";
 
   const stats = useMemo(() => {
+    /* For Jobs tab, prefer the API summary if available */
+    if (activeTab === "Jobs" && jobsSummary) {
+      return {
+        total:    jobsSummary.total      ?? jobRows.length,
+        synced:   jobsSummary.successful ?? jobRows.filter((r) => r.status === "Success").length,
+        partial:  jobsSummary.partial    ?? jobRows.filter((r) => r.status === "Partial").length,
+        failed:   jobsSummary.failed     ?? jobRows.filter((r) => r.status === "Failed").length,
+        totalAmt: null,
+      };
+    }
+    /* For Freight Invoices tab, prefer the API summary if available */
+    if (activeTab === "FreightInvoices" && freightSummary) {
+      return {
+        total:    freightSummary.total_freight_invoices ?? freightRows.length,
+        synced:   freightSummary.sf_synced              ?? freightRows.filter((r) => r.status === "Success").length,
+        partial:  freightRows.filter((r) => r.status === "Partial").length,
+        failed:   freightSummary.sf_failed              ?? freightRows.filter((r) => r.status === "Failed").length,
+        totalAmt: freightSummary.total_amount           ?? null,
+      };
+    }
     const total   = activeRows.length;
     const synced  = activeRows.filter((r) => r.status === "Success").length;
     const partial = activeRows.filter((r) => r.status === "Partial").length;
@@ -805,7 +974,7 @@ export default function FinanceReportingPage() {
       : null;
     return { total, synced, partial, failed, totalAmt };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRows, activeTab]);
+  }, [activeRows, activeTab, jobsSummary, jobRows, freightSummary, freightRows]);
 
   const invLabel = activeTab === "FreightInvoices" ? "Freight" : "Trade";
 
@@ -915,10 +1084,20 @@ export default function FinanceReportingPage() {
       )}
 
       {/* ── Table area ── */}
-      {activeTab === "Jobs" && <JobsTable rows={jobRows} />}
+      {activeTab === "Jobs" && (
+        <JobsTable
+          rows={jobRows}
+          loading={jobsLoading}
+          error={jobsError}
+          onRetry={fetchJobs}
+        />
+      )}
       {activeTab === "FreightInvoices" && (
         <InvoicesTable
           rows={freightRows}
+          loading={freightLoading}
+          error={freightError}
+          onRetry={fetchFreight}
           title="Freight Invoices"
           subtitle="Shipping and carrier invoices (UPS, FedEx, SAIA, etc.)"
           icon={Truck}

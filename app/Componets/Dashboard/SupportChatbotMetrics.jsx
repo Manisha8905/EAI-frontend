@@ -37,6 +37,8 @@ const CHANNEL_DATA = {
       open: 267,
       closed: 1575,
       avgMessages: 8.4,
+      totalMessages: 15473,
+      escalated: 217,
     },
     openClosed: [
       { name: "Open", value: 267 },
@@ -76,6 +78,8 @@ const CHANNEL_DATA = {
       open: 194,
       closed: 1103,
       avgMessages: 6.7,
+      totalMessages: 8690,
+      escalated: 148,
     },
     openClosed: [
       { name: "Open", value: 194 },
@@ -212,12 +216,13 @@ const mapStatsResponse = (payload, fallback) => {
   // Support flat response: { total_chats, open_chats, ... } or nested under data/webchat
   const root = payload?.webchat ?? payload?.data?.webchat ?? payload?.data ?? payload ?? {};
 
-  const total       = getFirstNumber(root, ["total_chats", "total", "totalChats", "total_conversations"], fallback.cards.total);
-  const open        = getFirstNumber(root, ["open_chats", "open", "openChats"], fallback.cards.open);
-  const closed      = getFirstNumber(root, ["closed_chats", "closed", "closedChats"], fallback.cards.closed);
-  const avgMessages = getFirstNumber(root, ["avg_messages_per_chat", "avgMessages", "avg_messages", "average_messages_per_chat"], fallback.cards.avgMessages);
-  const assigned    = getFirstNumber(root, ["assigned_chats", "assigned", "assignedChats"], 0);
-  const escalated   = getFirstNumber(root, ["escalated", "escalated_chats", "escalatedChats"], 0);
+  const total        = getFirstNumber(root, ["total_chats", "total", "totalChats", "total_conversations"], fallback.cards.total);
+  const open         = getFirstNumber(root, ["open_chats", "open", "openChats"], fallback.cards.open);
+  const closed       = getFirstNumber(root, ["closed_chats", "closed", "closedChats"], fallback.cards.closed);
+  const avgMessages  = getFirstNumber(root, ["avg_messages_per_chat", "avgMessages", "avg_messages", "average_messages_per_chat"], fallback.cards.avgMessages);
+  const totalMessages = getFirstNumber(root, ["total_messages", "totalMessages"], fallback.cards.totalMessages);
+  const assigned     = getFirstNumber(root, ["assigned_chats", "assigned", "assignedChats"], 0);
+  const escalated    = getFirstNumber(root, ["escalated", "escalated_chats", "escalatedChats"], fallback.cards.escalated);
 
   const computedOpenClosed = [
     { name: "Open",   value: open },
@@ -266,10 +271,12 @@ const mapStatsResponse = (payload, fallback) => {
 
   return {
     updatedAt: root?.updatedAt ?? root?.updated_at ?? new Date().toLocaleTimeString(),
-    cards: { total, open, closed, avgMessages },
+    cards: { total, open, closed, avgMessages, totalMessages, escalated },
     openClosed: computedOpenClosed,
     assignedSplit: computedAssignedSplit,
-    escalationTrend: escalationTrend.length > 0 ? escalationTrend : fallback.escalationTrend,
+    escalationTrend: escalationTrend.length > 0
+      ? escalationTrend
+      : [{ month: "Current", escalated, normal: Math.max(totalMessages - escalated, 0) }],
     statusPie: computedStatusPie,
     feedback: { thumbsUp, thumbsDown },
     weeklyFeedback,
@@ -280,8 +287,8 @@ const mapStatsResponse = (payload, fallback) => {
 function StatCard({ icon: Icon, title, value, sub, gradient, badge, glowColor, accentBar }) {
   return (
     <article
-      className={`relative flex flex-col justify-between rounded-2xl p-5 text-white shadow-xl overflow-hidden ${gradient}`}
-      style={{ minHeight: 168 }}
+      className={`relative flex flex-col justify-between rounded-2xl p-4 text-white shadow-xl overflow-hidden ${gradient}`}
+      style={{ minHeight: 116 }}
     >
       {/* Subtle radial glow in corner */}
       <div
@@ -290,8 +297,8 @@ function StatCard({ icon: Icon, title, value, sub, gradient, badge, glowColor, a
       />
       {/* Top row */}
       <div className="flex items-center justify-between relative z-10">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 shadow-inner">
-          <Icon className="h-[18px] w-[18px]" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 shadow-inner">
+          <Icon className="h-4 w-4" />
         </span>
         {badge && (
           <span className="rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-[700] backdrop-blur-sm">
@@ -300,10 +307,10 @@ function StatCard({ icon: Icon, title, value, sub, gradient, badge, glowColor, a
         )}
       </div>
       {/* Bottom */}
-      <div className="relative z-10 mt-3">
-        <p className="text-[30px] font-[900] leading-none tracking-tight">{value}</p>
-        <p className="mt-1.5 text-[13px] font-[700] leading-tight opacity-95">{title}</p>
-        <p className="mt-0.5 text-[11px] text-white/70">{sub}</p>
+      <div className="relative z-10 mt-2">
+        <p className="text-[22px] font-[900] leading-none tracking-tight">{value}</p>
+        <p className="mt-1 text-[12px] font-[700] leading-tight opacity-95">{title}</p>
+        <p className="mt-0.5 text-[10px] text-white/70">{sub}</p>
       </div>
       {/* Bottom accent line */}
       {accentBar && (
@@ -319,32 +326,32 @@ function FeedbackStatCard({ thumbsUp, thumbsDown, gradient }) {
   const upPct = total > 0 ? Math.round((thumbsUp / total) * 100) : 0;
   return (
     <article
-      className={`relative flex flex-col justify-between overflow-hidden rounded-2xl p-5 text-white shadow-xl ${gradient}`}
-      style={{ minHeight: 168 }}
+      className={`relative flex flex-col justify-between overflow-hidden rounded-2xl p-4 text-white shadow-xl ${gradient}`}
+      style={{ minHeight: 116 }}
     >
       <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full opacity-25 blur-2xl bg-white" />
       <div className="relative z-10 flex items-center justify-between">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 shadow-inner">
-          <MessageSquare className="h-[18px] w-[18px]" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 shadow-inner">
+          <MessageSquare className="h-4 w-4" />
         </span>
         <span className="rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-[700]">
           {upPct}% positive
         </span>
       </div>
-      <div className="relative z-10 mt-3">
-        <p className="text-[13px] font-[700] mb-2 opacity-90">User Feedback</p>
-        <div className="flex gap-2">
-          <div className="flex flex-1 items-center gap-2 rounded-xl bg-white/15 border border-white/20 px-3 py-2">
-            <ThumbsUp className="h-3.5 w-3.5 shrink-0" />
+      <div className="relative z-10 mt-2">
+        <p className="text-[12px] font-[700] mb-1.5 opacity-90">User Feedback</p>
+        <div className="flex gap-1.5">
+          <div className="flex flex-1 items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-2 py-1.5">
+            <ThumbsUp className="h-3 w-3 shrink-0" />
             <div>
-              <p className="text-[16px] font-[900] leading-none">{thumbsUp.toLocaleString()}</p>
+              <p className="text-[14px] font-[900] leading-none">{thumbsUp.toLocaleString()}</p>
               <p className="text-[10px] text-white/70 mt-0.5">Positive</p>
             </div>
           </div>
-          <div className="flex flex-1 items-center gap-2 rounded-xl bg-white/15 border border-white/20 px-3 py-2">
-            <ThumbsDown className="h-3.5 w-3.5 shrink-0" />
+          <div className="flex flex-1 items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-2 py-1.5">
+            <ThumbsDown className="h-3 w-3 shrink-0" />
             <div>
-              <p className="text-[16px] font-[900] leading-none">{thumbsDown.toLocaleString()}</p>
+              <p className="text-[14px] font-[900] leading-none">{thumbsDown.toLocaleString()}</p>
               <p className="text-[10px] text-white/70 mt-0.5">Negative</p>
             </div>
           </div>
@@ -359,11 +366,11 @@ function ChartCard({ title, subtitle, accentColor, children, extra }) {
   return (
     <article className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
       <div className="h-[3px]" style={{ background: accentColor }} />
-      <div className="p-5">
+      <div className="p-3 sm:p-4">
         <div className="flex items-start justify-between mb-1">
           <div>
-            <h3 className="text-[15px] font-[700] text-gray-900">{title}</h3>
-            <p className="text-[12px] text-gray-400 mt-0.5">{subtitle}</p>
+            <h3 className="text-[13px] font-[700] text-gray-900">{title}</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>
           </div>
           {extra}
         </div>
@@ -448,14 +455,14 @@ export default function SupportChatbotMetrics() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-6 space-y-6">
+    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-4 space-y-3 sm:space-y-4">
 
       {/* ── Header ── */}
-      <section className="flex items-center justify-between gap-4 flex-wrap">
+      <section className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="h-7 w-1 rounded-full bg-gradient-to-b from-violet-500 to-indigo-600" />
-            <h1 className="text-[22px] font-[800] leading-none text-gray-900">Web Chat Metrics</h1>
+            <h1 className="text-[17px] font-[800] leading-none text-gray-900">Web Chat Metrics</h1>
           </div>
           <p className="ml-3 text-[13px] text-gray-400">Last updated: {data.updatedAt}</p>
         </div>
@@ -488,7 +495,7 @@ export default function SupportChatbotMetrics() {
       </section>
 
       {/* ── KPI Cards ── */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           icon={MessageSquare}
           title="Total Chats"
@@ -529,15 +536,17 @@ export default function SupportChatbotMetrics() {
           glowColor="#bae6fd"
           accentBar="linear-gradient(to right, #7dd3fc, #818cf8)"
         />
-        <FeedbackStatCard
-          thumbsUp={data.feedback.thumbsUp}
-          thumbsDown={data.feedback.thumbsDown}
-          gradient="bg-gradient-to-br from-[#be185d] via-[#ec4899] to-[#f472b6]"
-        />
+        <div className="col-span-2 sm:col-span-1">
+          <FeedbackStatCard
+            thumbsUp={data.feedback.thumbsUp}
+            thumbsDown={data.feedback.thumbsDown}
+            gradient="bg-gradient-to-br from-[#be185d] via-[#ec4899] to-[#f472b6]"
+          />
+        </div>
       </section>
 
       {/* ── Charts Row 1 ── */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
         {/* Open vs Closed */}
         <ChartCard
@@ -545,9 +554,9 @@ export default function SupportChatbotMetrics() {
           subtitle="Current workload distribution"
           accentColor="linear-gradient(to right, #10b981, #6366f1)"
         >
-          <div className="mt-4 h-[220px]">
+          <div className="mt-3 h-[140px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.openClosed} barSize={56}>
+              <BarChart data={data.openClosed} barSize={44}>
                 <defs>
                   <linearGradient id="barOpen" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#f97316" />
@@ -588,9 +597,9 @@ export default function SupportChatbotMetrics() {
           subtitle="Agent ownership split"
           accentColor="linear-gradient(to right, #7c3aed, #93c5fd)"
         >
-          <div className="mt-3 flex items-center justify-center">
-            <div className="relative" style={{ width: 180, height: 180 }}>
-              <ResponsiveContainer width={180} height={180}>
+          <div className="mt-2 flex items-center justify-center">
+            <div className="relative" style={{ width: 140, height: 140 }}>
+              <ResponsiveContainer width={140} height={140}>
                 <PieChart>
                   <defs>
                     <linearGradient id="pieAssigned" x1="0" y1="0" x2="1" y2="1">
@@ -600,8 +609,8 @@ export default function SupportChatbotMetrics() {
                   </defs>
                   <Pie
                     data={data.assignedSplit}
-                    innerRadius={54}
-                    outerRadius={82}
+                    innerRadius={42}
+                    outerRadius={64}
                     startAngle={90}
                     endAngle={-270}
                     dataKey="value"
@@ -615,10 +624,10 @@ export default function SupportChatbotMetrics() {
               </ResponsiveContainer>
               {/* Center label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-[20px] font-[900] text-violet-700 leading-none">
+                <span className="text-[15px] font-[900] text-violet-700 leading-none">
                   {data.assignedSplit[0]?.value?.toLocaleString() ?? 0}
                 </span>
-                <span className="text-[10px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Assigned</span>
+                <span className="text-[9px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Assigned</span>
               </div>
             </div>
           </div>
@@ -654,7 +663,7 @@ export default function SupportChatbotMetrics() {
           subtitle="Trend over recent months"
           accentColor="linear-gradient(to right, #7c3aed, #10b981)"
         >
-          <div className="mt-4 h-[220px]">
+          <div className="mt-3 h-[140px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.escalationTrend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -675,11 +684,11 @@ export default function SupportChatbotMetrics() {
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-violet-50 border border-violet-100 px-3 py-2">
-              <p className="text-[16px] font-[800] text-violet-700">{data.escalationTrend.reduce((s, d) => s + d.escalated, 0)}</p>
+              <p className="text-[16px] font-[800] text-violet-700">{data.cards.escalated.toLocaleString()}</p>
               <p className="text-[11px] text-gray-500">Total Escalated</p>
             </div>
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
-              <p className="text-[16px] font-[800] text-emerald-700">{data.escalationTrend.reduce((s, d) => s + d.normal, 0)}</p>
+              <p className="text-[16px] font-[800] text-emerald-700">{Math.max(data.cards.totalMessages - data.cards.escalated, 0).toLocaleString()}</p>
               <p className="text-[11px] text-gray-500">Total Normal</p>
             </div>
           </div>
@@ -687,7 +696,7 @@ export default function SupportChatbotMetrics() {
       </section>
 
       {/* ── Charts Row 2 ── */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 
         {/* Conversation Status Mix */}
         <ChartCard
@@ -695,15 +704,15 @@ export default function SupportChatbotMetrics() {
           subtitle="Resolution health breakdown"
           accentColor="linear-gradient(to right, #0ea95a, #f59e0b, #7c3aed)"
         >
-          <div className="mt-4 flex flex-col lg:flex-row items-center gap-4">
-            <div className="relative shrink-0" style={{ width: 180, height: 180 }}>
-              <ResponsiveContainer width={180} height={180}>
+          <div className="mt-3 flex flex-col lg:flex-row items-center gap-3">
+            <div className="relative shrink-0" style={{ width: 140, height: 140 }}>
+              <ResponsiveContainer width={140} height={140}>
                 <PieChart>
                   <Pie
                     data={data.statusPie}
                     dataKey="value"
-                    innerRadius={54}
-                    outerRadius={82}
+                    innerRadius={42}
+                    outerRadius={64}
                     startAngle={90}
                     endAngle={-270}
                     strokeWidth={0}
@@ -719,10 +728,10 @@ export default function SupportChatbotMetrics() {
                 const top = data.statusPie.reduce((a, b) => (a.value > b.value ? a : b), data.statusPie[0] ?? {});
                 return (
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-[20px] font-[900] leading-none" style={{ color: top?.color ?? "#374151" }}>
+                    <span className="text-[15px] font-[900] leading-none" style={{ color: top?.color ?? "#374151" }}>
                       {top?.value?.toLocaleString() ?? 0}
                     </span>
-                    <span className="text-[10px] font-semibold text-gray-400 mt-0.5">{top?.name ?? ""}</span>
+                    <span className="text-[9px] font-semibold text-gray-400 mt-0.5">{top?.name ?? ""}</span>
                   </div>
                 );
               })()}
@@ -772,7 +781,7 @@ export default function SupportChatbotMetrics() {
           }
         >
           {data.weeklyFeedback.length > 0 ? (
-            <div className="mt-4 h-[280px]">
+          <div className="mt-3 h-[170px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.weeklyFeedback} margin={{ top: 4, right: 10, left: -18, bottom: 0 }}>
                   <defs>
@@ -803,7 +812,7 @@ export default function SupportChatbotMetrics() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="flex h-[280px] items-center justify-center text-[13px] text-gray-400">
+            <div className="flex h-[170px] items-center justify-center text-[13px] text-gray-400">
               No feedback data available
             </div>
           )}

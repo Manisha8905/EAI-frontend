@@ -238,16 +238,16 @@ function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
   };
 
   return (
-    <article className={`rounded-2xl bg-gradient-to-br px-5 py-4 text-white shadow-lg ${tones[tone]}`}>
-      <div className="flex items-center justify-between gap-3">
+    <article className={`rounded-xl bg-gradient-to-br px-4 py-3 text-white shadow-md ${tones[tone]}`}>
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-[13px] font-[500] text-white/80">{title}</p>
-          <p className="mt-0.5 text-[32px] font-[800] leading-none tracking-tight text-white">
+          <p className="text-[11px] font-[500] text-white/80">{title}</p>
+          <p className="mt-0.5 text-[22px] font-[800] leading-none tracking-tight text-white">
             {formatter ? formatter(value) : value}
           </p>
         </div>
-        <span className="inline-flex shrink-0 rounded-xl bg-white/20 p-3">
-          <Icon className="h-5 w-5" />
+        <span className="inline-flex shrink-0 rounded-xl bg-white/20 p-2">
+          <Icon className="h-4 w-4" />
         </span>
       </div>
     </article>
@@ -793,7 +793,7 @@ export default function SupportChatbotReporting() {
   }
 
   return (
-    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-6">
+    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-4">
       {/* Global Assign Toast — fixed so overflow-hidden never clips it */}
       {(isRightAssignToast || isAssignedToast) && (
         <div className="fixed bottom-6 right-6 z-[9999] flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-2xl" style={{ minWidth: 260 }}>
@@ -831,7 +831,7 @@ export default function SupportChatbotReporting() {
               </div>
             )} */}
       {/* Summary Cards */}
-      <section className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
         <SummaryCard
           title="Total Conversations"
           value={data.cards.total}
@@ -860,7 +860,7 @@ export default function SupportChatbotReporting() {
       </section>
 
       {/* Toolbar */}
-      <section className="mb-4 flex flex-wrap items-center gap-3">
+      <section className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative w-full min-w-0 flex-1 sm:min-w-[240px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -868,7 +868,7 @@ export default function SupportChatbotReporting() {
             value={search}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search conversations"
-            className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-3 text-[14px] text-gray-700 outline-none focus:border-[#a78bfa]"
+            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-[13px] text-gray-700 outline-none focus:border-[#a78bfa]"
           />
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
@@ -935,9 +935,9 @@ export default function SupportChatbotReporting() {
             <button
               type="button"
               onClick={() => setIsAgentsOpen((p) => !p)}
-              className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border bg-white px-4 py-3 text-[14px] font-[600] text-[#253b69] sm:px-5 ${isAgentsOpen ? "border-[#7c3aed]" : "border-gray-200"}`}
+              className={`inline-flex w-full items-center justify-center gap-1.5 rounded-xl border bg-white px-3 py-2 text-[12px] font-[600] text-[#253b69] sm:px-4 ${isAgentsOpen ? "border-[#7c3aed]" : "border-gray-200"}`}
             >
-              <UserCog className="h-4 w-4" /> Agents
+              <UserCog className="h-3.5 w-3.5" /> Agents
             </button>
             {isAgentsOpen && (
               <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-[300px] rounded-2xl border border-gray-200 bg-white shadow-xl">
@@ -994,30 +994,30 @@ export default function SupportChatbotReporting() {
           <button
             type="button"
             onClick={openBusinessRulesList}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#8b5cf6] bg-white px-4 py-3 text-[14px] font-[600] text-[#6d28d9] sm:flex-none sm:px-5"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#8b5cf6] bg-white px-3 py-2 text-[12px] font-[600] text-[#6d28d9] sm:flex-none sm:px-4"
           >
-            <ClipboardList className="h-4 w-4" />  Business Rules List
+            <ClipboardList className="h-3.5 w-3.5" />  Business Rules
           </button>
 
           {/* Export CSV */}
           <button
             type="button"
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#4f46e5] px-4 py-3 text-[14px] font-[700] text-white sm:flex-none sm:px-5"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#4f46e5] px-3 py-2 text-[12px] font-[700] text-white sm:flex-none sm:px-4"
                       onClick={handleExport}
                       disabled={conversationsLoading}
           >
-            <Download className="h-4 w-4" /> Export CSV
+            <Download className="h-3.5 w-3.5" /> Export CSV
           </button>
         </div>
       </section>
 
       {/* Main grid */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Conversations Panel */}
         <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
+          <div className="border-b border-gray-100 px-3 py-3 sm:px-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-[16px] font-[800] text-[#061a43]">Conversations</h3>
+              <h3 className="text-[14px] font-[800] text-[#061a43]">Conversations</h3>
               {selectedChats.size > 0 && (
                 <div className="relative" ref={convAssignDropdownRef}>
                   <button
@@ -1057,7 +1057,7 @@ export default function SupportChatbotReporting() {
                   key={tab}
                   type="button"
                   onClick={() => handleTabChange(tab)}
-                  className={`min-w-[90px] flex-1 border-b-2 px-2 py-4 text-center text-[13px] font-[500] leading-snug whitespace-nowrap sm:min-w-[100px] sm:text-[14px] ${
+                  className={`min-w-[80px] flex-1 border-b-2 px-2 py-2.5 text-center text-[11px] font-[500] leading-snug whitespace-nowrap sm:min-w-[90px] sm:text-[12px] ${
                     activeConversationTab === tab
                       ? "border-[#7c3aed] text-[#7c3aed]"
                       : "border-transparent text-[#3c4f75]"
@@ -1070,7 +1070,7 @@ export default function SupportChatbotReporting() {
           </div>
 
           {/* Conversation list */}
-          <div className="max-h-[380px] overflow-y-auto">
+          <div className="max-h-[300px] overflow-y-auto">
             {conversationsLoading ? (
               <>
                 {[...Array(4)].map((_, i) => (
@@ -1126,37 +1126,37 @@ export default function SupportChatbotReporting() {
                   <button
                     type="button"
                     onClick={() => handleConversationSelect(conv.id)}
-                    className="flex-1 px-4 py-5 text-left"
+                    className="flex-1 px-3 py-3 text-left"
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-[16px] font-[700] leading-tight text-[#04163d]">
+                        <p className="text-[13px] font-[700] leading-tight text-[#04163d]">
                           {conv.lead}
                         </p>
-                        <p className="mt-1 flex items-center gap-1 text-[14px] text-[#586a8f]">
-                          <span className="h-2 w-2 shrink-0 rounded-full bg-[#ef4444]" />
+                        <p className="mt-0.5 flex items-center gap-1 text-[12px] text-[#586a8f]">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#ef4444]" />
                           <span className="truncate">{conv.email}</span>
                         </p>
-                        <p className="mt-2 text-[13px] text-[#2f456f]">
+                        <p className="mt-1 text-[11px] text-[#2f456f]">
                           {conv.preview}
                         </p>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2">
-                        <p className="whitespace-nowrap text-[13px] text-[#60759b]">
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <p className="whitespace-nowrap text-[11px] text-[#60759b]">
                           {String(conv.time)}
                         </p>
                         {conv.escalated && (
-                          <span className="rounded-full bg-[#ef4444] px-3 py-1 text-[11px] font-[600] text-white">
+                          <span className="rounded-full bg-[#ef4444] px-2 py-0.5 text-[10px] font-[600] text-white">
                             Escalated
                           </span>
                         )}
                         {conv.assignedTo && (
-                          <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[11px] font-[600] text-[#4a5d81]">
+                          <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-[600] text-[#4a5d81]">
                             {conv.assignedTo}
                           </span>
                         )}
                         {conv.status && (
-                          <span className={`rounded-full px-3 py-1 text-[11px] font-[600] ${
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-[600] ${
                             conv.status === "open" ? "bg-blue-100 text-blue-700" :
                             conv.status === "responded" ? "bg-green-100 text-green-700" :
                             conv.status === "closed" ? "bg-gray-100 text-gray-500" :
@@ -1176,8 +1176,8 @@ export default function SupportChatbotReporting() {
 
         {/* Messages Panel */}
         <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 sm:px-6">
-            <h3 className="text-[16px] font-[800] text-[#061a43]">Messages</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-3 sm:px-4">
+            <h3 className="text-[14px] font-[800] text-[#061a43]">Messages</h3>
             <div className="flex items-center gap-2">
               {/* Three-dots status menu */}
               <div className="relative" ref={statusMenuRef}>
@@ -1212,7 +1212,7 @@ export default function SupportChatbotReporting() {
                   type="button"
                   onClick={() => setIsRightAssignOpen((v) => !v)}
                   disabled={!selectedConversationId}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 ${isRightAssignOpen ? "border-[#7c3aed] bg-[#f5f0ff]" : "border-gray-200 bg-white"}`}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 ${isRightAssignOpen ? "border-[#7c3aed] bg-[#f5f0ff]" : "border-gray-200 bg-white"}`}
                 >
                   <User className="h-4 w-4" />
                   {selectedConversationCard?.assignedTo
@@ -1243,9 +1243,9 @@ export default function SupportChatbotReporting() {
               <button
                 type="button"
                 onClick={openAddRuleModal}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[14px] font-[600] text-[#253b69] hover:bg-gray-50"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-[600] text-[#253b69] hover:bg-gray-50"
               >
-                <ClipboardList className="h-4 w-4" /> Add Business Rules
+                <ClipboardList className="h-3.5 w-3.5" /> Add Rules
               </button>
                  <button
                   type="button"
@@ -1279,7 +1279,7 @@ export default function SupportChatbotReporting() {
               </div>
             )} */}
 
-            <div className="overflow-y-auto" style={{ maxHeight: 420 }}>
+            <div className="overflow-y-auto" style={{ maxHeight: 320 }}>
               {chatHistoryLoading ? (
                 <div className="space-y-1 bg-white px-4 py-3">
                   {[...Array(4)].map((_, i) => (
