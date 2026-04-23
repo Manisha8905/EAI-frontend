@@ -18,6 +18,11 @@ import {
   TrendingUp,
   Paperclip,
   DollarSign,
+  UploadCloud,
+  Info,
+  Eye,
+  FileSpreadsheet,
+  Clock,
 } from "lucide-react";
 
 /* ─── Mock data — Jobs tab ───────────────────────────────────── */
@@ -216,7 +221,7 @@ function JobsTable({ rows }) {
           <Mail className="h-5 w-5 text-indigo-600" />
         </div>
         <div>
-          <p className="text-[15px] font-[700] text-gray-900">Jobs Processing History</p>
+          <p className="text-xs font-bold text-slate-900">Jobs Processing History</p>
           <p className="text-[12px] text-gray-400 mt-0.5">One job = one email processed</p>
         </div>
       </div>
@@ -271,7 +276,7 @@ function InvoicesTable({ rows, title, subtitle, icon: Icon, accentColor = "sky" 
           <Icon className={`h-5 w-5 ${iconCls}`} />
         </div>
         <div>
-          <p className="text-[15px] font-[700] text-gray-900">{title}</p>
+          <p className="text-xs font-bold text-slate-900">{title}</p>
           <p className="text-[12px] text-gray-400 mt-0.5">{subtitle}</p>
         </div>
       </div>
@@ -303,12 +308,12 @@ function InvoicesTable({ rows, title, subtitle, icon: Icon, accentColor = "sky" 
                   </span>
                 </Td>
                 <Td><span className="font-[600] text-gray-800">{inv.vendor}</span></Td>
-                <Td><span className="font-[700] text-gray-900 whitespace-nowrap">{inv.invoiceNumber}</span></Td>
+                <Td><span className="text-xs font-bold text-slate-900">{inv.invoiceNumber}</span></Td>
                 <Td><span className="text-gray-500">{inv.invoiceDate}</span></Td>
                 <Td><span className="text-gray-500">{inv.dueDate}</span></Td>
                 <Td><span className="text-indigo-600 font-[500]">{inv.posoNumber}</span></Td>
                 <Td><span className="text-gray-700">{inv.description}</span></Td>
-                <Td><span className="font-[700] text-gray-900">{inv.amount}</span></Td>
+                <Td><span className="text-xs font-bold text-slate-900">{inv.amount}</span></Td>
                 <Td>{statusBadge(inv.status)}</Td>
                 <Td>
                   {inv.errorLog
@@ -349,7 +354,7 @@ function TradeInvoicesTable({ rows }) {
           <Package className="h-5 w-5 text-purple-600" />
         </div>
         <div>
-          <p className="text-[15px] font-[700] text-gray-900">Trade Invoices</p>
+          <p className="text-xs font-bold text-slate-900">Trade Invoices</p>
           <p className="text-[12px] text-gray-400 mt-0.5">Purchase orders from suppliers (FAP, REFIN, DECOCER, etc.)</p>
         </div>
       </div>
@@ -392,7 +397,7 @@ function TradeInvoicesTable({ rows }) {
                   </span>
                 </Td>
                 {/* PO Number */}
-                <Td><span className="font-[700] text-gray-900 whitespace-nowrap">{inv.poNumber}</span></Td>
+                <Td><span className="text-xs font-bold text-slate-900">{inv.poNumber}</span></Td>
                 {/* Invoice No */}
                 <Td><span className="text-gray-500 whitespace-nowrap">{inv.invoiceNo}</span></Td>
                 {/* Invoice Date */}
@@ -402,7 +407,7 @@ function TradeInvoicesTable({ rows }) {
                 {/* Sales Tax */}
                 <Td><span className="text-gray-700">{inv.salesTax}</span></Td>
                 {/* Total Amount */}
-                <Td><span className="font-[700] text-gray-900">{inv.totalAmount}</span></Td>
+                <Td><span className="text-xs font-bold text-slate-900">{inv.totalAmount}</span></Td>
                 {/* Pallet Charge */}
                 <Td><span className="text-gray-700">{inv.palletCharge}</span></Td>
                 {/* Packing Charge */}
@@ -420,7 +425,7 @@ function TradeInvoicesTable({ rows }) {
                 {/* Quantity */}
                 <Td><span className="text-gray-800 font-[500]">{inv.quantity}</span></Td>
                 {/* Amount */}
-                <Td><span className="font-[700] text-gray-900">{inv.amount}</span></Td>
+                <Td><span className="text-xs font-bold text-slate-900">{inv.amount}</span></Td>
                 {/* SF Quantity */}
                 <Td><span className="text-indigo-600 font-[600]">{inv.sfQuantity}</span></Td>
                 {/* SF Amount */}
@@ -446,15 +451,314 @@ function TradeInvoicesTable({ rows }) {
 }
 
 /* ─── Reprocess placeholder ──────────────────────────────────── */
-function ReprocessPanel() {
+const REPROCESS_HISTORY = [
+  {
+    id: 1,
+    fileName: "invoices_march_2026.xlsx",
+    uploadTime: "Mar 29, 2026, 2:45 PM",
+    records: 45,
+    status: "Success",
+    details: [
+      { invoiceNo: "INV-001", vendor: "UPS",   type: "Freight", amount: "$1,250.00", status: "Success", errorLog: null },
+      { invoiceNo: "INV-002", vendor: "FedEx", type: "Freight", amount: "$890.50",   status: "Success", errorLog: null },
+      { invoiceNo: "INV-003", vendor: "FAP",   type: "Trade",   amount: "$25,600.00",status: "Success", errorLog: null },
+      { invoiceNo: "INV-004", vendor: "REFIN", type: "Trade",   amount: "$18,750.50",status: "Success", errorLog: null },
+      { invoiceNo: "INV-005", vendor: "DHL",   type: "Freight", amount: "$2,100.00", status: "Success", errorLog: null },
+    ],
+  },
+  {
+    id: 2,
+    fileName: "freight_reprocess.xlsx",
+    uploadTime: "Mar 28, 2026, 10:30 AM",
+    records: 32,
+    status: "Partial",
+    details: [
+      { invoiceNo: "FRT-101", vendor: "SAIA",  type: "Freight", amount: "$2,340.75", status: "Failed",  errorLog: "Missing invoice date field" },
+      { invoiceNo: "FRT-102", vendor: "UPS",   type: "Freight", amount: "$675.25",   status: "Success", errorLog: null },
+      { invoiceNo: "FRT-103", vendor: "R+L",   type: "Freight", amount: "$1,580.00", status: "Failed",  errorLog: "Database connection timeout" },
+      { invoiceNo: "FRT-104", vendor: "XPO",   type: "Freight", amount: "$980.00",   status: "Success", errorLog: null },
+      { invoiceNo: "FRT-105", vendor: "FedEx", type: "Freight", amount: "$430.00",   status: "Success", errorLog: null },
+    ],
+  },
+  {
+    id: 3,
+    fileName: "trade_invoices_feb.xlsx",
+    uploadTime: "Mar 27, 2026, 4:15 PM",
+    records: 28,
+    status: "Success",
+    details: [
+      { invoiceNo: "TRD-201", vendor: "FAP",     type: "Trade", amount: "$14,890.75", status: "Success", errorLog: null },
+      { invoiceNo: "TRD-202", vendor: "DECOCER", type: "Trade", amount: "$22,500.00", status: "Success", errorLog: null },
+      { invoiceNo: "TRD-203", vendor: "Domos",   type: "Trade", amount: "$32,100.00", status: "Success", errorLog: null },
+      { invoiceNo: "TRD-204", vendor: "REFIN",   type: "Trade", amount: "$17,282.50", status: "Success", errorLog: null },
+      { invoiceNo: "TRD-205", vendor: "FAP",     type: "Trade", amount: "$23,610.00", status: "Success", errorLog: null },
+    ],
+  },
+];
+
+/* ─── Reprocess View Modal ───────────────────────────────────── */
+function ReprocessViewModal({ entry, onClose }) {
+  if (!entry) return null;
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-8 py-24 flex flex-col items-center gap-3 text-center">
-      <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-50">
-        <RefreshCw className="h-7 w-7 text-indigo-500" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      {/* Modal */}
+      <div className="relative z-10 w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-50">
+              <FileSpreadsheet className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-900">{entry.fileName}</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">
+                Uploaded {entry.uploadTime} &middot; {entry.records} records &middot; {statusBadge(entry.status)}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Summary pills */}
+        <div className="flex gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
+          {[
+            { label: "Total",   value: entry.details.length,                                          color: "bg-blue-100 text-blue-700"   },
+            { label: "Success", value: entry.details.filter((d) => d.status === "Success").length,    color: "bg-green-100 text-green-700" },
+            { label: "Failed",  value: entry.details.filter((d) => d.status === "Failed").length,     color: "bg-red-100 text-red-700"     },
+          ].map(({ label, value, color }) => (
+            <span key={label} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-[700] ${color}`}>
+              {label}: {value}
+            </span>
+          ))}
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+          <table className="w-full">
+            <thead className="sticky top-0 z-10 bg-white">
+              <tr className="border-b border-gray-100">
+                {["Invoice No", "Vendor", "Type", "Amount", "Status", "Error Log"].map((h) => (
+                  <th key={h} className="px-5 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-400 bg-gray-50/80">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {entry.details.map((row) => (
+                <tr key={row.invoiceNo} className="hover:bg-indigo-50/20 transition-colors">
+                  <td className="px-5 py-3.5 text-[13px] font-[700] text-indigo-600">{row.invoiceNo}</td>
+                  <td className="px-5 py-3.5 text-xs font-bold text-slate-900">{row.vendor}</td>
+                  <td className="px-5 py-3.5">{typeBadge(row.type)}</td>
+                  <td className="px-5 py-3.5 text-xs font-bold text-slate-900">{row.amount}</td>
+                  <td className="px-5 py-3.5">{statusBadge(row.status)}</td>
+                  <td className="px-5 py-3.5">
+                    {row.errorLog
+                      ? <span className="text-[12px] text-red-500 font-[500]">{row.errorLog}</span>
+                      : <span className="text-[12px] text-green-600 font-[500]">None</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-[13px] font-[600] text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            Close
+          </button>
+        </div>
       </div>
-      <p className="text-[16px] font-[700] text-gray-900">Reprocess Jobs</p>
-      <p className="text-[13px] text-gray-400 max-w-xs leading-relaxed">Select failed or partial jobs from the Jobs tab to reprocess them here.</p>
     </div>
+  );
+}
+
+function ReprocessPanel() {
+  const [file, setFile] = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [viewEntry, setViewEntry] = useState(null);
+  const [lastViewedId, setLastViewedId] = useState(null);
+
+  const handleFileChange = (e) => {
+    const selected = e.target.files?.[0];
+    if (selected) setFile(selected);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped) setFile(dropped);
+  };
+
+  const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
+  const handleDragLeave = () => setDragging(false);
+
+  return (
+    <>
+      {/* ── View Modal ── */}
+      <ReprocessViewModal entry={viewEntry} onClose={() => setViewEntry(null)} />
+
+      <div className="space-y-5">
+
+        {/* ── Upload card ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 pt-6 pb-4 flex items-center gap-3">
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-indigo-50">
+              <RefreshCw className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-900">Reprocess Invoices</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">Upload an Excel file to reprocess invoices</p>
+            </div>
+          </div>
+
+          <div className="px-6 pb-6">
+            {/* Dropzone */}
+            <label
+              htmlFor="reprocess-file-input"
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`flex flex-col items-center justify-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed py-16 transition-colors ${
+                dragging
+                  ? "border-indigo-500 bg-indigo-50/70"
+                  : file
+                  ? "border-indigo-400 bg-indigo-50/40"
+                  : "border-indigo-300 bg-white hover:border-indigo-500 hover:bg-indigo-50/20"
+              }`}
+            >
+              <div className="flex items-center justify-center w-14 h-14 rounded-full bg-violet-100">
+                <FileSpreadsheet className="h-7 w-7 text-violet-500" />
+              </div>
+              {file ? (
+                <>
+                  <p className="text-[15px] font-[700] text-indigo-700">{file.name}</p>
+                  <p className="text-[12px] text-gray-400">{(file.size / 1024).toFixed(1)} KB &mdash; click to change</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[15px] font-[700] text-gray-800">Click to upload Excel file</p>
+                  <p className="text-[13px] text-gray-400">Supports .xlsx and .xls formats</p>
+                </>
+              )}
+            </label>
+            <input
+              id="reprocess-file-input"
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {/* Process button */}
+            <div className="flex justify-end mt-5">
+              <button
+                disabled={!file}
+                className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-[600] shadow-sm transition-all ${
+                  file
+                    ? "bg-violet-500 text-white hover:bg-violet-600 active:bg-violet-700"
+                    : "bg-violet-300 text-white cursor-not-allowed"
+                }`}
+              >
+                <UploadCloud className="h-4 w-4" />
+                Process File
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── File Requirements ── */}
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Info className="h-5 w-5 text-amber-500 shrink-0" />
+            <p className="text-[14px] font-[700] text-amber-800">File Requirements</p>
+          </div>
+          <ul className="space-y-1.5 pl-1">
+            {[
+              "Excel file must be in .xlsx or .xls format",
+              "File should contain invoice data with proper headers",
+              "Supported invoice types: Freight and Trade",
+              "Maximum file size: 10 MB",
+            ].map((req) => (
+              <li key={req} className="flex items-start gap-2 text-[13px] text-amber-700">
+                <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                {req}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* ── Recent Reprocessing History ── */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 pt-6 pb-4 flex items-center gap-3">
+            <Clock className="h-5 w-5 text-gray-500" />
+            <p className="text-xs font-bold text-slate-900">Recent Reprocessing History</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-t border-gray-100">
+                  {["File Name", "Upload Time", "Records", "Status", "Actions"].map((h) => (
+                    <th key={h} className="px-6 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-400 bg-gray-50/60">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {REPROCESS_HISTORY.map((row, idx) => (
+                  <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <FileSpreadsheet className="h-4 w-4 text-indigo-400 shrink-0" />
+                        <span className="text-xs font-bold text-slate-900">{row.fileName}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-[13px] text-gray-500">{row.uploadTime}</td>
+                    <td className="px-6 py-4 text-xs font-bold text-slate-900">{row.records}</td>
+                    <td className="px-6 py-4">{statusBadge(row.status)}</td>
+                    <td className="px-6 py-4">
+                      {lastViewedId === row.id ? (
+                        /* Already-viewed: grey bordered pill */
+                        <button
+                          onClick={() => { setLastViewedId(row.id); setViewEntry(row); }}
+                          className="inline-flex items-center gap-1.5 rounded-lg  text-[13px] font-[600] text-violet-600 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                        >
+                          <Eye className="h-4 w-4" /> View
+                        </button>
+                      ) : (
+                        /* Default: violet text link — grey bg on hover */
+                        <button
+                          onClick={() => { setLastViewedId(row.id); setViewEntry(row); }}
+                          className="inline-flex items-center gap-1.5 rounded-lg  text-[13px] font-[600] text-violet-600 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                        >
+                          <Eye className="h-4 w-4" /> View
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </>
   );
 }
 
