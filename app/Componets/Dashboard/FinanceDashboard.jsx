@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../Redux/axiosInstance";
 import {
@@ -331,7 +332,8 @@ export default function FinanceDashboard() {
       const payload = res.data?.data ?? res.data;
       setApiMetrics(payload);
     } catch (err) {
-      console.error("[FinanceDashboard] metrics error:", err?.response?.data?.detail ?? err.message);
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load finance metrics.";
+      toast.error(msg, { toastId: "finance-dashboard-metrics-error" });
     } finally {
       setMetricsLoading(false);
     }

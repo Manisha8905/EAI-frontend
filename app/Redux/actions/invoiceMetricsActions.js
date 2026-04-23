@@ -13,7 +13,8 @@ export const fetchInvoiceMetrics = () => async (dispatch) => {
   } catch (err) {
     dispatch({
       type: INVOICE_METRICS_FAILURE,
-      payload: err?.response?.data?.detail || err.message || "Failed to load metrics",
+      payload:err?.response?.data?.detail ?? err.detail ?? "An error occurred while fetching invoice metrics.",
+
     });
   }
 };

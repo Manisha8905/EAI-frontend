@@ -8069,6 +8069,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
     conversation_status_distribution: [],
   });
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [emailTemplates, setEmailTemplates] = useState([]);
   const [enrichmentFetchLoading, setEnrichmentFetchLoading] = useState({
     xai: false,
     grokEnrichment: false,
@@ -8147,6 +8148,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         grokEmailRes,
         xaiRes,
         linkedinConfigRes,
+        emailTemplatesRes,
         campaignEmailSettingsRes,
       ] = await Promise.allSettled([
         axiosInstance.get("/api/globalsetting/twilio"),
@@ -8160,6 +8162,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         axiosInstance.get("/api/globalsetting/grok-email-style"),
         axiosInstance.get("/api/globalsetting/xai"),
         axiosInstance.get("/api/admin/linkedin/config"),
+        axiosInstance.get("/api/email-templates"),
         axiosInstance.get("/campaign-email-settings"),
       ]);
 
@@ -8357,33 +8360,41 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           };
         }
 
-        // Campaign Email Settings
+        // Email Templates list (for Template ID dropdown only — no form pre-fill)
+        if (emailTemplatesRes.status === "fulfilled") {
+          const raw = emailTemplatesRes.value?.data ?? [];
+          const list = Array.isArray(raw)
+            ? raw
+            : (raw.data ?? raw.templates ?? raw.results ?? []);
+          setEmailTemplates(
+            list.map((t) => ({
+              id:                   t.template_id ?? t.id ?? t._id ?? "",
+              name:                 t.name ?? t.template_name ?? t.template_id ?? t.id ?? "",
+              email:                t.from_email ?? t.email ?? "",
+              reply_to_email:       t.reply_to_email ?? "",
+              from_name:            t.from_name ?? "",
+              smtp_provider_name:   t.smtp_provider_name ?? "",
+              meeting_schedule:     t.meeting_schedule ?? "",
+              logged_in_user_email: t.logged_in_user_email ?? "",
+              campaign_prompt:      t.ai_context ?? t.campaign_prompt ?? "",
+            }))
+          );
+        }
+
+        // Campaign Email Settings — other fields from /campaign-email-settings
         if (campaignEmailSettingsRes.status === "fulfilled") {
           const d = campaignEmailSettingsRes.value?.data ?? {};
           next.campaign_email_settings = {
-            email:
-              d.email ??
-              d.from_email ??
-              prev.campaign_email_settings.email,
-            reply_to_email:
-              d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
-            from_name: d.from_name ?? prev.campaign_email_settings.from_name,
-            template_id:
-              d.template_id ?? prev.campaign_email_settings.template_id,
-            smtp_provider_name:
-              d.smtp_provider_name ??
-              prev.campaign_email_settings.smtp_provider_name,
-            credential:
-              d.credential ?? prev.campaign_email_settings.credential,
-            meeting_schedule:
-              d.meeting_schedule ??
-              prev.campaign_email_settings.meeting_schedule,
-            logged_in_user_email:
-              d.logged_in_user_email ??
-              prev.campaign_email_settings.logged_in_user_email,
-            campaign_prompt:
-              d.campaign_prompt ??
-              prev.campaign_email_settings.campaign_prompt,
+            ...prev.campaign_email_settings,
+            email:                d.email ?? d.from_email ?? prev.campaign_email_settings.email,
+            reply_to_email:       d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
+            from_name:            d.from_name ?? prev.campaign_email_settings.from_name,
+            smtp_provider_name:   d.smtp_provider_name ?? prev.campaign_email_settings.smtp_provider_name,
+            credential:           d.credential ?? prev.campaign_email_settings.credential,
+            meeting_schedule:     d.meeting_schedule ?? prev.campaign_email_settings.meeting_schedule,
+            logged_in_user_email: d.logged_in_user_email ?? prev.campaign_email_settings.logged_in_user_email,
+            campaign_prompt:      d.campaign_prompt ?? prev.campaign_email_settings.campaign_prompt,
+            // template_id stays from the dropdown — do not overwrite
           };
         }
 
@@ -8987,12 +8998,42 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 onChange={setField("campaign_email_settings", "from_name")}
                 placeholder="Your Company Name"
               />
-              <Field
-                label="Template ID"
-                value={forms.campaign_email_settings.template_id}
-                onChange={setField("campaign_email_settings", "template_id")}
-                placeholder="template_id"
-              />
+              <div>
+                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+                  Template Name
+                </label>
+                <div className="relative">
+                  <select
+                    value={forms.campaign_email_settings.template_id}
+                    onChange={(e) => {
+                      const selected = emailTemplates.find((t) => String(t.id) === e.target.value);
+                      setForms((prev) => ({
+                        ...prev,
+                        campaign_email_settings: {
+                          ...prev.campaign_email_settings,
+                          template_id: e.target.value,
+                          ...(selected?.email              && { email:              selected.email              }),
+                          ...(selected?.reply_to_email     && { reply_to_email:     selected.reply_to_email     }),
+                          ...(selected?.from_name          && { from_name:          selected.from_name          }),
+                          ...(selected?.smtp_provider_name && { smtp_provider_name: selected.smtp_provider_name }),
+                          ...(selected?.meeting_schedule   && { meeting_schedule:   selected.meeting_schedule   }),
+                          ...(selected?.logged_in_user_email && { logged_in_user_email: selected.logged_in_user_email }),
+                          ...(selected?.campaign_prompt    && { campaign_prompt:    selected.campaign_prompt    }),
+                        },
+                      }));
+                    }}
+                    className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 pr-9 py-2.5 text-[13px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  >
+                    <option value="">— Select a template —</option>
+                    {emailTemplates.map((t) => (
+                      <option key={t.id} value={String(t.id)}>
+                        {t.name || t.id}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                </div>
+              </div>
               <Field
                 label="SMTP Provider Name"
                 value={forms.campaign_email_settings.smtp_provider_name}

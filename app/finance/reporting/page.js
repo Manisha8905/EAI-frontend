@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
+import { toast } from "react-toastify";
 
 import {
   Mail,
@@ -399,17 +400,29 @@ const vendorBadge = (name) => (
 );
 
 /* ─── Trade Invoices table ───────────────────────────────────── */
-function TradeInvoicesTable({ rows }) {
+function TradeInvoicesTable({ rows, loading, error, onRetry }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-6 pt-6 pb-4 flex items-center gap-3">
-        <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-purple-50">
-          <Package className="h-5 w-5 text-purple-600" />
+      <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-purple-50">
+            <Package className="h-5 w-5 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-slate-900">Trade Invoices</p>
+            <p className="text-[12px] text-gray-400 mt-0.5">Purchase orders from suppliers (FAP, REFIN, DECOCER, etc.)</p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-bold text-slate-900">Trade Invoices</p>
-          <p className="text-[12px] text-gray-400 mt-0.5">Purchase orders from suppliers (FAP, REFIN, DECOCER, etc.)</p>
-        </div>
+        {onRetry && (
+          <button
+            onClick={onRetry}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[12px] font-[600] text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full">
@@ -439,7 +452,21 @@ function TradeInvoicesTable({ rows }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {rows.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={21} className="py-16 text-center text-[13px] text-gray-400">
+                  <RefreshCw className="inline h-5 w-5 animate-spin mr-2 text-indigo-400" />
+                  Loading invoices…
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan={21} className="py-16 text-center text-[13px] text-red-400">
+                  {error} —{" "}
+                  <button onClick={onRetry} className="text-indigo-500 underline">retry</button>
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
               <tr><td colSpan={21} className="py-16 text-center text-[13px] text-gray-400">No trade invoices match your filters.</td></tr>
             ) : rows.map((inv) => (
               <tr key={inv.id} className="hover:bg-purple-50/20 transition-colors">
@@ -860,6 +887,12 @@ export default function FinanceReportingPage() {
   const [freightError,   setFreightError]   = useState(null);
   const [freightSummary, setFreightSummary] = useState(null);
 
+  /* ── Trade API state ── */
+  const [apiTrade,       setApiTrade]       = useState([]);
+  const [tradeLoading,   setTradeLoading]   = useState(false);
+  const [tradeError,     setTradeError]     = useState(null);
+  const [tradeSummary,   setTradeSummary]   = useState(null);
+
   const fetchJobs = useCallback(async () => {
     setJobsLoading(true);
     setJobsError(null);
@@ -880,14 +913,13 @@ export default function FinanceReportingPage() {
       setApiJobs(mapped);
       setJobsSummary(data.summary ?? null);
     } catch (err) {
-      // Silently fall back to mock data while the endpoint is being implemented
+      const msg = err?.response?.data?.detail ?? err?.detail ?? "Failed to load jobs.";
+      toast.error(msg, { toastId: "finance-reporting-api-error" });
       setApiJobs(MOCK_JOBS);
     } finally {
       setJobsLoading(false);
     }
   }, []);
-
-  useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
   const fetchFreight = useCallback(async () => {
     setFreightLoading(true);
@@ -911,14 +943,65 @@ export default function FinanceReportingPage() {
       setApiFreight(mapped);
       setFreightSummary(data.summary ?? null);
     } catch (err) {
-      // Silently fall back to mock data while the endpoint is being implemented
+      const msg = err?.response?.data?.detail ?? err?.detail ?? "Failed to load freight invoices.";
+      toast.error(msg, { toastId: "finance-reporting-api-error" });
       setApiFreight(MOCK_FREIGHT);
     } finally {
       setFreightLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchFreight(); }, [fetchFreight]);
+  const fetchTrade = useCallback(async () => {
+    setTradeLoading(true);
+    setTradeError(null);
+    try {
+      const res = await axiosInstance.get("/invoice-processing/reporting/trade-invoices");
+      const data = res.data?.data ?? {};
+      const fmt = (val) => val != null
+        ? `$${parseFloat(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : "—";
+      const mapped = (data.items ?? []).map((inv) => ({
+        id:               inv.item_id,
+        poNumber:         inv.po_number,
+        invoiceNo:        inv.invoice_number,
+        invoiceDate:      inv.invoice_date,
+        freightCharge:    fmt(inv.freight_charge),
+        salesTax:         fmt(inv.sales_tax),
+        totalAmount:      fmt(inv.total_amount),
+        palletCharge:     fmt(inv.pallet_charge),
+        packingCharge:    fmt(inv.packing_charge),
+        surCharge:        fmt(inv.sur_charge),
+        vendorName:       inv.vendor_name,
+        discount:         fmt(inv.discount),
+        itemCode:         inv.item_code,
+        description:      inv.description,
+        quantity:         Array.isArray(inv.quantity) && inv.quantity.length > 0
+                            ? inv.quantity[0].value
+                            : (inv.quantity ?? "—"),
+        amount:           fmt(inv.amount),
+        sfQuantity:       inv.salesforce_quantity ?? "—",
+        sfAmount:         inv.salesforce_amount != null ? fmt(inv.salesforce_amount) : "—",
+        status:           normaliseStatus(inv.status),
+        errorLog:         inv.error_log,
+        resolutionStatus: inv.resolution_status,
+      }));
+      setApiTrade(mapped);
+      setTradeSummary(data.summary ?? null);
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.detail ?? "Failed to load trade invoices.";
+      toast.error(msg, { toastId: "finance-reporting-api-error" });
+      setApiTrade(MOCK_TRADE);
+    } finally {
+      setTradeLoading(false);
+    }
+  }, []);
+
+  /* ── Call the right API whenever the active tab changes ── */
+  useEffect(() => {
+    if (activeTab === "Jobs")            fetchJobs();
+    else if (activeTab === "FreightInvoices") fetchFreight();
+    else if (activeTab === "TradeInvoices")   fetchTrade();
+  }, [activeTab, fetchJobs, fetchFreight, fetchTrade]);
 
   const filterRows = (rows) => {
     let r = rows;
@@ -932,7 +1015,7 @@ export default function FinanceReportingPage() {
 
   const jobRows     = useMemo(() => filterRows(apiJobs),      [search, statusFilter, apiJobs]);
   const freightRows = useMemo(() => filterRows(apiFreight),   [search, statusFilter, apiFreight]);
-  const tradeRows   = useMemo(() => filterRows(MOCK_TRADE),   [search, statusFilter]);
+  const tradeRows   = useMemo(() => filterRows(apiTrade),     [search, statusFilter, apiTrade]);
 
   const activeRows =
     activeTab === "FreightInvoices" ? freightRows
@@ -962,6 +1045,16 @@ export default function FinanceReportingPage() {
         totalAmt: freightSummary.total_amount           ?? null,
       };
     }
+    /* For Trade Invoices tab, prefer the API summary if available */
+    if (activeTab === "TradeInvoices" && tradeSummary) {
+      return {
+        total:    tradeSummary.total_trade_invoices ?? tradeRows.length,
+        synced:   tradeSummary.sf_synced            ?? tradeRows.filter((r) => r.status === "Success").length,
+        partial:  tradeRows.filter((r) => r.status === "Partial").length,
+        failed:   tradeSummary.sf_failed            ?? tradeRows.filter((r) => r.status === "Failed").length,
+        totalAmt: tradeSummary.total_amount         ?? null,
+      };
+    }
     const total   = activeRows.length;
     const synced  = activeRows.filter((r) => r.status === "Success").length;
     const partial = activeRows.filter((r) => r.status === "Partial").length;
@@ -974,7 +1067,7 @@ export default function FinanceReportingPage() {
       : null;
     return { total, synced, partial, failed, totalAmt };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRows, activeTab, jobsSummary, jobRows, freightSummary, freightRows]);
+  }, [activeRows, activeTab, jobsSummary, jobRows, freightSummary, freightRows, tradeSummary, tradeRows]);
 
   const invLabel = activeTab === "FreightInvoices" ? "Freight" : "Trade";
 
@@ -1082,7 +1175,22 @@ export default function FinanceReportingPage() {
           </div>
         </div>
       )}
-
+ {/* ── Summary KPI cards ── */}
+      {activeTab !== "Reprocess" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {cardConfigs.map(({ key, label, icon, grad, shadow, sublabel }) => (
+            <SummaryCard
+              key={key}
+              icon={icon}
+              label={label}
+              value={cardValue(key)}
+              grad={grad}
+              shadow={shadow}
+              sublabel={sublabel}
+            />
+          ))}
+        </div>
+      )}
       {/* ── Table area ── */}
       {activeTab === "Jobs" && (
         <JobsTable
@@ -1104,25 +1212,17 @@ export default function FinanceReportingPage() {
           accentColor="sky"
         />
       )}
-      {activeTab === "TradeInvoices" && <TradeInvoicesTable rows={tradeRows} />}
+      {activeTab === "TradeInvoices" && (
+        <TradeInvoicesTable
+          rows={tradeRows}
+          loading={tradeLoading}
+          error={tradeError}
+          onRetry={fetchTrade}
+        />
+      )}
       {activeTab === "Reprocess" && <ReprocessPanel />}
 
-      {/* ── Summary KPI cards ── */}
-      {activeTab !== "Reprocess" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {cardConfigs.map(({ key, label, icon, grad, shadow, sublabel }) => (
-            <SummaryCard
-              key={key}
-              icon={icon}
-              label={label}
-              value={cardValue(key)}
-              grad={grad}
-              shadow={shadow}
-              sublabel={sublabel}
-            />
-          ))}
-        </div>
-      )}
+     
 
     </div>
   );
