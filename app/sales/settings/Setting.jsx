@@ -5937,10 +5937,10 @@ function LeadsPage({ onBack }) {
       description: (leadCreateModal.data.description ?? "").trim(),
     };
 
-    if (!payload.name || !payload.email_address || !payload.contact_number) {
-      toast.error("Name, Email Address and Contact Number are required.");
-      return;
-    }
+    // if (!payload.name || !payload.email_address || !payload.contact_number) {
+    //   toast.error("Name, Email Address and Contact Number are required.");
+    //   return;
+    // }
 
     setLeadCreateModal((s) => ({ ...s, saving: true }));
     try {
@@ -6688,8 +6688,9 @@ function LeadsPage({ onBack }) {
                     }))
                   }
                 />
+                {/* <span className="text-red-500">*</span> */}
                 <Field
-                  label={<>Email Address <span className="text-red-500">*</span></>}
+                  label={<>Email Address </>}
                   type="email"
                   placeholder="Enter email address"
                   value={leadEditModal.data.email_address}
@@ -6701,7 +6702,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label={<>Contact Number <span className="text-red-500">*</span></>}
+                  label={<>Contact Number </>}
                   type="text"
                   placeholder="Enter phone number"
                   value={leadEditModal.data.contact_number}
@@ -6799,7 +6800,7 @@ function LeadsPage({ onBack }) {
             <div className="max-h-96 overflow-y-auto lead-form-scrollable">
               <div className="grid grid-cols-2 gap-3.5">
                 <Field
-                  label={<>Name <span className="text-red-500">*</span></>}
+                  label={<>Name </>}
                   required
                   type="text"
                   placeholder="Enter lead name"
@@ -6812,8 +6813,8 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label={<>Email Address <span className="text-red-500">*</span></>}
-                  required
+                  label={<>Email Address </>}
+                  // required
                   type="email"
                   placeholder="Enter email address"
                   value={leadCreateModal.data.email_address}
@@ -6825,8 +6826,8 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label={<>Contact Number <span className="text-red-500">*</span></>}
-                  required
+                  label={<>Contact Number </>}
+                  // required
                   type="text"
                   placeholder="Enter phone number"
                   value={leadCreateModal.data.contact_number}
@@ -6838,7 +6839,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label={<>Company <span className="text-red-500">*</span></>}
+                  label={<>Company </>}
                   required
                   type="text"
                   placeholder="Enter company name"
@@ -6851,7 +6852,7 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label={<>Title <span className="text-red-500">*</span></>}
+                  label={<>Title </>}
                   required
                   type="text"
                   placeholder="Enter job title"
