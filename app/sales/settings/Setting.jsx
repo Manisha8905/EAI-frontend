@@ -5482,6 +5482,14 @@ function LeadsPage({ onBack }) {
   const [wizardExcelUploading, setWizardExcelUploading] = useState(false);
   const [wizardCrmImporting, setWizardCrmImporting] = useState(false);
 
+  /* ── Apollo wizard ── */
+  const apolloEmptyFilters = { company_sizes: [], industries: [], job_titles: [], keywords: [], locations: [], seniorities: [], technologies: [] };
+  const [apolloFilters, setApolloFilters] = useState({ ...apolloEmptyFilters });
+  const [apolloTagInputs, setApolloTagInputs] = useState({ company_sizes: "", industries: "", job_titles: "", keywords: "", locations: "", seniorities: "", technologies: "" });
+  const [apolloPreview, setApolloPreview] = useState(null);
+  const [apolloPreviewing, setApolloPreviewLoading] = useState(false);
+  const [apolloFetching, setApolloFetching] = useState(false);
+
   /* ── Detail view ── */
   const [viewList, setViewList] = useState(null);
   const [listLeads, setListLeads] = useState([]);
@@ -5503,6 +5511,13 @@ function LeadsPage({ onBack }) {
   /* ── Lead-level selection & download (detail view) ── */
   const [checkedLeadIds, setCheckedLeadIds] = useState(new Set());
   const [downloadingLeads, setDownloadingLeads] = useState(false);
+
+  /* ── Lead info popup ── */
+  const [leadInfoModal, setLeadInfoModal] = useState({ open: false, lead: null });
+  const [systemData, setSystemData] = useState(null);
+  const [systemLoading, setSystemLoading] = useState(false);
+  const [aiData, setAiData] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   /* ── Export leads to CSV ── */
   const handleDownloadLeads = () => {
@@ -5704,11 +5719,19 @@ function LeadsPage({ onBack }) {
     setCreatedListId(null);
     setWizardExcelFile(null);
     if (wizardFileRef.current) wizardFileRef.current.value = "";
+    setApolloFilters({ ...apolloEmptyFilters });
+    setApolloTagInputs({ company_sizes: "", industries: "", job_titles: "", keywords: "", locations: "", seniorities: "", technologies: "" });
+    setApolloPreview(null);
   };
 
   /* ── POST /lead-lists (wizard step 1 — Continue button) ── */
   const handleCreate = async () => {
     if (!form.name.trim() || !form.sourceType) return;
+    // Apollo creates the list via /apollo/fetch — no pre-create needed
+    if (form.sourceType === "apollo") {
+      setWizardStep(2);
+      return;
+    }
     setCreating(true);
     try {
       const res = await axiosInstance.post("/lead-lists", {
@@ -5719,7 +5742,7 @@ function LeadsPage({ onBack }) {
         res.data?.id ?? res.data?.list_id ?? res.data?.data?.id ?? null;
       setCreatedListId(id);
       toast.success("Lead list created.");
-      setWizardStep(2); // always advance to step 2; user clicks Create there
+      setWizardStep(2);
     } catch (err) {
       toast.error(
         getApiError(err) || "Failed to create lead list.",
@@ -5765,6 +5788,42 @@ function LeadsPage({ onBack }) {
       toast.error(getApiError(err) || "CRM import failed.");
     } finally {
       setWizardCrmImporting(false);
+    }
+  };
+
+  /* ── POST /apollo/preview ── */
+  const handleApolloPreview = async () => {
+    setApolloPreviewLoading(true);
+    try {
+      const filters = { ...apolloFilters, keywords: apolloFilters.keywords.join(" ") };
+      const res = await axiosInstance.post("/apollo/preview", { filters });
+      setApolloPreview(res.data?.data ?? res.data);
+    } catch (err) {
+      toast.error(getApiError(err) || "Apollo preview failed.");
+    } finally {
+      setApolloPreviewLoading(false);
+    }
+  };
+
+  /* ── POST /apollo/fetch ── */
+  const handleApolloFetch = async () => {
+    if (!form.name.trim()) { toast.error("List name is required."); return; }
+    setApolloFetching(true);
+    try {
+      const filters = { ...apolloFilters, keywords: apolloFilters.keywords.join(" ") };
+      await axiosInstance.post("/apollo/fetch", {
+        confirmed: true,
+        estimated_count: apolloPreview?.estimated_count ?? apolloPreview?.count ?? apolloPreview?.total ?? 0,
+        filters,
+        list_name: form.name.trim(),
+      });
+      toast.success("Apollo fetch started! Leads are being imported.");
+      closeWizard();
+      fetchLists();
+    } catch (err) {
+      toast.error(getApiError(err) || "Apollo fetch failed.");
+    } finally {
+      setApolloFetching(false);
     }
   };
 
@@ -6077,6 +6136,81 @@ function LeadsPage({ onBack }) {
         return ns;
       });
     }
+  };
+
+  /* ── Lead info popup: fetch system data ── */
+  const fetchLeadSystemData = async (lead) => {
+    if (!viewList) return;
+    const leadId = lead.id ?? lead._id ?? lead.list_lead_id;
+    setSystemLoading(true);
+    setSystemData(null);
+    try {
+      const res = await axiosInstance.get(
+        `/lead-lists/${viewList.id}/leads/${leadId}`,
+      );
+      setSystemData(res.data?.data ?? res.data?.lead ?? res.data);
+    } catch {
+      setSystemData(null);
+      toast.error("Failed to fetch system data.");
+    } finally {
+      setSystemLoading(false);
+    }
+  };
+
+  /* ── Lead info popup: enrich lead via AI (POST) ── */
+  const fetchLeadAiData = async (lead) => {
+    if (!viewList) return;
+    const listId = viewList.id;
+    const listLeadId = lead.list_lead_id ?? lead.id ?? lead._id;
+    setAiLoading(true);
+    try {
+      const res = await axiosInstance.post(
+        `/lead-lists/${listId}/leads/${listLeadId}/enrich`,
+      );
+      const payload = res.data?.data ?? res.data?.lead ?? res.data;
+      // enrichment object lives either at top-level or inside the lead payload
+      const enrichment = payload?.enrichment ?? payload;
+      setAiData(enrichment);
+      // Patch the lead in listLeads so reopening the modal reflects new data
+      setListLeads((prev) =>
+        prev.map((l) => {
+          const id = l.list_lead_id ?? l.id ?? l._id;
+          if (id === listLeadId) {
+            return {
+              ...l,
+              enrichment,
+              lead_data: payload?.lead_data ?? l.lead_data,
+            };
+          }
+          return l;
+        }),
+      );
+      // Keep modal's own lead reference in sync
+      setLeadInfoModal((prev) => ({
+        ...prev,
+        lead: prev.lead
+          ? { ...prev.lead, enrichment, lead_data: payload?.lead_data ?? prev.lead.lead_data }
+          : prev.lead,
+      }));
+      toast.success("Lead enriched successfully.");
+    } catch {
+      toast.error("Failed to enrich lead via AI.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const openLeadInfoModal = (lead) => {
+    setLeadInfoModal({ open: true, lead });
+    // Populate directly from the lead object — no extra API call
+    setSystemData(lead.lead_data ?? null);
+    setAiData(lead.enrichment ?? null);
+  };
+
+  const closeLeadInfoModal = () => {
+    setLeadInfoModal({ open: false, lead: null });
+    setSystemData(null);
+    setAiData(null);
   };
 
   const filteredLists = lists.filter((l) =>
@@ -6484,8 +6618,24 @@ function LeadsPage({ onBack }) {
                               <td className="px-5 py-3.5 text-[12px] text-gray-600 font-mono whitespace-nowrap">
                                 {phone}
                               </td>
-                              <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap">
-                                {company}
+                              <td className="px-5 py-3.5 text-[12px] text-gray-600 whitespace-nowrap max-w-[180px]">
+                                <div className="relative group/company inline-block max-w-full">
+                                  <span className="block truncate cursor-default max-w-[170px]">
+                                    {company}
+                                  </span>
+                                  {company !== "—" && (
+                                    <div
+                                      className="pointer-events-none absolute bottom-full left-0 mb-1.5 z-50
+                                                  hidden group-hover/company:flex
+                                                  items-center gap-1.5 px-2.5 py-1.5
+                                                  bg-gray-900 text-white text-[11px] font-[500]
+                                                  rounded-lg shadow-lg whitespace-nowrap max-w-[320px]"
+                                    >
+                                      <span className="block truncate">{company}</span>
+                                      <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                    </div>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-5 py-3.5">
                                 {status ? (
@@ -6557,6 +6707,13 @@ function LeadsPage({ onBack }) {
                               </td>
                               <td className="px-5 py-3.5">
                                 <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => openLeadInfoModal(lead)}
+                                    className="text-violet-500 hover:text-violet-700 transition"
+                                    title="View lead intelligence"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
                                   <button
                                     onClick={() => openLeadEditor(lead)}
                                     className="text-blue-500 hover:text-blue-700 transition"
@@ -6658,6 +6815,308 @@ function LeadsPage({ onBack }) {
             }}
             loading={deletingLeadId === deleteTarget?.id}
           />
+        )}
+        {leadInfoModal.open && leadInfoModal.lead && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={closeLeadInfoModal}
+            />
+            {/* Panel */}
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100">
+                    <Eye className="h-4 w-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <p className="text-[14px] font-[700] text-gray-900">
+                      Lead Intelligence
+                    </p>
+                    <p className="text-[11px] text-gray-400">
+                      {(leadInfoModal.lead.lead_data ?? leadInfoModal.lead)?.name ?? "Lead"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeLeadInfoModal}
+                  className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* ── Available on System ── */}
+                <div className="rounded-xl border border-gray-100 overflow-hidden">
+                  <div className="flex items-center justify-between bg-gray-50 px-4 py-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <Database className="h-4 w-4 text-blue-500" />
+                      <span className="text-[13px] font-[700] text-gray-800">
+                        Available on System
+                      </span>
+                    </div>
+                    {/* <button
+                      onClick={() => fetchLeadSystemData(leadInfoModal.lead)}
+                      disabled={systemLoading}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 text-[11px] font-[600] text-gray-600 hover:bg-white transition disabled:opacity-50"
+                      title="Refresh system data"
+                    >
+                      <RefreshCw
+                        className={`h-3 w-3 ${systemLoading ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </button> */}
+                  </div>
+                  <div className="p-4">
+                    {systemLoading ? (
+                      <div className="flex items-center justify-center py-8 text-[13px] text-gray-400 animate-pulse">
+                        Loading system data…
+                      </div>
+                    ) : systemData ? (
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                        {Object.entries(systemData)
+                          .filter(
+                            ([, v]) =>
+                              v !== null &&
+                              v !== undefined &&
+                              v !== "" &&
+                              typeof v !== "object",
+                          )
+                          .map(([key, val]) => {
+                            const str = String(val);
+                            const isUrl = /^https?:\/\//i.test(str);
+                            return (
+                              <div key={key} className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
+                                  {key.replace(/[_-]+/g, " ")}
+                                </span>
+                                {isUrl ? (
+                                  <a
+                                    href={str}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
+                                  >
+                                    {str}
+                                  </a>
+                                ) : (
+                                  <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 gap-2 text-gray-400">
+                        <Database className="h-8 w-8 opacity-30" />
+                        <span className="text-[12px]">No system data available</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Fetched by AI ── */}
+                <div className="rounded-xl border border-violet-100 overflow-hidden">
+                  <div className="flex items-center justify-between bg-violet-50 px-4 py-3 border-b border-violet-100">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-violet-500" />
+                      <span className="text-[13px] font-[700] text-gray-800">
+                        Fetched by AI
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => fetchLeadAiData(leadInfoModal.lead)}
+                      disabled={aiLoading}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-violet-200 text-[11px] font-[600] text-violet-600 hover:bg-white transition disabled:opacity-50"
+                      title="Refresh AI insights"
+                    >
+                      <RefreshCw
+                        className={`h-3 w-3 ${aiLoading ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </button>
+                  </div>
+                  <div className="p-4">
+                    {aiLoading ? (
+                      <div className="flex items-center justify-center py-8 text-[13px] text-gray-400 animate-pulse">
+                        Fetching AI insights…
+                      </div>
+                    ) : aiData && (aiData.apollo || aiData.apify || aiData.grok || aiData.groq) ? (
+                      <div className="space-y-5">
+                        {/* Metadata: enrichment_type + last_updated_at */}
+                        {(aiData.enrichment_type || aiData.last_updated_at) && (
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {aiData.enrichment_type && (
+                              <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 text-[10px] font-[700] capitalize">
+                                {aiData.enrichment_type}
+                              </span>
+                            )}
+                            {aiData.last_updated_at && (
+                              <span className="text-[10px] text-gray-400">
+                                Updated {new Date(aiData.last_updated_at).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Apollo flat fields */}
+                        {aiData.apollo && typeof aiData.apollo === "object" && (
+                          <div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              Apollo
+                            </p>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                              {Object.entries(aiData.apollo)
+                                .filter(
+                                  ([k, v]) =>
+                                    k !== "fetched_at" &&
+                                    v !== null &&
+                                    v !== undefined &&
+                                    v !== "" &&
+                                    typeof v !== "object",
+                                )
+                                .map(([key, val]) => {
+                                  const str = String(val);
+                                  const isUrl = /^https?:\/\//i.test(str);
+                                  return (
+                                    <div key={key} className="flex flex-col gap-0.5">
+                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
+                                        {key.replace(/[_-]+/g, " ")}
+                                      </span>
+                                      {isUrl ? (
+                                        <a
+                                          href={str}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
+                                        >
+                                          {str}
+                                        </a>
+                                      ) : (
+                                        <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Apify — LinkedIn posts */}
+                        {aiData.apify?.linkedin_posts?.length > 0 && (
+                          <div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              LinkedIn Posts ({aiData.apify.linkedin_posts.length})
+                            </p>
+                            <div className="space-y-2 max-h-52 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                              {aiData.apify.linkedin_posts.map((post, idx) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-gray-100 bg-gray-50/60 p-3"
+                                >
+                                  <div className="flex items-center gap-3 mb-1.5 text-[10px] text-gray-400">
+                                    <span>👍 {post.likes ?? 0}</span>
+                                    <span>💬 {post.comments ?? 0}</span>
+                                    <span>🔁 {post.shares ?? 0}</span>
+                                    {post.posted_date && (
+                                      <span>
+                                        {new Date(post.posted_date).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-gray-600 line-clamp-3 leading-relaxed">
+                                    {post.content}
+                                  </p>
+                                  {post.url && (
+                                    <a
+                                      href={post.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[10px] text-violet-500 hover:underline mt-1 inline-block"
+                                    >
+                                      View post →
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Grok */}
+                        {aiData.grok && typeof aiData.grok === "object" && (
+                          <div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Grok</p>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                              {Object.entries(aiData.grok)
+                                .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "object")
+                                .map(([key, val]) => {
+                                  const str = String(val);
+                                  const isUrl = /^https?:\/\//i.test(str);
+                                  return (
+                                    <div key={key} className="flex flex-col gap-0.5">
+                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">{key.replace(/[_-]+/g, " ")}</span>
+                                      {isUrl ? (
+                                        <a href={str} target="_blank" rel="noreferrer" className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]">{str}</a>
+                                      ) : (
+                                        <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Groq */}
+                        {aiData.groq && typeof aiData.groq === "object" && (
+                          <div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Groq</p>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                              {Object.entries(aiData.groq)
+                                .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "object")
+                                .map(([key, val]) => {
+                                  const str = String(val);
+                                  const isUrl = /^https?:\/\//i.test(str);
+                                  return (
+                                    <div key={key} className="flex flex-col gap-0.5">
+                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">{key.replace(/[_-]+/g, " ")}</span>
+                                      {isUrl ? (
+                                        <a href={str} target="_blank" rel="noreferrer" className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]">{str}</a>
+                                      ) : (
+                                        <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 gap-2 text-gray-400">
+                        <Zap className="h-8 w-8 opacity-30" />
+                        <span className="text-[12px]">No AI insights yet. Click Refresh to fetch.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                <button
+                  onClick={closeLeadInfoModal}
+                  className="px-4 py-2 text-[13px] font-[500] text-gray-600 hover:text-gray-800 transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {leadEditModal.open && (
           <Modal
@@ -7219,7 +7678,9 @@ function LeadsPage({ onBack }) {
               ? "Create Lead List"
               : form.sourceType === "excel"
                 ? "Upload Excel"
-                : "Import from CRM"
+                : form.sourceType === "apollo"
+                  ? "Apollo Import"
+                  : "Import from CRM"
           }
           onClose={closeWizard}
         >
@@ -7227,7 +7688,7 @@ function LeadsPage({ onBack }) {
           <div className="flex items-center gap-2 mb-5">
             {[
               "Details",
-              form.sourceType === "crm" ? "Import CRM" : "Upload Excel",
+              form.sourceType === "crm" ? "Import CRM" : form.sourceType === "apollo" ? "Apollo Filters" : "Upload Excel",
             ].map((label, i) => (
               <div key={i} className="flex items-center gap-2">
                 {i > 0 && (
@@ -7264,7 +7725,7 @@ function LeadsPage({ onBack }) {
                 <label className="block text-[12px] font-[600] text-gray-700 mb-2">
                   Source Type <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {[
                     {
                       value: "excel",
@@ -7277,6 +7738,12 @@ function LeadsPage({ onBack }) {
                       label: "CRM",
                       icon: Database,
                       desc: "Import directly from CRM",
+                    },
+                    {
+                      value: "apollo",
+                      label: "Apollo",
+                      icon: Zap,
+                      desc: "Find leads via Apollo.io",
                     },
                   ].map(({ value, label, icon: Icon, desc }) => (
                     <button
@@ -7454,6 +7921,151 @@ function LeadsPage({ onBack }) {
                         Import
                       </>
                     )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ══ STEP 2 — APOLLO ══ */}
+          {wizardStep === 2 && form.sourceType === "apollo" && (
+            <div className="space-y-5">
+              {/* Scrollable filter area */}
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {/* Array tag fields */}
+                {[
+                  { key: "keywords",      label: "Keywords",       placeholder: "e.g. B2B SaaS — press Enter" },
+                  { key: "job_titles",    label: "Job Titles",     placeholder: "e.g. CEO — press Enter" },
+                  { key: "locations",     label: "Locations",      placeholder: "e.g. New York, USA — press Enter" },
+                  { key: "industries",    label: "Industries",     placeholder: "e.g. Technology — press Enter" },
+                  { key: "seniorities",   label: "Seniorities",    placeholder: "e.g. director — press Enter" },
+                  { key: "technologies",  label: "Technologies",   placeholder: "e.g. Salesforce — press Enter" },
+                  { key: "company_sizes", label: "Company Sizes",  placeholder: "e.g. 11,20 — press Enter" },
+                ].map(({ key, label, placeholder }) => (
+                  <div key={key}>
+                    <label className="block text-[11px] font-[600] uppercase tracking-wide text-gray-500 mb-1.5">
+                      {label}
+                    </label>
+                    <div className="min-h-[42px] flex flex-wrap gap-1.5 items-center p-2 rounded-xl border border-gray-200 bg-gray-50/60 focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-400/20 focus-within:bg-white transition">
+                      {apolloFilters[key].map((tag, ti) => (
+                        <span
+                          key={ti}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[11px] font-[600]"
+                        >
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setApolloFilters((f) => ({
+                                ...f,
+                                [key]: f[key].filter((_, i) => i !== ti),
+                              }))
+                            }
+                            className="inline-flex items-center hover:text-violet-900 transition"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        value={apolloTagInputs[key]}
+                        onChange={(e) =>
+                          setApolloTagInputs((t) => ({ ...t, [key]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (
+                            (e.key === "Enter" || e.key === ",") &&
+                            apolloTagInputs[key].trim()
+                          ) {
+                            e.preventDefault();
+                            const val = apolloTagInputs[key].trim().replace(/,$/, "");
+                            if (val && !apolloFilters[key].includes(val)) {
+                              setApolloFilters((f) => ({ ...f, [key]: [...f[key], val] }));
+                            }
+                            setApolloTagInputs((t) => ({ ...t, [key]: "" }));
+                          } else if (
+                            e.key === "Backspace" &&
+                            !apolloTagInputs[key] &&
+                            apolloFilters[key].length > 0
+                          ) {
+                            setApolloFilters((f) => ({
+                              ...f,
+                              [key]: f[key].slice(0, -1),
+                            }));
+                          }
+                        }}
+                        placeholder={apolloFilters[key].length === 0 ? placeholder : ""}
+                        className="flex-1 min-w-[120px] bg-transparent border-0 ring-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none text-[12px] text-gray-700 placeholder-gray-400 py-0.5"
+                        style={{ outline: "none", boxShadow: "none" }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Preview result banner */}
+              {apolloPreview && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center gap-3">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="text-[13px] font-[700] text-emerald-800">
+                      ~{
+                        (
+                          apolloPreview.estimated_count ??
+                          apolloPreview.count ??
+                          apolloPreview.total ??
+                          0
+                        ).toLocaleString()
+                      } leads found
+                    </p>
+                    <p className="text-[11px] text-emerald-600">
+                      Refine your filters above or click Fetch Leads to import.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                <button
+                  onClick={() => { setWizardStep(1); setApolloPreview(null); }}
+                  className="text-[12px] text-gray-500 hover:text-gray-700 transition"
+                >
+                  ← Back
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={closeWizard}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApolloPreview}
+                    disabled={apolloPreviewing || apolloFetching}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-violet-300 bg-violet-50 text-[13px] font-[600] text-violet-700 hover:bg-violet-100 transition disabled:opacity-50"
+                  >
+                    {apolloPreviewing ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Eye className="h-3.5 w-3.5" />
+                    )}
+                    {apolloPreviewing ? "Previewing…" : "Preview"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApolloFetch}
+                    disabled={apolloFetching || apolloPreviewing}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
+                  >
+                    {apolloFetching ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="h-3.5 w-3.5" />
+                    )}
+                    {apolloFetching ? "Fetching…" : "Fetch Leads"}
                   </button>
                 </div>
               </div>
