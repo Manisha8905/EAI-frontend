@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import axiosInstance from "../../Redux/axiosInstance";
@@ -16,6 +16,11 @@ import {
   Server,
   Database,
   HardDrive,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Truck,
+  Package,
 } from "lucide-react";
 import {
   AreaChart,
@@ -319,16 +324,40 @@ function FailureRateChart({ data }) {
 export default function FinanceDashboard() {
   const router = useRouter();
   const [allowed, setAllowed] = useState(null);
-  const [filter, setFilter]   = useState("all");
+  const [filter, setFilter]           = useState("all");
+  const [reportingTab, setReportingTab] = useState("jobs");
 
   // ── Live metrics from API ──────────────────────────────────────
   const [apiMetrics,    setApiMetrics]    = useState(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
 
-  const loadMetrics = useCallback(async () => {
+  // ── Jobs Reporting state ───────────────────────────────────────
+  const [jobSearch,    setJobSearch]    = useState("");
+  const [jobType,      setJobType]      = useState("");
+  const [jobStatus,    setJobStatus]    = useState("");
+  const [jobDateRange, setJobDateRange] = useState("last_30_days");
+  const [jobPage,      setJobPage]      = useState(1);
+  const PAGE_SIZE = 20;
+  const [jobsData,       setJobsData]       = useState([]);
+  const [jobsSummary,    setJobsSummary]    = useState(null);
+  const [jobsTotal,      setJobsTotal]      = useState(0);
+  const [jobsTotalPages, setJobsTotalPages] = useState(1);
+  const [jobsLoading,    setJobsLoading]    = useState(false);
+  const [jobsError,      setJobsError]      = useState(null);
+
+  // Keep refs so loadJobs always reads latest filter values
+  const jobSearchRef    = useRef("");
+  const jobTypeRef      = useRef("");
+  const jobStatusRef    = useRef("");
+  const jobDateRangeRef = useRef("last_30_days");
+  const jobPageRef      = useRef(1);
+
+  const loadMetrics = useCallback(async (period) => {
     setMetricsLoading(true);
     try {
-      const res = await axiosInstance.get("/invoice-processing/metrics");
+      const res = await axiosInstance.get("/invoice-processing/metrics", {
+        params: { period },
+      });
       const payload = res.data?.data ?? res.data;
       setApiMetrics(payload);
     } catch (err) {
@@ -342,8 +371,196 @@ export default function FinanceDashboard() {
   useEffect(() => {
     const role = typeof window !== "undefined" ? localStorage.getItem("userRole") || "" : "";
     setAllowed(isAllowedRole(role));
-    loadMetrics();
+    loadMetrics(filter);
   }, [loadMetrics]);
+
+  useEffect(() => {
+    loadMetrics(filter);
+  }, [filter, loadMetrics]);
+
+  // ── Jobs Reporting loader — reads from refs, always fresh ────────
+  const loadJobs = useCallback(async () => {
+    const search    = jobSearchRef.current;
+    const type      = jobTypeRef.current;
+    const status    = jobStatusRef.current;
+    const dateRange = jobDateRangeRef.current;
+    const page      = jobPageRef.current;
+
+    setJobsLoading(true);
+    setJobsError(null);
+    try {
+      const params = {
+        date_range: dateRange,
+        page,
+        page_size: PAGE_SIZE,
+        ...(search ? { search } : {}),
+        ...(type   ? { type }   : {}),
+        ...(status ? { status } : {}),
+      };
+      const res = await axiosInstance.get("/invoice-processing/reporting/jobs", { params });
+      const payload = res.data?.data ?? res.data;
+      const items =
+        payload?.items   ??
+        payload?.jobs    ??
+        payload?.results ??
+        (Array.isArray(payload) ? payload : []);
+      const total      = payload?.total ?? payload?.total_count ?? items.length;
+      const totalPages = payload?.total_pages ?? payload?.pages ?? Math.max(1, Math.ceil(total / PAGE_SIZE));
+      setJobsData(Array.isArray(items) ? items : []);
+      setJobsTotal(total);
+      setJobsTotalPages(totalPages);
+      // summary cards: prefer API-provided summary, else derive from items
+      if (payload?.summary) {
+        setJobsSummary(payload.summary);
+      } else {
+        const all = Array.isArray(items) ? items : [];
+        setJobsSummary({
+          total,
+          successful: all.filter(j => (j.status||'').toLowerCase() === 'success').length,
+          partial:    all.filter(j => (j.status||'').toLowerCase() === 'partial').length,
+          failed:     all.filter(j => (j.status||'').toLowerCase() === 'failed').length,
+        });
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load jobs.";
+      setJobsError(msg);
+      toast.error(msg);
+      setJobsData([]);
+    } finally {
+      setJobsLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => { loadJobs(); }, [loadJobs]);
+
+  // ── Filter handlers — only update state/refs, NO auto API call ──
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setJobSearch(val);
+    jobSearchRef.current = val;
+  };
+  const handleTypeChange = (e) => {
+    const val = e.target.value;
+    setJobType(val);
+    jobTypeRef.current = val;
+  };
+  const handleStatusChange = (e) => {
+    const val = e.target.value;
+    setJobStatus(val);
+    jobStatusRef.current = val;
+  };
+  const handleDateRangeChange = (e) => {
+    const val = e.target.value;
+    setJobDateRange(val);
+    jobDateRangeRef.current = val;
+  };
+
+  // ── Apply button / Enter key — reset to page 1 and call API ────
+  const handleApplyFilters = () => {
+    jobPageRef.current = 1;
+    setJobPage(1);
+    loadJobs();
+  };
+
+  const handlePageChange = (newPage) => {
+    jobPageRef.current = newPage;
+    setJobPage(newPage);
+    loadJobs();
+  };
+
+  // ── Freight Invoices state ──────────────────────────────────────
+  const [freightSearch,     setFreightSearch]     = useState("");
+  const [freightStatus,     setFreightStatus]     = useState("");
+  const [freightDateRange,  setFreightDateRange]  = useState("last_30_days");
+  const [freightPage,       setFreightPage]       = useState(1);
+  const FREIGHT_PAGE_SIZE = 20;
+  const [freightData,       setFreightData]       = useState([]);
+  const [freightSummary,    setFreightSummary]    = useState(null);
+  const [freightTotal,      setFreightTotal]      = useState(0);
+  const [freightTotalPages, setFreightTotalPages] = useState(1);
+  const [freightLoading,    setFreightLoading]    = useState(false);
+  const [freightError,      setFreightError]      = useState(null);
+
+  const freightSearchRef    = useRef("");
+  const freightStatusRef    = useRef("");
+  const freightDateRangeRef = useRef("last_30_days");
+  const freightPageRef      = useRef(1);
+
+  // ── Freight Invoices loader ─────────────────────────────────────
+  const loadFreightInvoices = useCallback(async () => {
+    const search    = freightSearchRef.current;
+    const status    = freightStatusRef.current;
+    const dateRange = freightDateRangeRef.current;
+    const page      = freightPageRef.current;
+
+    setFreightLoading(true);
+    setFreightError(null);
+    try {
+      const params = {
+        date_range: dateRange,
+        page,
+        page_size: FREIGHT_PAGE_SIZE,
+        ...(search ? { search } : {}),
+        ...(status ? { status } : {}),
+      };
+      const res = await axiosInstance.get("/invoice-processing/reporting/freight-invoices", { params });
+      const payload = res.data?.data ?? res.data;
+      const items =
+        payload?.items    ??
+        payload?.invoices ??
+        payload?.results  ??
+        (Array.isArray(payload) ? payload : []);
+      const total      = payload?.total ?? payload?.total_count ?? items.length;
+      const totalPages = payload?.total_pages ?? payload?.pages ?? Math.max(1, Math.ceil(total / FREIGHT_PAGE_SIZE));
+      setFreightData(Array.isArray(items) ? items : []);
+      setFreightTotal(total);
+      setFreightTotalPages(totalPages);
+      const summary = payload?.summary ?? null;
+      setFreightSummary(summary ? summary : {
+        total,
+        sf_synced:    payload?.sf_synced    ?? payload?.synced ?? 0,
+        sf_failed:    payload?.sf_failed    ?? payload?.failed ?? 0,
+        total_amount: payload?.total_amount ?? null,
+      });
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load freight invoices.";
+      setFreightError(msg);
+      toast.error(msg);
+      setFreightData([]);
+    } finally {
+      setFreightLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadFreightInvoices(); }, [loadFreightInvoices]);
+
+  // ── Freight filter handlers ─────────────────────────────────────
+  const handleFreightSearchChange = (e) => {
+    const val = e.target.value;
+    setFreightSearch(val);
+    freightSearchRef.current = val;
+  };
+  const handleFreightStatusChange = (e) => {
+    const val = e.target.value;
+    setFreightStatus(val);
+    freightStatusRef.current = val;
+  };
+  const handleFreightDateRangeChange = (e) => {
+    const val = e.target.value;
+    setFreightDateRange(val);
+    freightDateRangeRef.current = val;
+  };
+  const handleApplyFreightFilters = () => {
+    freightPageRef.current = 1;
+    setFreightPage(1);
+    loadFreightInvoices();
+  };
+  const handleFreightPageChange = (newPage) => {
+    freightPageRef.current = newPage;
+    setFreightPage(newPage);
+    loadFreightInvoices();
+  };
 
   // ── Derive KPI values: live API first, then static fallback ───
   const sc  = apiMetrics?.summary_cards;
@@ -492,6 +709,382 @@ export default function FinanceDashboard() {
         <ProcessingTrendChart filterLabel={filterLabel} data={processingTrend} />
         <FailureRateChart data={failureRateData} />
       </div>
+
+      {/* ── Reporting Section — Tabbed ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+
+        {/* Tab bar */}
+        <div className="flex items-end gap-0 border-b border-gray-200 px-5 pt-4 overflow-x-auto">
+          {[
+            { id: "jobs",      label: "Jobs",             icon: Mail      },
+            { id: "freight",   label: "Freight Invoices", icon: Truck     },
+            { id: "trade",     label: "Trade Invoices",   icon: Package   },
+            { id: "reprocess", label: "Reprocess",        icon: RefreshCw },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setReportingTab(tab.id)}
+              className={`flex items-center gap-1.5 px-5 py-2.5 text-[13px] font-[600] whitespace-nowrap border-b-2 -mb-px transition-all ${
+                reportingTab === tab.id
+                  ? "text-blue-700 border-blue-500 bg-blue-50/60"
+                  : "text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ═══ JOBS TAB ═══════════════════════════════════════════ */}
+        {reportingTab === "jobs" && (
+          <>
+            {/* Mini KPI summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 border-b border-gray-100">
+              {[
+                { label: "Total Jobs",  value: jobsSummary?.total      ?? jobsTotal, color: "bg-blue-600" },
+                { label: "Successful",  value: jobsSummary?.successful ?? "—",       color: "bg-green-500" },
+                { label: "Partial",     value: jobsSummary?.partial    ?? "—",       color: "bg-orange-500" },
+                { label: "Failed",      value: jobsSummary?.failed     ?? "—",       color: "bg-red-500" },
+              ].map((card, i) => (
+                <div key={i} className={`${card.color} flex flex-col justify-between p-5 text-white ${i < 3 ? "border-r border-white/20" : ""}`}>
+                  <p className="text-[11px] font-[700] uppercase tracking-widest text-white/80">{card.label}</p>
+                  <p className="text-[40px] font-bold leading-none mt-2">{jobsLoading ? "…" : card.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Filter bar */}
+            <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search jobs…"
+                  value={jobSearch}
+                  onChange={handleSearchChange}
+                  onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
+                  className="w-full rounded-xl border border-gray-200 pl-9 pr-4 py-2 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
+                />
+              </div>
+              <div className="relative">
+                <select value={jobStatus} onChange={handleStatusChange}
+                  className="appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-8 py-2 text-[13px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer shadow-sm">
+                  <option value="">All Status</option>
+                  <option value="success">Success</option>
+                  <option value="partial">Partial</option>
+                  <option value="failed">Failed</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+              <div className="relative">
+                <select value={jobDateRange} onChange={handleDateRangeChange}
+                  className="appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-8 py-2 text-[13px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer shadow-sm">
+                  <option value="last_7_days">Last 7 Days</option>
+                  <option value="last_30_days">Last 30 Days</option>
+                  <option value="last_90_days">Last 90 Days</option>
+                  <option value="all">All</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+              <button onClick={handleApplyFilters} disabled={jobsLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 text-[13px] font-[600] transition shadow-sm">
+                {jobsLoading ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Applying…</> : "Apply Filters"}
+              </button>
+              <button onClick={() => loadJobs()} title="Refresh"
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-400">
+                <RefreshCw className={`h-4 w-4 ${jobsLoading ? "animate-spin text-blue-400" : ""}`} />
+              </button>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    {["Job ID","Email Subject","Sender","Type","Carrier / Vendor","Attachments","Status","Created At"].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-500 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobsLoading ? (
+                    <tr><td colSpan={8} className="px-5 py-12 text-center">
+                      <div className="flex items-center justify-center gap-2 text-gray-400">
+                        <RefreshCw className="h-4 w-4 animate-spin text-blue-400" /> Loading jobs…
+                      </div>
+                    </td></tr>
+                  ) : jobsError ? (
+                    <tr><td colSpan={8} className="px-5 py-12 text-center text-red-400 text-[13px]">{jobsError}</td></tr>
+                  ) : jobsData.length === 0 ? (
+                    <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-400 text-[13px]">No jobs found for the selected filters.</td></tr>
+                  ) : jobsData.map((job, idx) => {
+                    const statusVal = (job.status || "").toLowerCase();
+                    const statusCls =
+                      statusVal === "success" ? "bg-green-50 text-green-700 border border-green-200" :
+                      statusVal === "failed"  ? "bg-red-50 text-red-700 border border-red-200" :
+                      statusVal === "partial" ? "bg-orange-50 text-orange-700 border border-orange-200" :
+                      "bg-gray-100 text-gray-600";
+                    const typeVal = (job.type || "").toLowerCase();
+                    const typeCls = typeVal === "freight" ? "bg-blue-50 text-blue-700 border border-blue-200"
+                      : typeVal === "trade" ? "bg-purple-50 text-purple-700 border border-purple-200"
+                      : "bg-gray-100 text-gray-600";
+                    const failedAtt = job.failed_attachments ?? job.attachments_failed ?? 0;
+                    const totalAtt  = job.attachments_count  ?? job.total_attachments  ?? job.attachments ?? 0;
+                    return (
+                      <tr key={job.id ?? job.job_id ?? idx} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
+                        <td className="px-4 py-3.5 font-[700] text-blue-600">#{job.id ?? job.job_id ?? idx + 1}</td>
+                        <td className="px-4 py-3.5 text-gray-800 font-[500] max-w-[200px] truncate">{job.email_subject ?? job.subject ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-gray-500">{job.sender ?? job.sender_email ?? job.from_email ?? "—"}</td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-[700] capitalize ${typeCls}`}>{job.type ?? "—"}</span>
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-700 font-[500]">{job.carrier ?? job.vendor ?? job.carrier_vendor ?? "—"}</td>
+                        <td className="px-4 py-3.5">
+                          {totalAtt > 0 ? (
+                            <span className="text-gray-700">{totalAtt}{failedAtt > 0 && <span className="text-red-500 font-[600] ml-1">({failedAtt} failed)</span>}</span>
+                          ) : <span className="text-gray-400">—</span>}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-[700] capitalize ${statusCls}`}>{job.status ?? "—"}</span>
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-400 whitespace-nowrap">
+                          {job.created_at || job.date ? new Date(job.created_at ?? job.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {!jobsLoading && jobsTotalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100">
+                <p className="text-[12px] text-gray-400">
+                  Showing {((jobPage - 1) * PAGE_SIZE) + 1}–{Math.min(jobPage * PAGE_SIZE, jobsTotal)} of {jobsTotal} jobs
+                </p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => handlePageChange(Math.max(1, jobPage - 1))} disabled={jobPage === 1}
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  {Array.from({ length: jobsTotalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === jobsTotalPages || Math.abs(p - jobPage) <= 1)
+                    .reduce((acc, p, i, arr) => { if (i > 0 && p - arr[i-1] > 1) acc.push("…"); acc.push(p); return acc; }, [])
+                    .map((item, i) => item === "…"
+                      ? <span key={`je${i}`} className="px-2 text-[12px] text-gray-400">…</span>
+                      : <button key={item} onClick={() => handlePageChange(item)}
+                          className={`min-w-[32px] h-8 rounded-lg text-[12px] font-[600] border transition ${jobPage === item ? "bg-blue-500 text-white border-blue-500" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>{item}</button>
+                    )}
+                  <button onClick={() => handlePageChange(Math.min(jobsTotalPages, jobPage + 1))} disabled={jobPage === jobsTotalPages}
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ═══ FREIGHT INVOICES TAB ══════════════════════════════ */}
+        {reportingTab === "freight" && (
+          <>
+            {/* Freight KPI cards — matches screenshot */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 border-b border-gray-100">
+              {[
+                { label: "Total Freight Invoices", value: freightSummary?.total      ?? freightTotal, color: "bg-blue-600" },
+                { label: "SF Synced",              value: freightSummary?.sf_synced  ?? "—",          color: "bg-green-500" },
+                { label: "SF Failed",              value: freightSummary?.sf_failed  ?? "—",          color: "bg-red-500" },
+                {
+                  label: "Total Amount",
+                  value: freightSummary?.total_amount_fmt
+                    ?? (freightSummary?.total_amount != null
+                      ? `$${Number(freightSummary.total_amount).toLocaleString()}`
+                      : "—"),
+                  color: "bg-amber-500",
+                },
+              ].map((card, i) => (
+                <div key={i} className={`${card.color} flex flex-col justify-between p-5 text-white ${i < 3 ? "border-r border-white/20" : ""}`}>
+                  <p className="text-[11px] font-[700] uppercase tracking-widest text-white/80">{card.label}</p>
+                  <p className="text-[40px] font-bold leading-none mt-2">{freightLoading ? "…" : card.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Filter bar */}
+            <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search freight invoices…"
+                  value={freightSearch}
+                  onChange={handleFreightSearchChange}
+                  onKeyDown={(e) => e.key === "Enter" && handleApplyFreightFilters()}
+                  className="w-full rounded-xl border border-gray-200 pl-9 pr-4 py-2 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
+                />
+              </div>
+              <div className="relative">
+                <select value={freightStatus} onChange={handleFreightStatusChange}
+                  className="appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-8 py-2 text-[13px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer shadow-sm">
+                  <option value="">All Status</option>
+                  <option value="success">Success</option>
+                  <option value="partial">Partial</option>
+                  <option value="failed">Failed</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+              <div className="relative">
+                <select value={freightDateRange} onChange={handleFreightDateRangeChange}
+                  className="appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-8 py-2 text-[13px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer shadow-sm">
+                  <option value="last_7_days">Last 7 Days</option>
+                  <option value="last_30_days">Last 30 Days</option>
+                  <option value="last_90_days">Last 90 Days</option>
+                  <option value="all">All</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              </div>
+              <button onClick={handleApplyFreightFilters} disabled={freightLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 text-[13px] font-[600] transition shadow-sm">
+                {freightLoading ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Applying…</> : "Apply Filters"}
+              </button>
+              <button onClick={() => loadFreightInvoices()} title="Refresh"
+                className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-400">
+                <RefreshCw className={`h-4 w-4 ${freightLoading ? "animate-spin text-blue-400" : ""}`} />
+              </button>
+            </div>
+
+            {/* Header */}
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50">
+                <Truck className="h-4 w-4 text-blue-500" />
+              </span>
+              <div>
+                <p className="text-[14px] font-[700] text-gray-900">Freight Invoices</p>
+                <p className="text-[11px] text-gray-400">Shipping and carrier invoices (UPS, FedEx, SAIA, etc.)</p>
+              </div>
+            </div>
+
+            {/* Table — columns match reference screenshot */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    {["Attachment","Vendor Name","Invoice Number","Invoice Date","Invoice Due Date","PO / SO Number","Description","Freight Amount","Status"].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-500 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {freightLoading ? (
+                    <tr><td colSpan={9} className="px-5 py-12 text-center">
+                      <div className="flex items-center justify-center gap-2 text-gray-400">
+                        <RefreshCw className="h-4 w-4 animate-spin text-blue-400" /> Loading freight invoices…
+                      </div>
+                    </td></tr>
+                  ) : freightError ? (
+                    <tr><td colSpan={9} className="px-5 py-12 text-center text-red-400 text-[13px]">{freightError}</td></tr>
+                  ) : freightData.length === 0 ? (
+                    <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-400 text-[13px]">No freight invoices found for the selected filters.</td></tr>
+                  ) : freightData.map((inv, idx) => {
+                    const statusVal = (inv.status || "").toLowerCase();
+                    const statusCls =
+                      statusVal === "success"   ? "bg-green-50 text-green-700 border border-green-200" :
+                      statusVal === "failed"    ? "bg-red-50 text-red-700 border border-red-200" :
+                      statusVal === "partial"   ? "bg-orange-50 text-orange-700 border border-orange-200" :
+                      statusVal === "pending"   ? "bg-yellow-50 text-yellow-700 border border-yellow-200" :
+                      statusVal === "processed" ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                      "bg-gray-100 text-gray-600";
+                    const invoiceDate   = inv.invoice_date ?? inv.date ?? inv.created_at;
+                    const invoiceDueDate = inv.due_date ?? inv.invoice_due_date ?? inv.payment_due_date;
+                    const freightAmt    = inv.freight_amount ?? inv.amount ?? inv.total_amount;
+                    return (
+                      <tr key={inv.id ?? inv.invoice_number ?? idx} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
+                        <td className="px-4 py-3.5 text-gray-500">
+                          {inv.attachment ?? inv.file_name ?? inv.attachment_name
+                            ? <span className="inline-flex items-center gap-1 text-blue-600 font-[500]">
+                                <Package className="h-3.5 w-3.5" />
+                                {inv.attachment ?? inv.file_name ?? inv.attachment_name}
+                              </span>
+                            : <span className="text-gray-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-800 font-[500]">{inv.vendor_name ?? inv.vendor ?? inv.carrier ?? "—"}</td>
+                        <td className="px-4 py-3.5 font-[700] text-blue-600">{inv.invoice_number ?? inv.invoice_no ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-gray-400 whitespace-nowrap">
+                          {invoiceDate ? new Date(invoiceDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-400 whitespace-nowrap">
+                          {invoiceDueDate ? new Date(invoiceDueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                        </td>
+                        <td className="px-4 py-3.5 text-gray-600">{inv.po_number ?? inv.so_number ?? inv.po_so_number ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-gray-500 max-w-[180px] truncate">{inv.description ?? inv.invoice_description ?? "—"}</td>
+                        <td className="px-4 py-3.5 text-gray-800 font-[600]">
+                          {freightAmt != null
+                            ? `$${Number(freightAmt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {inv.status
+                            ? <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-[700] capitalize ${statusCls}`}>{inv.status}</span>
+                            : <span className="text-gray-400">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {!freightLoading && freightTotalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100">
+                <p className="text-[12px] text-gray-400">
+                  Showing {((freightPage - 1) * FREIGHT_PAGE_SIZE) + 1}–{Math.min(freightPage * FREIGHT_PAGE_SIZE, freightTotal)} of {freightTotal} invoices
+                </p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => handleFreightPageChange(Math.max(1, freightPage - 1))} disabled={freightPage === 1}
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  {Array.from({ length: freightTotalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === freightTotalPages || Math.abs(p - freightPage) <= 1)
+                    .reduce((acc, p, i, arr) => { if (i > 0 && p - arr[i-1] > 1) acc.push("…"); acc.push(p); return acc; }, [])
+                    .map((item, i) => item === "…"
+                      ? <span key={`fe${i}`} className="px-2 text-[12px] text-gray-400">…</span>
+                      : <button key={item} onClick={() => handleFreightPageChange(item)}
+                          className={`min-w-[32px] h-8 rounded-lg text-[12px] font-[600] border transition ${freightPage === item ? "bg-blue-500 text-white border-blue-500" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>{item}</button>
+                    )}
+                  <button onClick={() => handleFreightPageChange(Math.min(freightTotalPages, freightPage + 1))} disabled={freightPage === freightTotalPages}
+                    className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ═══ TRADE INVOICES TAB — placeholder ══════════════════ */}
+        {reportingTab === "trade" && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+            <Package className="h-10 w-10 text-gray-200" />
+            <p className="text-[14px] font-[600] text-gray-500">Trade Invoices</p>
+            <p className="text-[12px]">Coming soon — API endpoint not yet wired.</p>
+          </div>
+        )}
+
+        {/* ═══ REPROCESS TAB — placeholder ════════════════════════ */}
+        {reportingTab === "reprocess" && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
+            <RefreshCw className="h-10 w-10 text-gray-200" />
+            <p className="text-[14px] font-[600] text-gray-500">Reprocess</p>
+            <p className="text-[12px]">Coming soon — API endpoint not yet wired.</p>
+          </div>
+        )}
+
+      </div>
+
     </div>
   );
 }

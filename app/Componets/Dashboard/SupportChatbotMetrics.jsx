@@ -276,7 +276,7 @@ const mapStatsResponse = (payload, fallback) => {
     assignedSplit: computedAssignedSplit,
     escalationTrend: escalationTrend.length > 0
       ? escalationTrend
-      : [{ month: "Current", escalated, normal: Math.max(totalMessages - escalated, 0) }],
+      : [{ month: "Current", escalated, normal: Math.max(total - escalated, 0) }],
     statusPie: computedStatusPie,
     feedback: { thumbsUp, thumbsDown },
     weeklyFeedback,
@@ -688,8 +688,8 @@ export default function SupportChatbotMetrics() {
               <p className="text-[11px] text-gray-500">Total Escalated</p>
             </div>
             <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
-              <p className="text-[16px] font-[800] text-emerald-700">{Math.max(data.cards.totalMessages - data.cards.escalated, 0).toLocaleString()}</p>
-              <p className="text-[11px] text-gray-500">Total Normal</p>
+              <p className="text-[16px] font-[800] text-emerald-700">{Math.max(data.cards.total - data.cards.escalated, 0).toLocaleString()}</p>
+              <p className="text-[11px] text-gray-500">Total Non Escalated</p>
             </div>
           </div>
         </ChartCard>
