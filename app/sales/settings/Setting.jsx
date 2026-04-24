@@ -6855,7 +6855,7 @@ function LeadsPage({ onBack }) {
                     <div className="flex items-center gap-2">
                       <Database className="h-4 w-4 text-blue-500" />
                       <span className="text-[13px] font-[700] text-gray-800">
-                        Available on System
+                        Prospect Information
                       </span>
                     </div>
                     {/* <button
