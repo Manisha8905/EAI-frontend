@@ -183,10 +183,10 @@ const Login = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                // disabled={loading}
+                disabled={loading}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2.5 rounded-lg text-[13px] font-semibold tracking-wide transition hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
               >
-                {/* {loading ? (
+                {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -194,9 +194,9 @@ const Login = () => {
                     </svg>
                     Signing in...
                   </span>
-                ) : ( */}
-                  Sign In
-                {/* )} */}
+                ) : (
+                  "Sign In"
+                )}
               </button>
             </form>
           </div>

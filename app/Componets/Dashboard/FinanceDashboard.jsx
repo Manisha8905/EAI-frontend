@@ -375,60 +375,58 @@ export default function FinanceDashboard() {
   }, [filter, loadMetrics]);
 
   // ── Jobs Reporting loader — reads from refs, always fresh ────────
-  // const loadJobs = useCallback(async () => {
-  //   const search    = jobSearchRef.current;
-  //   const type      = jobTypeRef.current;
-  //   const status    = jobStatusRef.current;
-  //   const dateRange = jobDateRangeRef.current;
-  //   const page      = jobPageRef.current;
+  const loadJobs = useCallback(async () => {
+    const search    = jobSearchRef.current;
+    const type      = jobTypeRef.current;
+    const status    = jobStatusRef.current;
+    const dateRange = jobDateRangeRef.current;
+    const page      = jobPageRef.current;
 
-  //   setJobsLoading(true);
-  //   setJobsError(null);
-  //   try {
-  //     const params = {
-  //       date_range: dateRange,
-  //       page,
-  //       page_size: PAGE_SIZE,
-  //       ...(search ? { search } : {}),
-  //       ...(type   ? { type }   : {}),
-  //       ...(status ? { status } : {}),
-  //     };
-  //     // const res = await axiosInstance.get("/invoice-processing/reporting/jobs", { params });
-  //     const payload = res.data?.data ?? res.data;
-  //     const items =
-  //       payload?.items   ??
-  //       payload?.jobs    ??
-  //       payload?.results ??
-  //       (Array.isArray(payload) ? payload : []);
-  //     const total      = payload?.total ?? payload?.total_count ?? items.length;
-  //     const totalPages = payload?.total_pages ?? payload?.pages ?? Math.max(1, Math.ceil(total / PAGE_SIZE));
-  //     setJobsData(Array.isArray(items) ? items : []);
-  //     setJobsTotal(total);
-  //     setJobsTotalPages(totalPages);
-  //     // summary cards: prefer API-provided summary, else derive from items
-  //     if (payload?.summary) {
-  //       setJobsSummary(payload.summary);
-  //     } else {
-  //       const all = Array.isArray(items) ? items : [];
-  //       setJobsSummary({
-  //         total,
-  //         successful: all.filter(j => (j.status||'').toLowerCase() === 'success').length,
-  //         partial:    all.filter(j => (j.status||'').toLowerCase() === 'partial').length,
-  //         failed:     all.filter(j => (j.status||'').toLowerCase() === 'failed').length,
-  //       });
-  //     }
-  //   } catch (err) {
-  //     const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load jobs.";
-  //     setJobsError(msg);
-  //     toast.error(msg);
-  //     setJobsData([]);
-  //   } finally {
-  //     setJobsLoading(false);
-  //   }
-  // }, []);
+    setJobsLoading(true);
+    setJobsError(null);
+    try {
+      const params = {
+        date_range: dateRange,
+        page,
+        page_size: PAGE_SIZE,
+        ...(search ? { search } : {}),
+        ...(type   ? { type }   : {}),
+        ...(status ? { status } : {}),
+      };
+      const res = await axiosInstance.get("/invoice-processing/reporting/jobs", { params });
+      const payload = res.data?.data ?? res.data;
+      const items =
+        payload?.items   ??
+        payload?.jobs    ??
+        payload?.results ??
+        (Array.isArray(payload) ? payload : []);
+      const total      = payload?.total ?? payload?.total_count ?? items.length;
+      const totalPages = payload?.total_pages ?? payload?.pages ?? Math.max(1, Math.ceil(total / PAGE_SIZE));
+      setJobsData(Array.isArray(items) ? items : []);
+      setJobsTotal(total);
+      setJobsTotalPages(totalPages);
+      if (payload?.summary) {
+        setJobsSummary(payload.summary);
+      } else {
+        const all = Array.isArray(items) ? items : [];
+        setJobsSummary({
+          total,
+          successful: all.filter(j => (j.status||'').toLowerCase() === 'success').length,
+          partial:    all.filter(j => (j.status||'').toLowerCase() === 'partial').length,
+          failed:     all.filter(j => (j.status||'').toLowerCase() === 'failed').length,
+        });
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load jobs.";
+      setJobsError(msg);
+      toast.error(msg);
+      setJobsData([]);
+    } finally {
+      setJobsLoading(false);
+    }
+  }, []);
 
-  // Initial load
-  // useEffect(() => { loadJobs(); }, [loadJobs]);
+  // Loads only when user clicks Apply
 
   // ── Filter handlers — only update state/refs, NO auto API call ──
   const handleSearchChange = (e) => {
@@ -499,52 +497,52 @@ export default function FinanceDashboard() {
   const tradePageRef      = useRef(1);
 
   // ── Freight Invoices loader ─────────────────────────────────────
-  // const loadFreightInvoices = useCallback(async () => {
-  //   const search    = freightSearchRef.current;
-  //   const status    = freightStatusRef.current;
-  //   const dateRange = freightDateRangeRef.current;
-  //   const page      = freightPageRef.current;
+  const loadFreightInvoices = useCallback(async () => {
+    const search    = freightSearchRef.current;
+    const status    = freightStatusRef.current;
+    const dateRange = freightDateRangeRef.current;
+    const page      = freightPageRef.current;
 
-  //   setFreightLoading(true);
-  //   setFreightError(null);
-  //   try {
-  //     const params = {
-  //       date_range: dateRange,
-  //       page,
-  //       page_size: FREIGHT_PAGE_SIZE,
-  //       ...(search ? { search } : {}),
-  //       ...(status ? { status } : {}),
-  //     };
-  //     // const res = await axiosInstance.get("/invoice-processing/reporting/freight-invoices", { params });
-  //     const payload = res.data?.data ?? res.data;
-  //     const items =
-  //       payload?.items    ??
-  //       payload?.invoices ??
-  //       payload?.results  ??
-  //       (Array.isArray(payload) ? payload : []);
-  //     const total      = payload?.total ?? payload?.total_count ?? items.length;
-  //     const totalPages = payload?.total_pages ?? payload?.pages ?? Math.max(1, Math.ceil(total / FREIGHT_PAGE_SIZE));
-  //     setFreightData(Array.isArray(items) ? items : []);
-  //     setFreightTotal(total);
-  //     setFreightTotalPages(totalPages);
-  //     const summary = payload?.summary ?? null;
-  //     setFreightSummary(summary ? summary : {
-  //       total,
-  //       sf_synced:    payload?.sf_synced    ?? payload?.synced ?? 0,
-  //       sf_failed:    payload?.sf_failed    ?? payload?.failed ?? 0,
-  //       total_amount: payload?.total_amount ?? null,
-  //     });
-  //   } catch (err) {
-  //     const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load freight invoices.";
-  //     setFreightError(msg);
-  //     toast.error(msg);
-  //     setFreightData([]);
-  //   } finally {
-  //     setFreightLoading(false);
-  //   }
-  // }, []);
+    setFreightLoading(true);
+    setFreightError(null);
+    try {
+      const params = {
+        date_range: dateRange,
+        page,
+        page_size: FREIGHT_PAGE_SIZE,
+        ...(search ? { search } : {}),
+        ...(status ? { status } : {}),
+      };
+      const res = await axiosInstance.get("/invoice-processing/reporting/freight-invoices", { params });
+      const payload = res.data?.data ?? res.data;
+      const items =
+        payload?.items    ??
+        payload?.invoices ??
+        payload?.results  ??
+        (Array.isArray(payload) ? payload : []);
+      const total      = payload?.total ?? payload?.total_count ?? items.length;
+      const totalPages = payload?.total_pages ?? payload?.pages ?? Math.max(1, Math.ceil(total / FREIGHT_PAGE_SIZE));
+      setFreightData(Array.isArray(items) ? items : []);
+      setFreightTotal(total);
+      setFreightTotalPages(totalPages);
+      const summary = payload?.summary ?? null;
+      setFreightSummary(summary ? summary : {
+        total,
+        sf_synced:    payload?.sf_synced    ?? payload?.synced ?? 0,
+        sf_failed:    payload?.sf_failed    ?? payload?.failed ?? 0,
+        total_amount: payload?.total_amount ?? null,
+      });
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load freight invoices.";
+      setFreightError(msg);
+      toast.error(msg);
+      setFreightData([]);
+    } finally {
+      setFreightLoading(false);
+    }
+  }, []);
 
-  // useEffect(() => { loadFreightInvoices(); }, [loadFreightInvoices]);
+  // Loads only when user clicks Apply
 
   // ── Trade Invoices loader ───────────────────────────────────────
   const loadTradeInvoices = useCallback(async () => {
@@ -583,7 +581,7 @@ export default function FinanceDashboard() {
     }
   }, []);
 
-  useEffect(() => { loadTradeInvoices(); }, [loadTradeInvoices]);
+  // Loads only when user clicks Apply
 
   // ── Freight filter handlers ─────────────────────────────────────
   const handleFreightSearchChange = (e) => {
@@ -960,19 +958,282 @@ export default function FinanceDashboard() {
           </div>
         )}
 
-        {/* ── Freight tab — placeholder ── */}
+        {/* ── Freight tab ── */}
         {reportingTab === "freight" && (
-          <div className="flex flex-col items-center justify-center py-20 gap-2 text-gray-400">
-            <Truck className="h-10 w-10 opacity-20" />
-            <span className="text-[13px]">Freight invoices reporting coming soon</span>
+          <div className="p-5 space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  value={freightSearch}
+                  onChange={handleFreightSearchChange}
+                  onKeyDown={(e) => e.key === "Enter" && handleApplyFreightFilters()}
+                  placeholder="Search vendor, invoice no, BL number…"
+                  className="w-full pl-8 pr-3 py-2 text-[12px] border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition placeholder:text-gray-400"
+                />
+              </div>
+              <div className="relative">
+                <select
+                  value={freightStatus}
+                  onChange={handleFreightStatusChange}
+                  className="appearance-none rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-8 py-2 text-[12px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="success">Success</option>
+                  <option value="failed">Failed</option>
+                  <option value="partial">Partial</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              </div>
+              <div className="relative">
+                <select
+                  value={freightDateRange}
+                  onChange={handleFreightDateRangeChange}
+                  className="appearance-none rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-8 py-2 text-[12px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
+                >
+                  <option value="last_7_days">Last 7 Days</option>
+                  <option value="last_30_days">Last 30 Days</option>
+                  <option value="last_90_days">Last 90 Days</option>
+                  <option value="all">All Time</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              </div>
+              <button
+                onClick={handleApplyFreightFilters}
+                disabled={freightLoading}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-[12px] font-[600] hover:bg-blue-700 disabled:opacity-50 transition shadow-sm"
+              >
+                {freightLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                Apply
+              </button>
+              <button
+                onClick={loadFreightInvoices}
+                disabled={freightLoading}
+                title="Refresh"
+                className="p-2 rounded-xl border border-gray-200 bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-white transition disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${freightLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+            {freightError && (
+              <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-[12px] text-red-600">{freightError}</div>
+            )}
+            {freightLoading ? (
+              <div className="flex items-center justify-center py-16 text-[13px] text-gray-400 animate-pulse">Loading freight invoices…</div>
+            ) : freightData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-2 text-gray-400">
+                <Truck className="h-10 w-10 opacity-20" />
+                <span className="text-[13px]">No freight invoices found</span>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                  <table className="w-full text-left text-[12px]">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        {["#", "Vendor", "Invoice No.", "BL Number", "Container No.", "Amount", "SF Synced", "Status", "Date"].map((h) => (
+                          <th key={h} className="px-4 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {freightData.map((row, i) => {
+                        const statusNorm = (row.status ?? "").toLowerCase();
+                        const statusCls =
+                          statusNorm === "success" || statusNorm === "processed"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : statusNorm === "failed"
+                            ? "bg-red-50 text-red-600 border-red-200"
+                            : statusNorm === "partial"
+                            ? "bg-orange-50 text-orange-600 border-orange-200"
+                            : "bg-gray-100 text-gray-600 border-gray-200";
+                        const sfSynced = row.sf_synced ?? row.synced ?? null;
+                        const dateVal = row.date ?? row.created_at ?? null;
+                        return (
+                          <tr key={row.id ?? i} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
+                            <td className="px-4 py-3 text-gray-400">{(freightPage - 1) * FREIGHT_PAGE_SIZE + i + 1}</td>
+                            <td className="px-4 py-3 font-[500] text-gray-800 whitespace-nowrap">{row.vendor ?? row.vendor_name ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.invoice_number ?? row.invoice_no ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.bl_number ?? row.bl_no ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{row.container_number ?? row.container_no ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-800 font-[600] whitespace-nowrap">
+                              {row.amount != null ? `$${Number(row.amount).toLocaleString()}` : "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {sfSynced != null ? (
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-[700] ${sfSynced ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-600 border-red-200"}`}>
+                                  {sfSynced ? "Yes" : "No"}
+                                </span>
+                              ) : "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {row.status ? (
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-[700] capitalize ${statusCls}`}>{row.status}</span>
+                              ) : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                              {dateVal ? new Date(dateVal).toLocaleDateString() : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {freightTotalPages > 1 && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[12px] text-gray-400">{freightTotal} total invoices</span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleFreightPageChange(freightPage - 1)} disabled={freightPage === 1} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition"><ChevronLeft className="h-4 w-4" /></button>
+                      {Array.from({ length: Math.min(freightTotalPages, 5) }, (_, i) => {
+                        const pg = Math.max(1, Math.min(freightPage - 2, freightTotalPages - 4)) + i;
+                        return (
+                          <button key={pg} onClick={() => handleFreightPageChange(pg)} className={`w-7 h-7 rounded-lg border text-[11px] font-[600] transition ${pg === freightPage ? "bg-gray-900 text-white border-gray-900" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>{pg}</button>
+                        );
+                      })}
+                      <button onClick={() => handleFreightPageChange(freightPage + 1)} disabled={freightPage === freightTotalPages} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition"><ChevronRight className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
-        {/* ── Jobs tab — placeholder ── */}
+        {/* ── Jobs tab ── */}
         {reportingTab === "jobs" && (
-          <div className="flex flex-col items-center justify-center py-20 gap-2 text-gray-400">
-            <FileText className="h-10 w-10 opacity-20" />
-            <span className="text-[13px]">Jobs reporting coming soon</span>
+          <div className="p-5 space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  value={jobSearch}
+                  onChange={handleSearchChange}
+                  onKeyDown={(e) => e.key === "Enter" && handleApplyFilters()}
+                  placeholder="Search job ID, reference…"
+                  className="w-full pl-8 pr-3 py-2 text-[12px] border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition placeholder:text-gray-400"
+                />
+              </div>
+              <div className="relative">
+                <select value={jobType} onChange={handleTypeChange} className="appearance-none rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-8 py-2 text-[12px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
+                  <option value="">All Types</option>
+                  <option value="freight">Freight</option>
+                  <option value="trade">Trade</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              </div>
+              <div className="relative">
+                <select value={jobStatus} onChange={handleStatusChange} className="appearance-none rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-8 py-2 text-[12px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
+                  <option value="">All Statuses</option>
+                  <option value="success">Success</option>
+                  <option value="partial">Partial</option>
+                  <option value="failed">Failed</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              </div>
+              <div className="relative">
+                <select value={jobDateRange} onChange={handleDateRangeChange} className="appearance-none rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-8 py-2 text-[12px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
+                  <option value="last_7_days">Last 7 Days</option>
+                  <option value="last_30_days">Last 30 Days</option>
+                  <option value="last_90_days">Last 90 Days</option>
+                  <option value="all">All Time</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+              </div>
+              <button onClick={handleApplyFilters} disabled={jobsLoading} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-[12px] font-[600] hover:bg-blue-700 disabled:opacity-50 transition shadow-sm">
+                {jobsLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                Apply
+              </button>
+              <button onClick={loadJobs} disabled={jobsLoading} title="Refresh" className="p-2 rounded-xl border border-gray-200 bg-gray-50 text-gray-400 hover:text-gray-700 hover:bg-white transition disabled:opacity-50">
+                <RefreshCw className={`h-3.5 w-3.5 ${jobsLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+            {jobsSummary && (
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { label: "Total",      value: jobsSummary.total,      color: "text-gray-800" },
+                  { label: "Successful", value: jobsSummary.successful, color: "text-green-600" },
+                  { label: "Partial",    value: jobsSummary.partial,    color: "text-orange-500" },
+                  { label: "Failed",     value: jobsSummary.failed,     color: "text-red-500" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2">
+                    <span className="text-[11px] text-gray-400 font-[500]">{label}</span>
+                    <span className={`text-[15px] font-[700] ${color}`}>{value ?? 0}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {jobsError && (
+              <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-[12px] text-red-600">{jobsError}</div>
+            )}
+            {jobsLoading ? (
+              <div className="flex items-center justify-center py-16 text-[13px] text-gray-400 animate-pulse">Loading jobs…</div>
+            ) : jobsData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-2 text-gray-400">
+                <FileText className="h-10 w-10 opacity-20" />
+                <span className="text-[13px]">No jobs found</span>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                  <table className="w-full text-left text-[12px]">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        {["#", "Job ID", "Type", "Invoices", "Amount", "Status", "Started At", "Completed At"].map((h) => (
+                          <th key={h} className="px-4 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobsData.map((row, i) => {
+                        const statusNorm = (row.status ?? "").toLowerCase();
+                        const statusCls =
+                          statusNorm === "success" ? "bg-green-50 text-green-700 border-green-200"
+                            : statusNorm === "failed" ? "bg-red-50 text-red-600 border-red-200"
+                            : statusNorm === "partial" ? "bg-orange-50 text-orange-600 border-orange-200"
+                            : "bg-gray-100 text-gray-600 border-gray-200";
+                        const typeCls = (row.type ?? "").toLowerCase() === "freight"
+                          ? "bg-cyan-50 text-cyan-700 border-cyan-200"
+                          : "bg-purple-50 text-purple-700 border-purple-200";
+                        return (
+                          <tr key={row.id ?? i} className="border-b border-gray-50 hover:bg-gray-50/60 transition">
+                            <td className="px-4 py-3 text-gray-400">{(jobPage - 1) * PAGE_SIZE + i + 1}</td>
+                            <td className="px-4 py-3 font-[500] text-gray-800 whitespace-nowrap">{row.job_id ?? row.id ?? "—"}</td>
+                            <td className="px-4 py-3">
+                              {row.type ? <span className={`px-2 py-0.5 rounded-full border text-[10px] font-[700] capitalize ${typeCls}`}>{row.type}</span> : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-gray-700">{row.invoice_count ?? row.invoices ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-800 font-[600] whitespace-nowrap">
+                              {row.total_amount != null ? `$${Number(row.total_amount).toLocaleString()}` : "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              {row.status ? <span className={`px-2 py-0.5 rounded-full border text-[10px] font-[700] capitalize ${statusCls}`}>{row.status}</span> : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{row.started_at ? new Date(row.started_at).toLocaleString() : "—"}</td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{row.completed_at ? new Date(row.completed_at).toLocaleString() : "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {jobsTotalPages > 1 && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[12px] text-gray-400">{jobsTotal} total jobs</span>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handlePageChange(jobPage - 1)} disabled={jobPage === 1} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition"><ChevronLeft className="h-4 w-4" /></button>
+                      {Array.from({ length: Math.min(jobsTotalPages, 5) }, (_, i) => {
+                        const pg = Math.max(1, Math.min(jobPage - 2, jobsTotalPages - 4)) + i;
+                        return (
+                          <button key={pg} onClick={() => handlePageChange(pg)} className={`w-7 h-7 rounded-lg border text-[11px] font-[600] transition ${pg === jobPage ? "bg-gray-900 text-white border-gray-900" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}>{pg}</button>
+                        );
+                      })}
+                      <button onClick={() => handlePageChange(jobPage + 1)} disabled={jobPage === jobsTotalPages} className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-40 transition"><ChevronRight className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 

@@ -7,21 +7,29 @@ const defaultHeaders = {
 };
 
 const axiosInstance = axios.create({
-  // Keep frontend requests same-origin so no backend CORS changes are required.
   baseURL: "/backend",
   headers: defaultHeaders,
+  withCredentials: true, // ✅ support cookies
 });
 
-// Attach session_token automatically.
+// ✅ REQUEST INTERCEPTOR
 axiosInstance.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
       const session_token = localStorage.getItem("session_token");
 
-      // Prevent "Bearer undefined".
+      // ✅ Ensure headers exist
+      config.headers = config.headers || {};
+
+      // ✅ Attach token safely
       if (session_token && session_token !== "undefined") {
         config.headers.Authorization = `Bearer ${session_token}`;
       }
+
+      // 🔍 Debug (remove later)
+      console.log("➡️ API:", config.url);
+      console.log("➡️ Token:", session_token);
+      console.log("➡️ Authorization:", config.headers.Authorization);
     }
 
     return config;
@@ -29,11 +37,33 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Normalize all error responses so UI code can use a stable message field.
+// ✅ RESPONSE INTERCEPTOR
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const originalRequest = error.config;
     const data = error?.response?.data;
+
+    // 🔁 AUTO RETRY ON 401
+    if (
+      error?.response?.status === 401 &&
+      !originalRequest?._retry
+    ) {
+      originalRequest._retry = true;
+
+      const session_token = localStorage.getItem("session_token");
+
+      if (session_token) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${session_token}`;
+
+        console.warn("🔁 Retrying request with token:", originalRequest.url);
+
+        return axiosInstance(originalRequest);
+      }
+    }
+
+    // ✅ NORMALIZE ERROR RESPONSE (your existing logic improved)
     let errorMessage = error.message || "An error occurred";
 
     if (data instanceof Blob && data.type?.includes("json")) {
@@ -43,18 +73,14 @@ axiosInstance.interceptors.response.use(
         error.response.data = json;
         errorMessage = json?.detail || json?.message || errorMessage;
       } catch {
-        // Leave error as-is if blob parsing fails.
+        // ignore parsing error
       }
     } else if (data && typeof data === "object") {
-      if (data.detail !== undefined && data.detail !== null && data.detail !== "") {
+      if (data.detail) {
         errorMessage = data.detail;
-      } else if (
-        data.message !== undefined &&
-        data.message !== null &&
-        data.message !== ""
-      ) {
+      } else if (data.message) {
         errorMessage = data.message;
-      } else if (data.error !== undefined && data.error !== null && data.error !== "") {
+      } else if (data.error) {
         errorMessage = data.error;
       }
     }
@@ -62,6 +88,7 @@ axiosInstance.interceptors.response.use(
     error.message = errorMessage;
     error.response = error.response || {};
     error.response.data = error.response.data || { detail: errorMessage };
+
     return Promise.reject(error);
   }
 );

@@ -94,7 +94,7 @@ export const loginUser = (values, router) => async (dispatch) => {
       type: LOGIN_SUCCESS,
       payload: response.data,
     });
-    toast.success(response?.data?.detail ?? "Login Successful");
+    toast.success(response?.data?.detail ?? "Login Successful", { toastId: "login-success" });
 
     // Notify backend of the current frontend base URL
     try {
@@ -789,11 +789,15 @@ const normalizeFollowUpTasks = (value) => {
   return [];
 };
 
-// 📞 Call History  —  GET /users/call-history/?campaign_id=<id>
+// 📞 Call History  —  GET /api/campaigns/:id/call-history/
+// Uses a same-origin Next.js proxy route so Node.js follows any backend
+// redirects server-side. This prevents the browser from following a
+// cross-origin redirect that would silently strip the Authorization header.
 export const fetchCallHistory = (campaignId) => async (dispatch) => {
   dispatch({ type: CALL_HISTORY_REQUEST });
   try {
-    const res = await axiosInstance.get(`/campaigns/${campaignId}/call-history/`);
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const res = await axiosInstance.get(`${origin}/api/campaigns/${campaignId}/call-history/`);
     const raw = extractArray(res.data);
     const totalTasks = Number(res.data?.total_tasks ?? 0) || 0;
     const normalized = raw.map((r) => {
@@ -854,11 +858,15 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
   }
 };
 
-// 📧 Email History  —  GET /email-history/?campaign_id=<id>
+// 📧 Email History  —  GET /api/email-history/?campaign_id=<id>
+// Uses a same-origin Next.js proxy route so Node.js follows any backend
+// redirects server-side. This prevents the browser from following a
+// cross-origin redirect that would silently strip the Authorization header.
 export const fetchEmailHistory = (campaignId) => async (dispatch) => {
   dispatch({ type: EMAIL_HISTORY_REQUEST });
   try {
-    const res = await axiosInstance.get("/email-history/", {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const res = await axiosInstance.get(`${origin}/api/email-history/`, {
       params: { campaign_id: campaignId },
     });
     const raw = extractArray(res.data);

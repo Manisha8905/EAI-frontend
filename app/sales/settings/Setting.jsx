@@ -349,8 +349,7 @@ function AnimStyles() {
 
 /* ── CRM Integration ── */
 // const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
-const OAUTH_REDIRECT_URI =
-  `${appBaseUrl}/oauth/callback`;
+const OAUTH_REDIRECT_URI = `${appBaseUrl}/oauth/callback`;
 
 function CRMPage({ onBack, onConnectionChange }) {
   const [form, setForm] = useState({
@@ -474,8 +473,7 @@ function CRMPage({ onBack, onConnectionChange }) {
       window.location.href = fullOauthUrl;
     } catch (err) {
       setConnError(
-        getApiError(err) ||
-          "Failed to connect. Please check your credentials.",
+        getApiError(err) || "Failed to connect. Please check your credentials.",
       );
     } finally {
       setConn(false);
@@ -1041,8 +1039,7 @@ function AgentsPage({ onBack }) {
       await fetchAgents();
     } catch (err) {
       setCreateError(
-        getApiError(err) ||
-          "Failed to create agent. Please try again.",
+        getApiError(err) || "Failed to create agent. Please try again.",
       );
     } finally {
       setCreating(false);
@@ -1085,9 +1082,12 @@ function AgentsPage({ onBack }) {
     setEditingAgent(true);
     setEditAgentError("");
     try {
-      await axiosInstance.put(`/agents/${encodeURIComponent(editAgentTarget.id)}`, {
-        agent_name: editAgentName.trim(),
-      });
+      await axiosInstance.put(
+        `/agents/${encodeURIComponent(editAgentTarget.id)}`,
+        {
+          agent_name: editAgentName.trim(),
+        },
+      );
       toast.success(`Agent renamed to "${editAgentName.trim()}" successfully.`);
       setEditAgentTarget(null);
       await fetchAgents();
@@ -1123,6 +1123,12 @@ function AgentsPage({ onBack }) {
       setPcSaving(false);
     }
   };
+
+  // Smartlead Integration state
+  const [smartleadApiKey, setSmartleadApiKey] = useState("");
+  const [smartleadLoading, setSmartleadLoading] = useState(false);
+  const [smartleadSaved, setSmartleadSaved] = useState(false);
+  const [smartleadError, setSmartleadError] = useState("");
 
   return (
     <div>
@@ -1353,14 +1359,16 @@ function AgentsPage({ onBack }) {
               <th className="px-5 py-3 w-10">
                 <span className="sr-only">Select</span>
               </th>
-              {["Agent Name", "User Name", "Date", "Status", "Action"].map((h) => (
-                <th
-                  key={h}
-                  className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
-                >
-                  {h}
-                </th>
-              ))}
+              {["Agent Name", "User Name", "Date", "Status", "Action"].map(
+                (h) => (
+                  <th
+                    key={h}
+                    className="px-5 py-3 text-[11px] font-[600] uppercase tracking-wide text-gray-500"
+                  >
+                    {h}
+                  </th>
+                ),
+              )}
             </tr>
           </thead>
           <tbody>
@@ -1509,15 +1517,15 @@ function AgentsPage({ onBack }) {
         </div>
       </div>
 
-      {/* Global Parallel Calls */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 max-w-md">
+      {/* Global Parallel Calls (TM Own Solution) */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 max-w-md mb-6">
         <div className="flex items-center gap-2 mb-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50">
             <Zap className="h-4 w-4 text-violet-600" />
           </div>
           <div>
             <p className="text-[13px] font-[600] text-gray-900">
-              Global Parallel Calls
+              TM Own Solution
             </p>
             <p className="text-[11px] text-gray-400">
               Max simultaneous calls across all agents
@@ -1553,6 +1561,72 @@ function AgentsPage({ onBack }) {
           <p className="mt-2 text-[12px] text-red-500 font-[500]">{pcError}</p>
         )}
       </div>
+
+      {/* Smartlead Integration Card (below TM Own Solution) */}
+      {/* <div className="bg-white rounded-2xl border border-green-200 shadow-sm p-5 max-w-md mb-6">
+        <h3 className="text-[13px] font-[700] text-green-700 mb-3 flex items-center gap-2">
+          <Key className="h-4 w-4" /> Smartlead Integration
+        </h3>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setSmartleadLoading(true);
+            setSmartleadError("");
+            try {
+              await axiosInstance.put(
+                "/api/deliverability/smartlead/settings",
+                { smartlead_api_key: smartleadApiKey }
+              );
+              toast.success("Smartlead API key saved successfully!");
+              setSmartleadSaved(true);
+              setTimeout(() => setSmartleadSaved(false), 2500);
+            } catch (err) {
+              setSmartleadError(
+                getApiError(err) ||
+                  err?.response?.data?.detail ||
+                  "Failed to save Smartlead API key."
+              );
+              toast.error(
+                getApiError(err) ||
+                  err?.response?.data?.detail ||
+                  "Failed to save Smartlead API key."
+              );
+            } finally {
+              setSmartleadLoading(false);
+            }
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Smartlead API Key"
+            value={smartleadApiKey}
+            onChange={(e) => setSmartleadApiKey(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 text-[14px] font-[600] text-gray-800 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/20 mb-3"
+            required
+          />
+          <button
+            type="submit"
+            disabled={smartleadLoading}
+            className="rounded-xl bg-green-600 px-5 py-2.5 text-[13px] font-[600] text-white hover:bg-green-700 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            {smartleadLoading ? (
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            ) : smartleadSaved ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Key className="h-3.5 w-3.5" />
+            )}
+            {smartleadLoading
+              ? "Saving…"
+              : smartleadSaved
+                ? "✓ Saved!"
+                : "Save API Key"}
+          </button>
+          {smartleadError && (
+            <p className="mt-2 text-[12px] text-red-500 font-[500]">{smartleadError}</p>
+          )}
+        </form>
+      </div> */}
       {deleteTarget && (
         <DeleteConfirmModal
           label={deleteTarget.name}
@@ -1581,7 +1655,9 @@ function AgentsPage({ onBack }) {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50">
                   <Pencil className="h-4 w-4 text-blue-600" />
                 </div>
-                <h3 className="text-[14px] font-[700] text-gray-900">Edit Agent Name</h3>
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  Edit Agent Name
+                </h3>
               </div>
               <button
                 type="button"
@@ -1779,9 +1855,7 @@ function UsersPage({ onBack, isSuperAdmin }) {
         return rollback;
       });
       toast.error(
-        getApiError(err) ||
-          err?.response?.data?.detail ||
-          "Failed to update.",
+        getApiError(err) || err?.response?.data?.detail || "Failed to update.",
       );
     } finally {
       setBusyRowId(null);
@@ -3155,6 +3229,8 @@ function EmailTemplatesPage({ onBack }) {
         body: d.html_content ?? d.body ?? d.content ?? d.html ?? t.body ?? "",
         placeholders: d.placeholders ?? [
           ...(d.standard_placeholders ?? []),
+          // ...existing code...
+          ...(d.standard_placeholders ?? []),
           ...(d.ai_placeholders ?? []),
           ...(d.custom_placeholders ?? []),
         ],
@@ -3327,9 +3403,7 @@ function EmailTemplatesPage({ onBack }) {
       });
     } catch (err) {
       toast.error(
-        err?.response?.data?.detail ??
-          getApiError(err) ??
-          "Preview failed.",
+        err?.response?.data?.detail ?? getApiError(err) ?? "Preview failed.",
       );
     } finally {
       setPreviewLoading(false);
@@ -4175,8 +4249,7 @@ function GraphConfigPage({ onBack }) {
         /* Mark as loaded only if at least one field has a value */
         if (Object.values(mapped).some(Boolean)) setLoadedFromServer(true);
       } catch (err) {
-        const msg =
-          getApiError(err) ?? null;
+        const msg = getApiError(err) ?? null;
         if (err?.response?.status !== 404)
           setLoadError(msg || "Failed to load Graph credentials.");
       } finally {
@@ -5452,10 +5525,7 @@ const LEAD_CHANNELS = [
 
 /* ── Shared API error extractor ── */
 const getApiError = (err, fallback = "Something went wrong.") =>
-  err?.response?.data?.detail ||
-  getApiError(err) ||
-  err?.message ||
-  fallback;
+  err?.response?.data?.detail || err?.message || fallback;
 
 /* ── Leads ── */
 function LeadsPage({ onBack }) {
@@ -5481,9 +5551,25 @@ function LeadsPage({ onBack }) {
   const [wizardCrmImporting, setWizardCrmImporting] = useState(false);
 
   /* ── Apollo wizard ── */
-  const apolloEmptyFilters = { company_sizes: [], industries: [], job_titles: [], keywords: [], locations: [], seniorities: [], technologies: [] };
+  const apolloEmptyFilters = {
+    company_sizes: [],
+    industries: [],
+    job_titles: [],
+    keywords: [],
+    locations: [],
+    seniorities: [],
+    technologies: [],
+  };
   const [apolloFilters, setApolloFilters] = useState({ ...apolloEmptyFilters });
-  const [apolloTagInputs, setApolloTagInputs] = useState({ company_sizes: "", industries: "", job_titles: "", keywords: "", locations: "", seniorities: "", technologies: "" });
+  const [apolloTagInputs, setApolloTagInputs] = useState({
+    company_sizes: "",
+    industries: "",
+    job_titles: "",
+    keywords: "",
+    locations: "",
+    seniorities: "",
+    technologies: "",
+  });
   const [apolloPreview, setApolloPreview] = useState(null);
   const [apolloPreviewing, setApolloPreviewLoading] = useState(false);
   const [apolloFetching, setApolloFetching] = useState(false);
@@ -5511,7 +5597,10 @@ function LeadsPage({ onBack }) {
   const [downloadingLeads, setDownloadingLeads] = useState(false);
 
   /* ── Lead info popup ── */
-  const [leadInfoModal, setLeadInfoModal] = useState({ open: false, lead: null });
+  const [leadInfoModal, setLeadInfoModal] = useState({
+    open: false,
+    lead: null,
+  });
   const [systemData, setSystemData] = useState(null);
   const [systemLoading, setSystemLoading] = useState(false);
   const [aiData, setAiData] = useState(null);
@@ -5673,9 +5762,7 @@ function LeadsPage({ onBack }) {
       setLists((p) => p.filter((l) => l.id !== listId));
       toast.success("Lead list deleted.");
     } catch (err) {
-      toast.error(
-        getApiError(err) || "Failed to delete lead list.",
-      );
+      toast.error(getApiError(err) || "Failed to delete lead list.");
     } finally {
       setDeletingListId(null);
     }
@@ -5718,7 +5805,15 @@ function LeadsPage({ onBack }) {
     setWizardExcelFile(null);
     if (wizardFileRef.current) wizardFileRef.current.value = "";
     setApolloFilters({ ...apolloEmptyFilters });
-    setApolloTagInputs({ company_sizes: "", industries: "", job_titles: "", keywords: "", locations: "", seniorities: "", technologies: "" });
+    setApolloTagInputs({
+      company_sizes: "",
+      industries: "",
+      job_titles: "",
+      keywords: "",
+      locations: "",
+      seniorities: "",
+      technologies: "",
+    });
     setApolloPreview(null);
   };
 
@@ -5742,9 +5837,7 @@ function LeadsPage({ onBack }) {
       toast.success("Lead list created.");
       setWizardStep(2);
     } catch (err) {
-      toast.error(
-        getApiError(err) || "Failed to create lead list.",
-      );
+      toast.error(getApiError(err) || "Failed to create lead list.");
     } finally {
       setCreating(false);
     }
@@ -5793,7 +5886,10 @@ function LeadsPage({ onBack }) {
   const handleApolloPreview = async () => {
     setApolloPreviewLoading(true);
     try {
-      const filters = { ...apolloFilters, keywords: apolloFilters.keywords.join(" ") };
+      const filters = {
+        ...apolloFilters,
+        keywords: apolloFilters.keywords.join(" "),
+      };
       const res = await axiosInstance.post("/apollo/preview", { filters });
       setApolloPreview(res.data?.data ?? res.data);
     } catch (err) {
@@ -5805,13 +5901,23 @@ function LeadsPage({ onBack }) {
 
   /* ── POST /apollo/fetch ── */
   const handleApolloFetch = async () => {
-    if (!form.name.trim()) { toast.error("List name is required."); return; }
+    if (!form.name.trim()) {
+      toast.error("List name is required.");
+      return;
+    }
     setApolloFetching(true);
     try {
-      const filters = { ...apolloFilters, keywords: apolloFilters.keywords.join(" ") };
+      const filters = {
+        ...apolloFilters,
+        keywords: apolloFilters.keywords.join(" "),
+      };
       await axiosInstance.post("/apollo/fetch", {
         confirmed: true,
-        estimated_count: apolloPreview?.estimated_count ?? apolloPreview?.count ?? apolloPreview?.total ?? 0,
+        estimated_count:
+          apolloPreview?.estimated_count ??
+          apolloPreview?.count ??
+          apolloPreview?.total ??
+          0,
         filters,
         list_name: form.name.trim(),
       });
@@ -6079,9 +6185,7 @@ function LeadsPage({ onBack }) {
       toast.success("Lead details updated successfully.");
       closeLeadEditor();
     } catch (err) {
-      toast.error(
-        getApiError(err) || "Failed to save lead details.",
-      );
+      toast.error(getApiError(err) || "Failed to save lead details.");
     } finally {
       setLeadEditModal((s) => ({ ...s, saving: false }));
     }
@@ -6124,9 +6228,7 @@ function LeadsPage({ onBack }) {
           return id === leadId ? { ...l, [channelKey]: currentValue } : l;
         }),
       );
-      toast.error(
-        getApiError(err) || "Failed to update channel flags.",
-      );
+      toast.error(getApiError(err) || "Failed to update channel flags.");
     } finally {
       setTogglingChannel((s) => {
         const ns = new Set(s);
@@ -6187,7 +6289,11 @@ function LeadsPage({ onBack }) {
       setLeadInfoModal((prev) => ({
         ...prev,
         lead: prev.lead
-          ? { ...prev.lead, enrichment, lead_data: payload?.lead_data ?? prev.lead.lead_data }
+          ? {
+              ...prev.lead,
+              enrichment,
+              lead_data: payload?.lead_data ?? prev.lead.lead_data,
+            }
           : prev.lead,
       }));
       toast.success("Lead enriched successfully.");
@@ -6359,12 +6465,14 @@ function LeadsPage({ onBack }) {
                       onClick={async () => {
                         setDownloadingLeads(true);
                         // Map list_lead UUIDs → actual lead_id values that the download API expects
-                        const downloadLeadIds = Array.from(checkedLeadIds).map((id) => {
-                          const found = listLeads.find(
-                            (l) => (l.id ?? l._id ?? l.list_lead_id) === id,
-                          );
-                          return found?.lead_id ?? id;
-                        });
+                        const downloadLeadIds = Array.from(checkedLeadIds).map(
+                          (id) => {
+                            const found = listLeads.find(
+                              (l) => (l.id ?? l._id ?? l.list_lead_id) === id,
+                            );
+                            return found?.lead_id ?? id;
+                          },
+                        );
                         await handleApiDownload(
                           viewList.id,
                           downloadLeadIds,
@@ -6426,8 +6534,18 @@ function LeadsPage({ onBack }) {
                 filteredLeads.every((l) =>
                   checkedLeadIds.has(l.id ?? l._id ?? l.list_lead_id),
                 ) ? (
-                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  <svg
+                    className="h-3 w-3 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 ) : checkedLeadIds.size > 0 ? (
                   <span className="block h-0.5 w-2.5 rounded bg-teal-500" />
@@ -6565,8 +6683,18 @@ function LeadsPage({ onBack }) {
                                   }`}
                                 >
                                   {checkedLeadIds.has(leadId) && (
-                                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    <svg
+                                      className="h-3 w-3 text-white"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      strokeWidth={3}
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M5 13l4 4L19 7"
+                                      />
                                     </svg>
                                   )}
                                 </button>
@@ -6629,7 +6757,9 @@ function LeadsPage({ onBack }) {
                                                   bg-gray-900 text-white text-[11px] font-[500]
                                                   rounded-lg shadow-lg whitespace-nowrap max-w-[320px]"
                                     >
-                                      <span className="block truncate">{company}</span>
+                                      <span className="block truncate">
+                                        {company}
+                                      </span>
                                       <span className="absolute top-full left-4 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
                                     </div>
                                   )}
@@ -6834,7 +6964,8 @@ function LeadsPage({ onBack }) {
                       Lead Intelligence
                     </p>
                     <p className="text-[11px] text-gray-400">
-                      {(leadInfoModal.lead.lead_data ?? leadInfoModal.lead)?.name ?? "Lead"}
+                      {(leadInfoModal.lead.lead_data ?? leadInfoModal.lead)
+                        ?.name ?? "Lead"}
                     </p>
                   </div>
                 </div>
@@ -6901,7 +7032,9 @@ function LeadsPage({ onBack }) {
                                     {str}
                                   </a>
                                 ) : (
-                                  <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                  <span className="text-[12px] text-gray-700 break-all">
+                                    {str}
+                                  </span>
                                 )}
                               </div>
                             );
@@ -6910,7 +7043,9 @@ function LeadsPage({ onBack }) {
                     ) : (
                       <div className="flex flex-col items-center justify-center py-8 gap-2 text-gray-400">
                         <Database className="h-8 w-8 opacity-30" />
-                        <span className="text-[12px]">No system data available</span>
+                        <span className="text-[12px]">
+                          No system data available
+                        </span>
                       </div>
                     )}
                   </div>
@@ -6942,7 +7077,11 @@ function LeadsPage({ onBack }) {
                       <div className="flex items-center justify-center py-8 text-[13px] text-gray-400 animate-pulse">
                         Fetching AI insights…
                       </div>
-                    ) : aiData && (aiData.apollo || aiData.apify || aiData.grok || aiData.groq) ? (
+                    ) : aiData &&
+                      (aiData.apollo ||
+                        aiData.apify ||
+                        aiData.grok ||
+                        aiData.groq) ? (
                       <div className="space-y-5">
                         {/* Metadata: enrichment_type + last_updated_at */}
                         {(aiData.enrichment_type || aiData.last_updated_at) && (
@@ -6954,7 +7093,10 @@ function LeadsPage({ onBack }) {
                             )}
                             {aiData.last_updated_at && (
                               <span className="text-[10px] text-gray-400">
-                                Updated {new Date(aiData.last_updated_at).toLocaleString()}
+                                Updated{" "}
+                                {new Date(
+                                  aiData.last_updated_at,
+                                ).toLocaleString()}
                               </span>
                             )}
                           </div>
@@ -6980,7 +7122,10 @@ function LeadsPage({ onBack }) {
                                   const str = String(val);
                                   const isUrl = /^https?:\/\//i.test(str);
                                   return (
-                                    <div key={key} className="flex flex-col gap-0.5">
+                                    <div
+                                      key={key}
+                                      className="flex flex-col gap-0.5"
+                                    >
                                       <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
                                         {key.replace(/[_-]+/g, " ")}
                                       </span>
@@ -6994,7 +7139,9 @@ function LeadsPage({ onBack }) {
                                           {str}
                                         </a>
                                       ) : (
-                                        <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                        <span className="text-[12px] text-gray-700 break-all">
+                                          {str}
+                                        </span>
                                       )}
                                     </div>
                                   );
@@ -7007,7 +7154,8 @@ function LeadsPage({ onBack }) {
                         {aiData.apify?.linkedin_posts?.length > 0 && (
                           <div>
                             <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
-                              LinkedIn Posts ({aiData.apify.linkedin_posts.length})
+                              LinkedIn Posts (
+                              {aiData.apify.linkedin_posts.length})
                             </p>
                             <div className="space-y-2 max-h-52 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                               {aiData.apify.linkedin_posts.map((post, idx) => (
@@ -7021,7 +7169,9 @@ function LeadsPage({ onBack }) {
                                     <span>🔁 {post.shares ?? 0}</span>
                                     {post.posted_date && (
                                       <span>
-                                        {new Date(post.posted_date).toLocaleDateString()}
+                                        {new Date(
+                                          post.posted_date,
+                                        ).toLocaleDateString()}
                                       </span>
                                     )}
                                   </div>
@@ -7047,20 +7197,42 @@ function LeadsPage({ onBack }) {
                         {/* Grok */}
                         {aiData.grok && typeof aiData.grok === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Grok</p>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              Grok
+                            </p>
                             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                               {Object.entries(aiData.grok)
-                                .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "object")
+                                .filter(
+                                  ([, v]) =>
+                                    v !== null &&
+                                    v !== undefined &&
+                                    v !== "" &&
+                                    typeof v !== "object",
+                                )
                                 .map(([key, val]) => {
                                   const str = String(val);
                                   const isUrl = /^https?:\/\//i.test(str);
                                   return (
-                                    <div key={key} className="flex flex-col gap-0.5">
-                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">{key.replace(/[_-]+/g, " ")}</span>
+                                    <div
+                                      key={key}
+                                      className="flex flex-col gap-0.5"
+                                    >
+                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
+                                        {key.replace(/[_-]+/g, " ")}
+                                      </span>
                                       {isUrl ? (
-                                        <a href={str} target="_blank" rel="noreferrer" className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]">{str}</a>
+                                        <a
+                                          href={str}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
+                                        >
+                                          {str}
+                                        </a>
                                       ) : (
-                                        <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                        <span className="text-[12px] text-gray-700 break-all">
+                                          {str}
+                                        </span>
                                       )}
                                     </div>
                                   );
@@ -7072,20 +7244,42 @@ function LeadsPage({ onBack }) {
                         {/* Groq */}
                         {aiData.groq && typeof aiData.groq === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Groq</p>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              Groq
+                            </p>
                             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
                               {Object.entries(aiData.groq)
-                                .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "object")
+                                .filter(
+                                  ([, v]) =>
+                                    v !== null &&
+                                    v !== undefined &&
+                                    v !== "" &&
+                                    typeof v !== "object",
+                                )
                                 .map(([key, val]) => {
                                   const str = String(val);
                                   const isUrl = /^https?:\/\//i.test(str);
                                   return (
-                                    <div key={key} className="flex flex-col gap-0.5">
-                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">{key.replace(/[_-]+/g, " ")}</span>
+                                    <div
+                                      key={key}
+                                      className="flex flex-col gap-0.5"
+                                    >
+                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
+                                        {key.replace(/[_-]+/g, " ")}
+                                      </span>
                                       {isUrl ? (
-                                        <a href={str} target="_blank" rel="noreferrer" className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]">{str}</a>
+                                        <a
+                                          href={str}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
+                                        >
+                                          {str}
+                                        </a>
                                       ) : (
-                                        <span className="text-[12px] text-gray-700 break-all">{str}</span>
+                                        <span className="text-[12px] text-gray-700 break-all">
+                                          {str}
+                                        </span>
                                       )}
                                     </div>
                                   );
@@ -7097,7 +7291,9 @@ function LeadsPage({ onBack }) {
                     ) : (
                       <div className="flex flex-col items-center justify-center py-8 gap-2 text-gray-400">
                         <Zap className="h-8 w-8 opacity-30" />
-                        <span className="text-[12px]">No AI insights yet. Click Refresh to fetch.</span>
+                        <span className="text-[12px]">
+                          No AI insights yet. Click Refresh to fetch.
+                        </span>
                       </div>
                     )}
                   </div>
@@ -7134,7 +7330,11 @@ function LeadsPage({ onBack }) {
             <div className="max-h-96 overflow-y-auto lead-form-scrollable">
               <div className="grid grid-cols-2 gap-3.5">
                 <Field
-                  label={<>Name <span className="text-red-500">*</span></>}
+                  label={
+                    <>
+                      Name <span className="text-red-500">*</span>
+                    </>
+                  }
                   type="text"
                   placeholder="Enter lead name"
                   value={leadEditModal.data.name}
@@ -7171,7 +7371,11 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label={<>Company <span className="text-red-500">*</span></>}
+                  label={
+                    <>
+                      Company <span className="text-red-500">*</span>
+                    </>
+                  }
                   type="text"
                   placeholder="Enter company name"
                   value={leadEditModal.data.company}
@@ -7183,7 +7387,11 @@ function LeadsPage({ onBack }) {
                   }
                 />
                 <Field
-                  label={<>Title <span className="text-red-500">*</span></>}
+                  label={
+                    <>
+                      Title <span className="text-red-500">*</span>
+                    </>
+                  }
                   type="text"
                   placeholder="Enter job title"
                   value={leadEditModal.data.title}
@@ -7195,23 +7403,174 @@ function LeadsPage({ onBack }) {
                   }
                 />
               </div>
-              
+
               <div className="mt-4 pt-3 border-t border-gray-200">
-                <p className="text-[11px] font-[600] text-gray-400 mb-3">Additional Information (Optional)</p>
+                <p className="text-[11px] font-[600] text-gray-400 mb-3">
+                  Additional Information (Optional)
+                </p>
                 <div className="grid grid-cols-2 gap-3.5">
-                  <Field label="Lead Source" type="text" placeholder="e.g. Referral" value={leadEditModal.data.lead_source} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, lead_source: value } }))} />
-                  <Field label="Lead Status" type="text" placeholder="e.g. Active" value={leadEditModal.data.lead_status} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, lead_status: value } }))} />
-                  <Field label="Lead Rating" type="text" placeholder="e.g. Hot" value={leadEditModal.data.lead_rating} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, lead_rating: value } }))} />
-                  <Field label="Address Street" type="text" placeholder="e.g. 123 Main St" value={leadEditModal.data.address_street} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_street: value } }))} />
-                  <Field label="Address City" type="text" placeholder="e.g. New York" value={leadEditModal.data.address_city} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_city: value } }))} />
-                  <Field label="Address State" type="text" placeholder="e.g. NY" value={leadEditModal.data.address_state} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_state: value } }))} />
-                  <Field label="Address Zip Code" type="text" placeholder="e.g. 10001" value={leadEditModal.data.address_zip_code} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_zip_code: value } }))} />
-                  <Field label="Address Country" type="text" placeholder="e.g. USA" value={leadEditModal.data.address_country} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, address_country: value } }))} />
-                  <Field label="Website" type="text" placeholder="e.g. www.example.com" value={leadEditModal.data.website} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, website: value } }))} />
-                  <Field label="Industry" type="text" placeholder="e.g. Technology" value={leadEditModal.data.industry} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, industry: value } }))} />
-                  <div className="col-span-2"><Field label="LinkedIn URL" type="text" placeholder="e.g. linkedin.com/in/username" value={leadEditModal.data.linkedin_url} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, linkedin_url: value } }))} /></div>
-                  <div className="col-span-2"><Field label="Notes" type="textarea" placeholder="Add notes..." value={leadEditModal.data.notes} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, notes: value } }))} /></div>
-                  <div className="col-span-2"><Field label="Description" type="textarea" placeholder="Add description..." value={leadEditModal.data.description} onChange={(value) => setLeadEditModal((s) => ({ ...s, data: { ...s.data, description: value } }))} /></div>
+                  <Field
+                    label="Lead Source"
+                    type="text"
+                    placeholder="e.g. Referral"
+                    value={leadEditModal.data.lead_source}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, lead_source: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Lead Status"
+                    type="text"
+                    placeholder="e.g. Active"
+                    value={leadEditModal.data.lead_status}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, lead_status: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Lead Rating"
+                    type="text"
+                    placeholder="e.g. Hot"
+                    value={leadEditModal.data.lead_rating}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, lead_rating: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address Street"
+                    type="text"
+                    placeholder="e.g. 123 Main St"
+                    value={leadEditModal.data.address_street}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_street: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address City"
+                    type="text"
+                    placeholder="e.g. New York"
+                    value={leadEditModal.data.address_city}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_city: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address State"
+                    type="text"
+                    placeholder="e.g. NY"
+                    value={leadEditModal.data.address_state}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_state: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address Zip Code"
+                    type="text"
+                    placeholder="e.g. 10001"
+                    value={leadEditModal.data.address_zip_code}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_zip_code: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address Country"
+                    type="text"
+                    placeholder="e.g. USA"
+                    value={leadEditModal.data.address_country}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_country: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Website"
+                    type="text"
+                    placeholder="e.g. www.example.com"
+                    value={leadEditModal.data.website}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, website: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Industry"
+                    type="text"
+                    placeholder="e.g. Technology"
+                    value={leadEditModal.data.industry}
+                    onChange={(value) =>
+                      setLeadEditModal((s) => ({
+                        ...s,
+                        data: { ...s.data, industry: value },
+                      }))
+                    }
+                  />
+                  <div className="col-span-2">
+                    <Field
+                      label="LinkedIn URL"
+                      type="text"
+                      placeholder="e.g. linkedin.com/in/username"
+                      value={leadEditModal.data.linkedin_url}
+                      onChange={(value) =>
+                        setLeadEditModal((s) => ({
+                          ...s,
+                          data: { ...s.data, linkedin_url: value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Field
+                      label="Notes"
+                      type="textarea"
+                      placeholder="Add notes..."
+                      value={leadEditModal.data.notes}
+                      onChange={(value) =>
+                        setLeadEditModal((s) => ({
+                          ...s,
+                          data: { ...s.data, notes: value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Field
+                      label="Description"
+                      type="textarea"
+                      placeholder="Add description..."
+                      value={leadEditModal.data.description}
+                      onChange={(value) =>
+                        setLeadEditModal((s) => ({
+                          ...s,
+                          data: { ...s.data, description: value },
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -7322,23 +7681,174 @@ function LeadsPage({ onBack }) {
                   }
                 />
               </div>
-              
+
               <div className="mt-4 pt-3 border-t border-gray-200">
-                <p className="text-[11px] font-[600] text-gray-400 mb-3">Additional Information (Optional)</p>
+                <p className="text-[11px] font-[600] text-gray-400 mb-3">
+                  Additional Information (Optional)
+                </p>
                 <div className="grid grid-cols-2 gap-3.5">
-                  <Field label="Lead Source" type="text" placeholder="e.g. Referral" value={leadCreateModal.data.lead_source} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_source: value } }))} />
-                  <Field label="Lead Status" type="text" placeholder="e.g. Active" value={leadCreateModal.data.lead_status} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_status: value } }))} />
-                  <Field label="Lead Rating" type="text" placeholder="e.g. Hot" value={leadCreateModal.data.lead_rating} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, lead_rating: value } }))} />
-                  <Field label="Address Street" type="text" placeholder="e.g. 123 Main St" value={leadCreateModal.data.address_street} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_street: value } }))} />
-                  <Field label="Address City" type="text" placeholder="e.g. New York" value={leadCreateModal.data.address_city} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_city: value } }))} />
-                  <Field label="Address State" type="text" placeholder="e.g. NY" value={leadCreateModal.data.address_state} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_state: value } }))} />
-                  <Field label="Address Zip Code" type="text" placeholder="e.g. 10001" value={leadCreateModal.data.address_zip_code} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_zip_code: value } }))} />
-                  <Field label="Address Country" type="text" placeholder="e.g. USA" value={leadCreateModal.data.address_country} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, address_country: value } }))} />
-                  <Field label="Website" type="text" placeholder="e.g. www.example.com" value={leadCreateModal.data.website} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, website: value } }))} />
-                  <Field label="Industry" type="text" placeholder="e.g. Technology" value={leadCreateModal.data.industry} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, industry: value } }))} />
-                  <div className="col-span-2"><Field label="LinkedIn URL" type="text" placeholder="e.g. linkedin.com/in/username" value={leadCreateModal.data.linkedin_url} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, linkedin_url: value } }))} /></div>
-                  <div className="col-span-2"><Field label="Notes" type="textarea" placeholder="Add notes..." value={leadCreateModal.data.notes} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, notes: value } }))} /></div>
-                  <div className="col-span-2"><Field label="Description" type="textarea" placeholder="Add description..." value={leadCreateModal.data.description} onChange={(value) => setLeadCreateModal((s) => ({ ...s, data: { ...s.data, description: value } }))} /></div>
+                  <Field
+                    label="Lead Source"
+                    type="text"
+                    placeholder="e.g. Referral"
+                    value={leadCreateModal.data.lead_source}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, lead_source: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Lead Status"
+                    type="text"
+                    placeholder="e.g. Active"
+                    value={leadCreateModal.data.lead_status}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, lead_status: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Lead Rating"
+                    type="text"
+                    placeholder="e.g. Hot"
+                    value={leadCreateModal.data.lead_rating}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, lead_rating: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address Street"
+                    type="text"
+                    placeholder="e.g. 123 Main St"
+                    value={leadCreateModal.data.address_street}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_street: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address City"
+                    type="text"
+                    placeholder="e.g. New York"
+                    value={leadCreateModal.data.address_city}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_city: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address State"
+                    type="text"
+                    placeholder="e.g. NY"
+                    value={leadCreateModal.data.address_state}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_state: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address Zip Code"
+                    type="text"
+                    placeholder="e.g. 10001"
+                    value={leadCreateModal.data.address_zip_code}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_zip_code: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Address Country"
+                    type="text"
+                    placeholder="e.g. USA"
+                    value={leadCreateModal.data.address_country}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, address_country: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Website"
+                    type="text"
+                    placeholder="e.g. www.example.com"
+                    value={leadCreateModal.data.website}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, website: value },
+                      }))
+                    }
+                  />
+                  <Field
+                    label="Industry"
+                    type="text"
+                    placeholder="e.g. Technology"
+                    value={leadCreateModal.data.industry}
+                    onChange={(value) =>
+                      setLeadCreateModal((s) => ({
+                        ...s,
+                        data: { ...s.data, industry: value },
+                      }))
+                    }
+                  />
+                  <div className="col-span-2">
+                    <Field
+                      label="LinkedIn URL"
+                      type="text"
+                      placeholder="e.g. linkedin.com/in/username"
+                      value={leadCreateModal.data.linkedin_url}
+                      onChange={(value) =>
+                        setLeadCreateModal((s) => ({
+                          ...s,
+                          data: { ...s.data, linkedin_url: value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Field
+                      label="Notes"
+                      type="textarea"
+                      placeholder="Add notes..."
+                      value={leadCreateModal.data.notes}
+                      onChange={(value) =>
+                        setLeadCreateModal((s) => ({
+                          ...s,
+                          data: { ...s.data, notes: value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Field
+                      label="Description"
+                      type="textarea"
+                      placeholder="Add description..."
+                      value={leadCreateModal.data.description}
+                      onChange={(value) =>
+                        setLeadCreateModal((s) => ({
+                          ...s,
+                          data: { ...s.data, description: value },
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -7408,7 +7918,8 @@ function LeadsPage({ onBack }) {
       a.href = url;
       const cd = res.headers?.["content-disposition"] ?? "";
       const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      const filename = match?.[1]?.replace(/['"]/g, "") ?? `leads-${listId}.csv`;
+      const filename =
+        match?.[1]?.replace(/['"]/g, "") ?? `leads-${listId}.csv`;
       a.download = filename;
       a.click();
       window.URL.revokeObjectURL(url);
@@ -7461,8 +7972,6 @@ function LeadsPage({ onBack }) {
           </div>
         }
       />
-
-
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
@@ -7625,7 +8134,9 @@ function LeadsPage({ onBack }) {
                     .map((p, idx, arr) => (
                       <React.Fragment key={p}>
                         {idx > 0 && arr[idx - 1] !== p - 1 && (
-                          <span className="text-[12px] text-gray-400 px-1">…</span>
+                          <span className="text-[12px] text-gray-400 px-1">
+                            …
+                          </span>
                         )}
                         <button
                           onClick={() => setListsPage(p)}
@@ -7645,7 +8156,9 @@ function LeadsPage({ onBack }) {
                         Math.min(Math.ceil(listsTotal / LISTS_PER_PAGE), p + 1),
                       )
                     }
-                    disabled={listsPage === Math.ceil(listsTotal / LISTS_PER_PAGE)}
+                    disabled={
+                      listsPage === Math.ceil(listsTotal / LISTS_PER_PAGE)
+                    }
                     className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none transition text-[13px]"
                   >
                     ›
@@ -7686,7 +8199,11 @@ function LeadsPage({ onBack }) {
           <div className="flex items-center gap-2 mb-5">
             {[
               "Details",
-              form.sourceType === "crm" ? "Import CRM" : form.sourceType === "apollo" ? "Apollo Filters" : "Upload Excel",
+              form.sourceType === "crm"
+                ? "Import CRM"
+                : form.sourceType === "apollo"
+                  ? "Apollo Filters"
+                  : "Upload Excel",
             ].map((label, i) => (
               <div key={i} className="flex items-center gap-2">
                 {i > 0 && (
@@ -7932,13 +8449,41 @@ function LeadsPage({ onBack }) {
               <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {/* Array tag fields */}
                 {[
-                  { key: "keywords",      label: "Keywords",       placeholder: "e.g. B2B SaaS — press Enter" },
-                  { key: "job_titles",    label: "Job Titles",     placeholder: "e.g. CEO — press Enter" },
-                  { key: "locations",     label: "Locations",      placeholder: "e.g. New York, USA — press Enter" },
-                  { key: "industries",    label: "Industries",     placeholder: "e.g. Technology — press Enter" },
-                  { key: "seniorities",   label: "Seniorities",    placeholder: "e.g. director — press Enter" },
-                  { key: "technologies",  label: "Technologies",   placeholder: "e.g. Salesforce — press Enter" },
-                  { key: "company_sizes", label: "Company Sizes",  placeholder: "e.g. 11,20 — press Enter" },
+                  {
+                    key: "keywords",
+                    label: "Keywords",
+                    placeholder: "e.g. B2B SaaS — press Enter",
+                  },
+                  {
+                    key: "job_titles",
+                    label: "Job Titles",
+                    placeholder: "e.g. CEO — press Enter",
+                  },
+                  {
+                    key: "locations",
+                    label: "Locations",
+                    placeholder: "e.g. New York, USA — press Enter",
+                  },
+                  {
+                    key: "industries",
+                    label: "Industries",
+                    placeholder: "e.g. Technology — press Enter",
+                  },
+                  {
+                    key: "seniorities",
+                    label: "Seniorities",
+                    placeholder: "e.g. director — press Enter",
+                  },
+                  {
+                    key: "technologies",
+                    label: "Technologies",
+                    placeholder: "e.g. Salesforce — press Enter",
+                  },
+                  {
+                    key: "company_sizes",
+                    label: "Company Sizes",
+                    placeholder: "e.g. 11,20 — press Enter",
+                  },
                 ].map(({ key, label, placeholder }) => (
                   <div key={key}>
                     <label className="block text-[11px] font-[600] uppercase tracking-wide text-gray-500 mb-1.5">
@@ -7969,7 +8514,10 @@ function LeadsPage({ onBack }) {
                         type="text"
                         value={apolloTagInputs[key]}
                         onChange={(e) =>
-                          setApolloTagInputs((t) => ({ ...t, [key]: e.target.value }))
+                          setApolloTagInputs((t) => ({
+                            ...t,
+                            [key]: e.target.value,
+                          }))
                         }
                         onKeyDown={(e) => {
                           if (
@@ -7977,9 +8525,14 @@ function LeadsPage({ onBack }) {
                             apolloTagInputs[key].trim()
                           ) {
                             e.preventDefault();
-                            const val = apolloTagInputs[key].trim().replace(/,$/, "");
+                            const val = apolloTagInputs[key]
+                              .trim()
+                              .replace(/,$/, "");
                             if (val && !apolloFilters[key].includes(val)) {
-                              setApolloFilters((f) => ({ ...f, [key]: [...f[key], val] }));
+                              setApolloFilters((f) => ({
+                                ...f,
+                                [key]: [...f[key], val],
+                              }));
                             }
                             setApolloTagInputs((t) => ({ ...t, [key]: "" }));
                           } else if (
@@ -7993,7 +8546,9 @@ function LeadsPage({ onBack }) {
                             }));
                           }
                         }}
-                        placeholder={apolloFilters[key].length === 0 ? placeholder : ""}
+                        placeholder={
+                          apolloFilters[key].length === 0 ? placeholder : ""
+                        }
                         className="flex-1 min-w-[120px] bg-transparent border-0 ring-0 focus:ring-0 focus:outline-none focus-visible:ring-0 focus-visible:outline-none text-[12px] text-gray-700 placeholder-gray-400 py-0.5"
                         style={{ outline: "none", boxShadow: "none" }}
                       />
@@ -8008,14 +8563,14 @@ function LeadsPage({ onBack }) {
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                   <div>
                     <p className="text-[13px] font-[700] text-emerald-800">
-                      ~{
-                        (
-                          apolloPreview.estimated_count ??
-                          apolloPreview.count ??
-                          apolloPreview.total ??
-                          0
-                        ).toLocaleString()
-                      } leads found
+                      ~
+                      {(
+                        apolloPreview.estimated_count ??
+                        apolloPreview.count ??
+                        apolloPreview.total ??
+                        0
+                      ).toLocaleString()}{" "}
+                      leads found
                     </p>
                     <p className="text-[11px] text-emerald-600">
                       Refine your filters above or click Fetch Leads to import.
@@ -8027,7 +8582,10 @@ function LeadsPage({ onBack }) {
               {/* Footer */}
               <div className="flex justify-between items-center pt-1 border-t border-gray-100">
                 <button
-                  onClick={() => { setWizardStep(1); setApolloPreview(null); }}
+                  onClick={() => {
+                    setWizardStep(1);
+                    setApolloPreview(null);
+                  }}
                   className="text-[12px] text-gray-500 hover:text-gray-700 transition"
                 >
                   ← Back
@@ -8231,8 +8789,7 @@ function MappingsPage({ onBack }) {
       toast.success("Integration config saved.");
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
-      const msg =
-        getApiError(err) || "Failed to save. Please try again.";
+      const msg = getApiError(err) || "Failed to save. Please try again.";
       setSaveError(msg);
       toast.error(msg);
     } finally {
@@ -8670,6 +9227,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       logged_in_user_email: "",
       campaign_prompt: "",
     },
+    smartlead: {
+      smartlead_api_key: "",
+    },
   });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
@@ -8960,12 +9520,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         if (linkedinConfigRes.status === "fulfilled") {
           const d = linkedinConfigRes.value?.data ?? {};
           next.linkedin_config = {
-            api_key:
-              d.api_key ?? prev.linkedin_config.api_key,
-            dsn:
-              d.dsn ?? prev.linkedin_config.dsn,
-            account_id:
-              d.account_id ?? prev.linkedin_config.account_id,
+            api_key: d.api_key ?? prev.linkedin_config.api_key,
+            dsn: d.dsn ?? prev.linkedin_config.dsn,
+            account_id: d.account_id ?? prev.linkedin_config.account_id,
             webhook_secret:
               d.webhook_secret ?? prev.linkedin_config.webhook_secret,
           };
@@ -8979,16 +9536,16 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             : (raw.data ?? raw.templates ?? raw.results ?? []);
           setEmailTemplates(
             list.map((t) => ({
-              id:                   t.template_id ?? t.id ?? t._id ?? "",
-              name:                 t.name ?? t.template_name ?? t.template_id ?? t.id ?? "",
-              email:                t.from_email ?? t.email ?? "",
-              reply_to_email:       t.reply_to_email ?? "",
-              from_name:            t.from_name ?? "",
-              smtp_provider_name:   t.smtp_provider_name ?? "",
-              meeting_schedule:     t.meeting_schedule ?? "",
+              id: t.template_id ?? t.id ?? t._id ?? "",
+              name: t.name ?? t.template_name ?? t.template_id ?? t.id ?? "",
+              email: t.from_email ?? t.email ?? "",
+              reply_to_email: t.reply_to_email ?? "",
+              from_name: t.from_name ?? "",
+              smtp_provider_name: t.smtp_provider_name ?? "",
+              meeting_schedule: t.meeting_schedule ?? "",
               logged_in_user_email: t.logged_in_user_email ?? "",
-              campaign_prompt:      t.ai_context ?? t.campaign_prompt ?? "",
-            }))
+              campaign_prompt: t.ai_context ?? t.campaign_prompt ?? "",
+            })),
           );
         }
 
@@ -8997,14 +9554,23 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           const d = campaignEmailSettingsRes.value?.data ?? {};
           next.campaign_email_settings = {
             ...prev.campaign_email_settings,
-            email:                d.email ?? d.from_email ?? prev.campaign_email_settings.email,
-            reply_to_email:       d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
-            from_name:            d.from_name ?? prev.campaign_email_settings.from_name,
-            smtp_provider_name:   d.smtp_provider_name ?? prev.campaign_email_settings.smtp_provider_name,
-            credential:           d.credential ?? prev.campaign_email_settings.credential,
-            meeting_schedule:     d.meeting_schedule ?? prev.campaign_email_settings.meeting_schedule,
-            logged_in_user_email: d.logged_in_user_email ?? prev.campaign_email_settings.logged_in_user_email,
-            campaign_prompt:      d.campaign_prompt ?? prev.campaign_email_settings.campaign_prompt,
+            email:
+              d.email ?? d.from_email ?? prev.campaign_email_settings.email,
+            reply_to_email:
+              d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
+            from_name: d.from_name ?? prev.campaign_email_settings.from_name,
+            smtp_provider_name:
+              d.smtp_provider_name ??
+              prev.campaign_email_settings.smtp_provider_name,
+            credential: d.credential ?? prev.campaign_email_settings.credential,
+            meeting_schedule:
+              d.meeting_schedule ??
+              prev.campaign_email_settings.meeting_schedule,
+            logged_in_user_email:
+              d.logged_in_user_email ??
+              prev.campaign_email_settings.logged_in_user_email,
+            campaign_prompt:
+              d.campaign_prompt ?? prev.campaign_email_settings.campaign_prompt,
             // template_id stays from the dropdown — do not overwrite
           };
         }
@@ -9031,7 +9597,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         ...prev,
         enrichment: {
           ...prev.enrichment,
-          xai_api_key: d.xai_api_key ?? d.API_KEY ?? prev.enrichment.xai_api_key,
+          xai_api_key:
+            d.xai_api_key ?? d.API_KEY ?? prev.enrichment.xai_api_key,
         },
       }));
       toast.success("XAI API Key loaded successfully.");
@@ -9058,12 +9625,16 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             prev.enrichment.grok_enrichment,
           enable_grok_enrichment:
             d.enable_grok_enrichment ?? prev.enrichment.enable_grok_enrichment,
-          _enrichmentOptions: Array.isArray(d.options) ? d.options : prev.enrichment._enrichmentOptions,
+          _enrichmentOptions: Array.isArray(d.options)
+            ? d.options
+            : prev.enrichment._enrichmentOptions,
         },
       }));
       toast.success("Enrichment Level loaded successfully.");
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? "Failed to load Enrichment config");
+      toast.error(
+        err?.response?.data?.detail ?? "Failed to load Enrichment config",
+      );
     } finally {
       setEnrichmentFetchLoading((prev) => ({ ...prev, grokEnrichment: false }));
     }
@@ -9072,7 +9643,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
   const fetchEmailStyleConfig = async () => {
     try {
       setEnrichmentFetchLoading((prev) => ({ ...prev, emailStyle: true }));
-      const res = await axiosInstance.get("/api/globalsetting/grok-email-style");
+      const res = await axiosInstance.get(
+        "/api/globalsetting/grok-email-style",
+      );
       const d = res.data?.data ?? res.data ?? {};
       setForms((prev) => ({
         ...prev,
@@ -9083,12 +9656,16 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
             d.value ??
             d.style ??
             prev.enrichment.grok_email_style,
-          _emailStyleOptions: Array.isArray(d.options) ? d.options : prev.enrichment._emailStyleOptions,
+          _emailStyleOptions: Array.isArray(d.options)
+            ? d.options
+            : prev.enrichment._emailStyleOptions,
         },
       }));
       toast.success("Email Style loaded successfully.");
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? "Failed to load Email Style config");
+      toast.error(
+        err?.response?.data?.detail ?? "Failed to load Email Style config",
+      );
     } finally {
       setEnrichmentFetchLoading((prev) => ({ ...prev, emailStyle: false }));
     }
@@ -9105,7 +9682,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       } else if (fieldName === "enable_grok_enrichment") {
         loadingKey = "grokEnrichment";
         endpoint = absoluteApiBaseUrl + "/api/globalsetting/grok-enrichment";
-        payload = { enable_grok_enrichment: forms.enrichment.enable_grok_enrichment };
+        payload = {
+          enable_grok_enrichment: forms.enrichment.enable_grok_enrichment,
+        };
       } else if (fieldName === "grok_email_style") {
         loadingKey = "emailStyle";
         endpoint = absoluteApiBaseUrl + "/api/globalsetting/grok-email-style";
@@ -9118,12 +9697,19 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
       toast.success(`${fieldName.replace(/_/g, " ")} saved successfully.`);
     } catch (err) {
-      toast.error(err?.response?.data?.detail ?? `Failed to save ${fieldName.replace(/_/g, " ")}`);
+      toast.error(
+        err?.response?.data?.detail ??
+          `Failed to save ${fieldName.replace(/_/g, " ")}`,
+      );
     } finally {
-      const loadingKey = 
-        fieldName === "xai_api_key" ? "xai" :
-        fieldName === "enable_grok_enrichment" ? "grokEnrichment" :
-        fieldName === "grok_email_style" ? "emailStyle" : "xai";
+      const loadingKey =
+        fieldName === "xai_api_key"
+          ? "xai"
+          : fieldName === "enable_grok_enrichment"
+            ? "grokEnrichment"
+            : fieldName === "grok_email_style"
+              ? "emailStyle"
+              : "xai";
       setEnrichmentFetchLoading((prev) => ({ ...prev, [loadingKey]: false }));
     }
   };
@@ -9155,10 +9741,12 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         await axiosInstance.put("/api/whatsapp/credentials", {
           WHATSAPP_ACCESS_TOKEN: forms.whatsapp.WHATSAPP_ACCESS_TOKEN,
           WHATSAPP_DEFAULT_TEMPLATE: forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE,
-          WHATSAPP_DEFAULT_TEMPLATE_LANG: forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE_LANG,
+          WHATSAPP_DEFAULT_TEMPLATE_LANG:
+            forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE_LANG,
           WHATSAPP_PHONE_NUMBER_ID: forms.whatsapp.WHATSAPP_PHONE_NUMBER_ID,
           WHATSAPP_WABA_ID: forms.whatsapp.WHATSAPP_WABA_ID,
-          WHATSAPP_WEBHOOK_VERIFY_TOKEN: forms.whatsapp.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+          WHATSAPP_WEBHOOK_VERIFY_TOKEN:
+            forms.whatsapp.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
         });
       }
       if (section === "azure") {
@@ -9226,8 +9814,15 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           smtp_provider_name: forms.campaign_email_settings.smtp_provider_name,
           credential: forms.campaign_email_settings.credential,
           meeting_schedule: forms.campaign_email_settings.meeting_schedule,
-          logged_in_user_email: forms.campaign_email_settings.logged_in_user_email,
+          logged_in_user_email:
+            forms.campaign_email_settings.logged_in_user_email,
           campaign_prompt: forms.campaign_email_settings.campaign_prompt,
+        });
+      }
+        if (section === "smartlead") {
+        await axiosInstance.put("/api/deliverability/smartlead/settings", {
+          smartlead_api_key: forms.smartlead.smartlead_api_key,
+          
         });
       }
       toast.success("Configuration saved successfully.");
@@ -9525,7 +10120,10 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <Field
                 label="Default Template Language"
                 value={forms.whatsapp.WHATSAPP_DEFAULT_TEMPLATE_LANG}
-                onChange={setField("whatsapp", "WHATSAPP_DEFAULT_TEMPLATE_LANG")}
+                onChange={setField(
+                  "whatsapp",
+                  "WHATSAPP_DEFAULT_TEMPLATE_LANG",
+                )}
                 placeholder="en-US"
               />
               <Field
@@ -9617,19 +10215,33 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                   <select
                     value={forms.campaign_email_settings.template_id}
                     onChange={(e) => {
-                      const selected = emailTemplates.find((t) => String(t.id) === e.target.value);
+                      const selected = emailTemplates.find(
+                        (t) => String(t.id) === e.target.value,
+                      );
                       setForms((prev) => ({
                         ...prev,
                         campaign_email_settings: {
                           ...prev.campaign_email_settings,
                           template_id: e.target.value,
-                          ...(selected?.email              && { email:              selected.email              }),
-                          ...(selected?.reply_to_email     && { reply_to_email:     selected.reply_to_email     }),
-                          ...(selected?.from_name          && { from_name:          selected.from_name          }),
-                          ...(selected?.smtp_provider_name && { smtp_provider_name: selected.smtp_provider_name }),
-                          ...(selected?.meeting_schedule   && { meeting_schedule:   selected.meeting_schedule   }),
-                          ...(selected?.logged_in_user_email && { logged_in_user_email: selected.logged_in_user_email }),
-                          ...(selected?.campaign_prompt    && { campaign_prompt:    selected.campaign_prompt    }),
+                          ...(selected?.email && { email: selected.email }),
+                          ...(selected?.reply_to_email && {
+                            reply_to_email: selected.reply_to_email,
+                          }),
+                          ...(selected?.from_name && {
+                            from_name: selected.from_name,
+                          }),
+                          ...(selected?.smtp_provider_name && {
+                            smtp_provider_name: selected.smtp_provider_name,
+                          }),
+                          ...(selected?.meeting_schedule && {
+                            meeting_schedule: selected.meeting_schedule,
+                          }),
+                          ...(selected?.logged_in_user_email && {
+                            logged_in_user_email: selected.logged_in_user_email,
+                          }),
+                          ...(selected?.campaign_prompt && {
+                            campaign_prompt: selected.campaign_prompt,
+                          }),
                         },
                       }));
                     }}
@@ -9648,7 +10260,10 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <Field
                 label="SMTP Provider Name"
                 value={forms.campaign_email_settings.smtp_provider_name}
-                onChange={setField("campaign_email_settings", "smtp_provider_name")}
+                onChange={setField(
+                  "campaign_email_settings",
+                  "smtp_provider_name",
+                )}
                 placeholder="e.g., sendgrid, mailgun"
               />
               {/* <Field
@@ -9661,14 +10276,20 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               <Field
                 label="Meeting Schedule"
                 value={forms.campaign_email_settings.meeting_schedule}
-                onChange={setField("campaign_email_settings", "meeting_schedule")}
+                onChange={setField(
+                  "campaign_email_settings",
+                  "meeting_schedule",
+                )}
                 placeholder="e.g., cron expression or schedule"
               />
               <Field
                 label="Logged In User Email"
                 type="email"
                 value={forms.campaign_email_settings.logged_in_user_email}
-                onChange={setField("campaign_email_settings", "logged_in_user_email")}
+                onChange={setField(
+                  "campaign_email_settings",
+                  "logged_in_user_email",
+                )}
                 placeholder="current-user@company.com"
               />
               <div className="sm:col-span-2">
@@ -9678,20 +10299,50 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 <textarea
                   rows={4}
                   value={forms.campaign_email_settings.campaign_prompt}
-                  onChange={(e) => setField("campaign_email_settings", "campaign_prompt")(e.target.value)}
+                  onChange={(e) =>
+                    setField(
+                      "campaign_email_settings",
+                      "campaign_prompt",
+                    )(e.target.value)
+                  }
                   placeholder="Enter the campaign prompt or instructions for the AI agent..."
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
                 />
               </div>
             </div>
           </div>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-orange-600" />
+                  
+                  <h3 className="text-[14px] font-[700] text-gray-900">
+                    Smart Lead Configuration{" "}
+                  </h3>
 
+                </div>
+                <SaveBtn section="smartlead" />
+
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+              <Field
+                label="smartlead "
+                type="text"
+                value={forms.smartlead.smartlead_api_key}
+                onChange={setField("smartlead", "smartlead_api_key")}
+                placeholder="Enter key"
+              />
+            </div>
+          </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-indigo-600" />
                 <h3 className="text-[14px] font-[700] text-gray-900">
-                 Azure Services Key
+                  Azure Services Key
                 </h3>
               </div>
               <SaveBtn section="azure" />
@@ -9803,13 +10454,14 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                     type="button"
                     onClick={() => saveEnrichmentField("xai_api_key")}
                     disabled={enrichmentFetchLoading.xai}
-          className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
                     title="Save XAI API Key"
                   >
                     {enrichmentFetchLoading.xai ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-<Settings className="h-3.5 w-3.5" />                    )}
+                      <Settings className="h-3.5 w-3.5" />
+                    )}
                     {enrichmentFetchLoading.xai ? "Saving..." : "Save"}
                   </button>
                 </div>
@@ -9835,12 +10487,14 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                       ]}
                     />
                   </div>
-          
+
                   <button
                     type="button"
-                    onClick={() => saveEnrichmentField("enable_grok_enrichment")}
+                    onClick={() =>
+                      saveEnrichmentField("enable_grok_enrichment")
+                    }
                     disabled={enrichmentFetchLoading.grokEnrichment}
-          className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-60"
                     title="Save Enrichment Level"
                   >
                     {enrichmentFetchLoading.grokEnrichment ? (
@@ -9848,7 +10502,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                     ) : (
                       <Settings className="h-3.5 w-3.5" />
                     )}
-                    {enrichmentFetchLoading.grokEnrichment ? "Saving..." : "Save"}
+                    {enrichmentFetchLoading.grokEnrichment
+                      ? "Saving..."
+                      : "Save"}
                   </button>
                 </div>
               </div>
@@ -9888,7 +10544,8 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                     {enrichmentFetchLoading.emailStyle ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-<Settings className="h-3.5 w-3.5" />                    )}
+                      <Settings className="h-3.5 w-3.5" />
+                    )}
                     {enrichmentFetchLoading.emailStyle ? "Saving..." : "Save"}
                   </button>
                 </div>
@@ -10229,6 +10886,15 @@ export default function Setting() {
         />
       </div>
     );
+  if (activePage === "global-integrations")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <GlobalIntegrationsPage
+          onBack={() => setActivePage(null)}
+          canAccess={userCanAccessGlobalSettings}
+        />
+      </div>
+    );
   if (activePage === "smtp-providers")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
@@ -10490,6 +11156,7 @@ export default function Setting() {
                 >
                   <option>SMTP</option>
                   <option>CRM</option>
+                  <option>SmartLead</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>

@@ -1087,7 +1087,7 @@ export default function CampaignPage() {
       setEmailStats(null);
       setEmailStatsLoading(true);
       axiosInstance
-        .get(`/campaigns/${selectedCampaign.id}/email-stats/`)
+        .get(`${window.location.origin}/api/campaigns/${selectedCampaign.id}/email-stats/`)
         .then((res) => setEmailStats(res.data))
         .catch(() => {})
         .finally(() => setEmailStatsLoading(false));
@@ -1823,7 +1823,7 @@ export default function CampaignPage() {
     const rowEmail = String(row?.to_email ?? row?.emailAddr ?? row?.email ?? "").trim().toLowerCase();
     const rowLead = String(row?.lead_name ?? row?.name ?? "").trim().toLowerCase();
 
-    const res = await axiosInstance.get("/email-history/grouped/", {
+    const res = await axiosInstance.get(`${window.location.origin}/api/email-history/grouped/`, {
       params: { campaign_id: selectedCampaign.id },
     });
 
