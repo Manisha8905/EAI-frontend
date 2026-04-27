@@ -46,6 +46,13 @@ const nextConfig: NextConfig = {
         has: [{ type: "host", value: "fms-aisdr-agent1.technologymindz.com" }],
         destination: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
       },
+
+      // ── Local development ──
+      {
+        source: "/backend/:path*",
+        has: [{ type: "host", value: "localhost:3000" }],
+        destination: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
+      },
     ];
   },
 };
