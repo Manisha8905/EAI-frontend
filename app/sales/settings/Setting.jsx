@@ -9695,7 +9695,12 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
       const res = await axiosInstance.put(endpoint, payload);
 
-      toast.success(`${fieldName.replace(/_/g, " ")} saved successfully.`);
+      const successMessages = {
+        xai_api_key: "xAI API Key saved successfully.",
+        enable_grok_enrichment: "Enrichment saved successfully.",
+        grok_email_style: "Email Style saved successfully.",
+      };
+      toast.success(successMessages[fieldName] ?? `${fieldName.replace(/_/g, " ")} saved successfully.`);
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
@@ -9825,7 +9830,20 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           
         });
       }
-      toast.success("Configuration saved successfully.");
+      const sectionLabels = {
+        twilio: "Twilio",
+        elevenlabs: "ElevenLabs",
+        linkedin: "LinkedIn",
+        whatsapp: "WhatsApp",
+        azure: "Azure",
+        tmOwnSolution: "TM Own Solution",
+        groq: "Groq",
+        enrichment: "Grok Enrichment",
+        appConfig: "App Configuration",
+        linkedin_config: "LinkedIn Config",
+        smartlead: "Smartlead",
+      };
+      toast.success(`${sectionLabels[section] ?? "Configuration"} saved successfully.`);
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
