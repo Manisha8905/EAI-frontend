@@ -62,11 +62,9 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const baseURL =
-  (axiosInstance?.defaults?.baseURL
-    ? String(axiosInstance.defaults.baseURL).replace(/\/$/, "")
-    : "") ||
-  (typeof window !== "undefined" ? window.location.origin : "");
+const appBaseUrl = typeof window !== "undefined" ? window.location.origin : "";
+
+const absoluteApiBaseUrl = `${appBaseUrl}/backend`;
 
 const isAdminRole = (role) => {
   const normalizedRole = String(role || "")
@@ -352,7 +350,7 @@ function AnimStyles() {
 /* ── CRM Integration ── */
 // const OAUTH_REDIRECT_URI = "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/oauth/callback";
 const OAUTH_REDIRECT_URI =
- baseURL + "/oauth/callback";
+  `${appBaseUrl}/oauth/callback`;
 
 function CRMPage({ onBack, onConnectionChange }) {
   const [form, setForm] = useState({
@@ -9102,15 +9100,15 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
       if (fieldName === "xai_api_key") {
         loadingKey = "xai";
-        endpoint = baseURL + "/api/globalsetting/xai";
+        endpoint = absoluteApiBaseUrl + "/api/globalsetting/xai";
         payload = { xai_api_key: forms.enrichment.xai_api_key };
       } else if (fieldName === "enable_grok_enrichment") {
         loadingKey = "grokEnrichment";
-        endpoint = baseURL + "/api/globalsetting/grok-enrichment";
+        endpoint = absoluteApiBaseUrl + "/api/globalsetting/grok-enrichment";
         payload = { enable_grok_enrichment: forms.enrichment.enable_grok_enrichment };
       } else if (fieldName === "grok_email_style") {
         loadingKey = "emailStyle";
-        endpoint = baseURL + "/api/globalsetting/grok-email-style";
+        endpoint = absoluteApiBaseUrl + "/api/globalsetting/grok-email-style";
         payload = { grok_email_style: forms.enrichment.grok_email_style };
       }
 
