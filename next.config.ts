@@ -46,6 +46,11 @@ const nextConfig: NextConfig = {
         has: [{ type: "host", value: "fms-aisdr-agent1.technologymindz.com" }],
         destination: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
       },
+      {
+        source: "/backend/:path*",
+        has: [{ type: "host", value: "hr-tm.technologymindz.net" }],
+        destination: "http://hr-tm-api.technologymindz.net/:path*",
+      },
 
       // ── Local development fallback (matches when no host rule above matched) ──
       {
