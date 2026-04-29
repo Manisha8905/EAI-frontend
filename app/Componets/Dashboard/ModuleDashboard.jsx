@@ -330,6 +330,7 @@ function DonutChart({ resolved, label }) {
 }
 
 /* ─── KPI card ─────────────────────────────────────────────────── */
+/* ─── KPI card ─────────────────────────────────────────────────── */
 function KpiCard({
   gradient,
   shadow,
@@ -343,42 +344,35 @@ function KpiCard({
   showToday = true,
 }) {
   return (
-    <article className={`rounded-2xl ${gradient} ${shadow} p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between h-full`}>
-      <div className="flex items-center justify-between mb-3 lg:mb-2 xl:mb-3">
+    <article className={`rounded-2xl ${gradient} ${shadow} p-4 xl:p-5 text-white flex flex-col justify-between h-full`}>
+      <div className="flex items-center justify-between mb-3 xl:mb-4">
         <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
           <Icon className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
         </div>
       </div>
-      <p className="text-[11px] lg:text-[9px] xl:text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-3 lg:mb-2 xl:mb-3 truncate">
+      <p className="text-[12px] lg:text-[11px] xl:text-[12px] font-semibold uppercase tracking-widest text-white/70 mb-4 truncate">
         {title}
       </p>
-      <div className="flex flex-wrap sm:flex-nowrap items-end gap-3 lg:gap-1.5 xl:gap-4">
+      <div className="flex flex-nowrap items-center w-full divide-x divide-white/25">
         {showToday && (
-          <>
-            <div className="min-w-0">
-              <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{today}</p>
-              <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Today</p>
-            </div>
-            <div className="w-px h-8 lg:h-6 xl:h-8 bg-white/25 shrink-0" />
-          </>
+          <div className="min-w-0 flex-1 px-2 first:pl-0 last:pr-0">
+            <p className="text-[19px] sm:text-[22px] lg:text-[15px] xl:text-[20px] font-bold leading-none truncate">{today}</p>
+            <p className="text-[11px] lg:text-[10px] xl:text-[11px] text-white/60 mt-1.5 truncate">Today</p>
+          </div>
         )}
-        <div className="min-w-0">
-          <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{week}</p>
-          <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Week</p>
+        <div className="min-w-0 flex-1 px-2 first:pl-0 last:pr-0">
+          <p className="text-[19px] sm:text-[22px] lg:text-[15px] xl:text-[20px] font-bold leading-none truncate">{week}</p>
+          <p className="text-[11px] lg:text-[10px] xl:text-[11px] text-white/60 mt-1.5 truncate">Week</p>
         </div>
-        <div className="w-px h-8 lg:h-6 xl:h-8 bg-white/25 shrink-0" />
-        <div className="min-w-0">
-          <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{month}</p>
-          <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Month</p>
+        <div className="min-w-0 flex-1 px-2 first:pl-0 last:pr-0">
+          <p className="text-[19px] sm:text-[22px] lg:text-[15px] xl:text-[20px] font-bold leading-none truncate">{month}</p>
+          <p className="text-[11px] lg:text-[10px] xl:text-[11px] text-white/60 mt-1.5 truncate">Month</p>
         </div>
         {typeof year !== "undefined" && (
-          <>
-            <div className="w-px h-8 lg:h-6 xl:h-8 bg-white/25 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{year}</p>
-              <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Year</p>
-            </div>
-          </>
+          <div className="min-w-0 flex-1 px-2 first:pl-0 last:pr-0">
+            <p className="text-[19px] sm:text-[22px] lg:text-[15px] xl:text-[20px] font-bold leading-none truncate">{year}</p>
+            <p className="text-[11px] lg:text-[10px] xl:text-[11px] text-white/60 mt-1.5 truncate">Year</p>
+          </div>
         )}
       </div>
     </article>
@@ -788,18 +782,24 @@ export default function ModuleDashboard({
       today: whatsappSm.messages_sent_today,
       week: whatsappSm.messages_sent_this_week,
       month: whatsappSm.messages_sent_this_month,
+        year: whatsappSm.messages_sent_this_year,
+
       trend: "", // You can calculate trend if available
     },
     meetings: {
       today: whatsappSm.meetings_scheduled_today,
       week: whatsappSm.meetings_scheduled_this_week,
       month: whatsappSm.meetings_scheduled_this_month,
+      year: whatsappSm.meetings_scheduled_this_year,
+
       trend: "",
     },
     tasks: {
       today: whatsappSm.delivered_today,
       week: whatsappSm.delivered_this_week,
       month: whatsappSm.delivered_this_month,
+      year: whatsappSm.delivered_this_year,
+
       trend: "",
     },
     duration: whatsappSm.avg_time_to_first_reply_hours,
@@ -869,6 +869,7 @@ export default function ModuleDashboard({
         today: linkedinSm.connections_sent_today,
         week: linkedinSm.connections_sent_this_week,
         month: linkedinSm.connections_sent_this_month,
+        year: linkedinSm.connections_sent_this_year,
         trend: `${linkedinSm.connections_sent_total ?? linkedinData?.total_connections ?? 0} total`,
       }
     : emailSm
@@ -888,6 +889,11 @@ export default function ModuleDashboard({
             emailSm.leads_targeted_this_month ??
             emailSm.unique_recipients_this_month ??
             emailSm.emails_sent_this_month,
+            year:
+            emailSm.total_leads_this_year ??
+            emailSm.leads_targeted_this_year ??
+            emailSm.unique_recipients_this_year ??
+            emailSm.emails_sent_this_year,
           trend: `${emailTotalLeads} total`,
         }
       : sm
@@ -895,6 +901,7 @@ export default function ModuleDashboard({
             today: sm.calls_processed_today,
             week: sm.calls_processed_this_week,
             month: sm.calls_processed_this_month,
+            year: sm.calls_processed_this_year,
             trend: `${apiTotalCalls} total`,
           }
         : d.calls;
@@ -912,6 +919,7 @@ export default function ModuleDashboard({
           today: emailSm.meetings_scheduled_today,
           week: emailSm.meetings_scheduled_this_week,
           month: emailSm.meetings_scheduled_this_month,
+          year: emailSm.meetings_scheduled_this_year,
           trend: d.meetings.trend,
         }
       : sm
@@ -919,6 +927,7 @@ export default function ModuleDashboard({
             today: sm.meetings_scheduled_today,
             week: sm.meetings_scheduled_this_week,
             month: sm.meetings_scheduled_this_month,
+            year: sm.meetings_scheduled_this_year,
             trend: d.meetings.trend,
           }
         : d.meetings;
@@ -945,6 +954,10 @@ export default function ModuleDashboard({
             emailSm.leads_engaged_this_month ??
             emailSm.engaged_leads_this_month ??
             emailSm.responses_received_this_month,
+          year:
+            emailSm.leads_engaged_this_year ??
+            emailSm.engaged_leads_this_year ??
+            emailSm.responses_received_this_year,
           trend: `${Number(emailSm.leads_engaged_total ?? emailSm.engaged_leads_total ?? emailData?.leads_engaged_total ?? emailData?.engaged_leads_total ?? 0)} total`,
         }
       : sm
@@ -952,6 +965,7 @@ export default function ModuleDashboard({
             today: sm.tasks_created_today,
             week: sm.tasks_created_this_week,
             month: sm.tasks_created_this_month,
+            year: sm.tasks_created_this_year,
             trend: d.tasks.trend,
           }
         : d.tasks;
@@ -976,6 +990,7 @@ export default function ModuleDashboard({
         today: linkedinSm.replies_received_today,
         week: linkedinSm.replies_received_this_week,
         month: linkedinSm.replies_received_this_month,
+        year: linkedinSm.replies_received_this_year,
         trend: `${linkedinSm.replies_received_total ?? 0} total`,
       }
     : null;
@@ -986,6 +1001,7 @@ export default function ModuleDashboard({
         today: whatsappSm.replies_received_today,
         week: whatsappSm.replies_received_this_week,
         month: whatsappSm.replies_received_this_month,
+        year: whatsappSm.replies_received_this_year,
         trend: "",
       }
     : null;
