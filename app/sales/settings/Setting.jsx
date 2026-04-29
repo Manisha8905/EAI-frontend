@@ -10769,12 +10769,30 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
 
 export default function Setting() {
   const [activePage, setActivePage] = useState(null);
-  const [emailPlatform, setEP] = useState(
-    () =>
-      (typeof window !== "undefined" &&
-        localStorage.getItem("emailSendingService")) ||
-      "SMTP",
-  );
+  const [emailPlatform, setEP] = useState("");
+  const [emailPlatformOptions, setEmailPlatformOptions] = useState([]);
+  const [emailPlatformLoading, setEmailPlatformLoading] = useState(true);
+    // Fetch email sending services/platforms
+    useEffect(() => {
+      const fetchEmailPlatforms = async () => {
+        setEmailPlatformLoading(true);
+        try {
+          const res = await axiosInstance.get("/api/email-sending/services");
+          const d = res.data;
+          setEmailPlatformOptions(Array.isArray(d?.services) ? d.services : []);
+          setEP(d?.selected_service || "");
+        } catch {
+          setEmailPlatformOptions([
+            { service: "SMTP", label: "SMTP" },
+            { service: "CRM", label: "CRM" },
+          ]);
+          setEP("SMTP");
+        } finally {
+          setEmailPlatformLoading(false);
+        }
+      };
+      fetchEmailPlatforms();
+    }, []);
   const [emailPlatformSaving, setEmailPlatformSaving] = useState(false);
   const [smtpProvider, setSMTP] = useState("");
   const [smtpProviderList, setSmtpProviderList] = useState([]); // [{name, description, ready}]
@@ -11267,15 +11285,24 @@ export default function Setting() {
                 Platform
               </label>
               <div className="relative">
-                <select
-                  value={emailPlatform}
-                  onChange={(e) => handleSelectEmailPlatform(e.target.value)}
-                  disabled={emailPlatformSaving}
-                  className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option>SMTP</option>
-                  <option>CRM</option>
-                </select>
+                {emailPlatformLoading ? (
+                  <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-400">
+                    Loading platforms…
+                  </div>
+                ) : (
+                  <select
+                    value={emailPlatform}
+                    onChange={(e) => handleSelectEmailPlatform(e.target.value)}
+                    disabled={emailPlatformSaving}
+                    className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {emailPlatformOptions.map((s) => (
+                      <option key={s.service} value={s.service}>
+                        {s.label || s.service}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>
               {emailPlatformSaving && (

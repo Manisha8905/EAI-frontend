@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
       {
         source: "/backend/:path*",
         has: [{ type: "host", value: "hr-tm.technologymindz.net" }],
-        destination: "http://hr-tm-api.technologymindz.net/:path*",
+        destination: "https://hr-tm-api.technologymindz.net/:path*",
       },
 
       // ── Local development fallback (matches when no host rule above matched) ──
