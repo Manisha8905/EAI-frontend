@@ -9255,7 +9255,7 @@ function MappingsPage({ onBack }) {
 /* ════════════════════════════════════════════════════════════
    MAIN SETTINGS DASHBOARD
 ════════════════════════════════════════════════════════════ */
-function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [] }) {
+function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [], smtpProvider = "" }) {
   const [forms, setForms] = useState({
     twilio: {
       twilio_auth_token: "",
@@ -10399,7 +10399,7 @@ function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [] }) {
                 </label>
                 <div className="relative">
                   <select
-                    value={forms.campaign_email_settings.smtp_provider_name || ""}
+                    value={forms.campaign_email_settings.smtp_provider_name || smtpProvider || ""}
                     onChange={(e) =>
                       setForms((prev) => ({
                         ...prev,
@@ -10411,7 +10411,9 @@ function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [] }) {
                     }
                     className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
                   >
-                    <option value="">— Select SMTP Provider —</option>
+                    <option value="" disabled>
+                      — Select SMTP Provider —
+                    </option>
                     {smtpProviderList.map((p) => (
                       <option key={p.name} value={p.name}>
                         {p.name}
@@ -11023,6 +11025,7 @@ export default function Setting() {
           onBack={() => setActivePage(null)}
           canAccess={userCanAccessGlobalSettings}
           smtpProviderList={smtpProviderList}
+          smtpProvider={smtpProvider}
         />
       </div>
     );
@@ -11333,7 +11336,9 @@ export default function Setting() {
                       disabled={smtpSelectSaving}
                       className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {console.log(smtpProviderList, "smtpProviderList")}
+                      <option value="" disabled>
+                        — Select Provider —
+                      </option>
                       {smtpProviderList?.map((p) => (
                         <option key={p.name} value={p.name}>
                           {p.name}
