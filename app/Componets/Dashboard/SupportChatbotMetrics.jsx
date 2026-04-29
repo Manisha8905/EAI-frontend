@@ -115,7 +115,8 @@ const CHANNEL_DATA = {
 };
 
 const FILTER_OPTIONS = [
-  { key: "",          label: "All" },
+  { key: "all",          label: "All" },
+  { key: "today",     label: "Today" },
   { key: "this_week", label: "This Week" },
   { key: "this_year", label: "This Year" },
 ];
@@ -402,7 +403,7 @@ export default function SupportChatbotMetrics() {
 
       try {
         const params = { channel: "webchat" };
-        if (selectedFilter) params.range = selectedFilter;
+        if (selectedFilter) params.filter = selectedFilter;
 
         const res = await axiosInstance.get("/api/chatbot/stats", {
           params,

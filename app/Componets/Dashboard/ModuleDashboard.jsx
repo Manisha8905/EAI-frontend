@@ -722,6 +722,9 @@ export default function ModuleDashboard({
   const [emailDeliverabilityLoading, setEmailDeliverabilityLoading] =
     useState(false);
 
+  const [seedTestsData, setSeedTestsData] = useState(null);
+  const [seedTestsLoading, setSeedTestsLoading] = useState(false);
+
   const fetchEmailDeliverabilityDashboard = async () => {
     setEmailDeliverabilityLoading(true);
     try {
@@ -733,6 +736,20 @@ export default function ModuleDashboard({
       setEmailDeliverabilityDashboard(null);
     } finally {
       setEmailDeliverabilityLoading(false);
+    }
+  };
+
+  const fetchEmailSeedTests = async () => {
+    setSeedTestsLoading(true);
+    try {
+      const res = await axiosInstance.get(
+        "/api/deliverability/smartlead/seed-tests",
+      );
+      setSeedTestsData(res.data);
+    } catch (_err) {
+      setSeedTestsData(null);
+    } finally {
+      setSeedTestsLoading(false);
     }
   };
 
@@ -760,6 +777,7 @@ export default function ModuleDashboard({
     if (activeTab === "email") {
       dispatch(fetchEmailCampaigns(activeFilter));
       fetchEmailDeliverabilityDashboard();
+      fetchEmailSeedTests();
     }
     if (activeTab === "linkedin") {
       dispatch(fetchLinkedinCampaigns(activeFilter));
@@ -1495,6 +1513,7 @@ export default function ModuleDashboard({
     if (activeTab === "email") {
       dispatch(fetchEmailCampaigns(activeFilter));
       fetchEmailDeliverabilityDashboard();
+      fetchEmailSeedTests();
     }
     if (activeTab === "linkedin") {
       dispatch(fetchLinkedinCampaigns(activeFilter));
@@ -2777,61 +2796,79 @@ export default function ModuleDashboard({
             )}
           </ChartCard>
 
-          {/* EM-2b ── Email Deliverability (static: API not yet supported) */}
+          {/* EM-2b ── Email Deliverability (Dynamic) */}
           {(() => {
+            const rawInbox = seedTestsData?.aggregate_summary?.avg_inbox_rate;
+            const rawSpam = seedTestsData?.aggregate_summary?.avg_spam_rate;
+
+            const inboxPct = Number(rawInbox) || 0;
+            const spamPct = Number(rawSpam) || 0;
+            const hasData = inboxPct > 0 || spamPct > 0;
+
             const deliverabilityBars = [
-              { name: "Inbox", value: 98, fill: "#22c55e", bg: "#dcfce7", pct: 98 },
-              { name: "Spam",  value: 2,  fill: "#dc2626", bg: "#fee2e2", pct: 2  },
+              { name: "Inbox", value: inboxPct, fill: "#22c55e", bg: "#dcfce7", pct: inboxPct },
+              { name: "Spam",  value: spamPct,  fill: "#dc2626", bg: "#fee2e2", pct: spamPct  },
             ];
+
             return (
               <ChartCard
                 title="Email Deliverability"
                 subtitle="Inbox vs spam breakdown"
-                badge="98% inbox rate"
+                badge={seedTestsLoading ? "Loading..." : `${inboxPct}% inbox rate`}
               >
                 <div className="flex flex-col items-center gap-5 pt-1">
                   {/* Donut with centre stat */}
                   <div className="relative w-[180px] h-[180px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={deliverabilityBars}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={54}
-                          outerRadius={82}
-                          dataKey="value"
-                          startAngle={90}
-                          endAngle={-270}
-                          labelLine={false}
-                          strokeWidth={0}
-                        >
-                          {deliverabilityBars.map((entry, index) => (
-                            <Cell key={index} fill={entry.fill} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          content={({ active, payload }) => {
-                            if (!active || !payload?.length) return null;
-                            const datum = payload[0].payload;
-                            return (
-                              <div className="bg-white border border-gray-200 shadow-xl rounded-xl px-3 py-2 text-[12px]">
-                                <div className="flex items-center gap-1.5 mb-0.5">
-                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: datum.fill }} />
-                                  <span className="font-semibold text-gray-600">{datum.name}</span>
-                                </div>
-                                <p className="font-bold text-[15px]" style={{ color: datum.fill }}>{datum.pct}%</p>
-                              </div>
-                            );
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {seedTestsLoading ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={hasData ? deliverabilityBars : [{ name: "No Data", value: 1, fill: "#f3f4f6" }]}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={54}
+                            outerRadius={82}
+                            dataKey="value"
+                            startAngle={90}
+                            endAngle={-270}
+                            labelLine={false}
+                            strokeWidth={0}
+                          >
+                            {(hasData ? deliverabilityBars : [{ fill: "#f3f4f6" }]).map((entry, index) => (
+                              <Cell key={index} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          {hasData && (
+                            <Tooltip
+                              content={({ active, payload }) => {
+                                if (!active || !payload?.length) return null;
+                                const datum = payload[0].payload;
+                                return (
+                                  <div className="bg-white border border-gray-200 shadow-xl rounded-xl px-3 py-2 text-[12px]">
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: datum.fill }} />
+                                      <span className="font-semibold text-gray-600">{datum.name}</span>
+                                    </div>
+                                    <p className="font-bold text-[15px]" style={{ color: datum.fill }}>{datum.pct}%</p>
+                                  </div>
+                                );
+                              }}
+                            />
+                          )}
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
                     {/* Centre label */}
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-[26px] font-black text-green-500 leading-none">98%</span>
-                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Inbox</span>
-                    </div>
+                    {!seedTestsLoading && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-[26px] font-black text-green-500 leading-none">{inboxPct}%</span>
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Inbox</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Legend bars */}
