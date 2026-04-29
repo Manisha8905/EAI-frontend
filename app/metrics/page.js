@@ -1,6 +1,7 @@
 import ModuleDashboard from "../Componets/Dashboard/ModuleDashboard";
 
-export default function Page({ searchParams }) {
-  const tab = searchParams?.tab ?? "Outbound Calls";
+export default async function Page({ searchParams }) {
+  const resolvedParams = await searchParams;
+  const tab = resolvedParams?.tab ?? "Outbound Calls";
   return <ModuleDashboard moduleName="Sales" initialTab={tab} />;
 }

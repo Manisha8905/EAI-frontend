@@ -343,40 +343,40 @@ function KpiCard({
   showToday = true,
 }) {
   return (
-    <article className={`rounded-2xl ${gradient} ${shadow} p-5 text-white`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-          <Icon className="h-5 w-5 text-white" />
+    <article className={`rounded-2xl ${gradient} ${shadow} p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between h-full`}>
+      <div className="flex items-center justify-between mb-3 lg:mb-2 xl:mb-3">
+        <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
+          <Icon className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
         </div>
       </div>
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-3">
+      <p className="text-[11px] lg:text-[9px] xl:text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-3 lg:mb-2 xl:mb-3 truncate">
         {title}
       </p>
-      <div className="flex items-end gap-4">
+      <div className="flex flex-wrap sm:flex-nowrap items-end gap-3 lg:gap-1.5 xl:gap-4">
         {showToday && (
           <>
-            <div>
-              <p className="text-[20px] font-bold leading-none">{today}</p>
-              <p className="text-[11px] text-white/60 mt-1">Today</p>
+            <div className="min-w-0">
+              <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{today}</p>
+              <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Today</p>
             </div>
-            <div className="w-px h-8 bg-white/25 shrink-0" />
+            <div className="w-px h-8 lg:h-6 xl:h-8 bg-white/25 shrink-0" />
           </>
         )}
-        <div>
-          <p className="text-[20px] font-bold leading-none">{week}</p>
-          <p className="text-[11px] text-white/60 mt-1">Week</p>
+        <div className="min-w-0">
+          <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{week}</p>
+          <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Week</p>
         </div>
-        <div className="w-px h-8 bg-white/25 shrink-0" />
-        <div>
-          <p className="text-[20px] font-bold leading-none">{month}</p>
-          <p className="text-[11px] text-white/60 mt-1">Month</p>
+        <div className="w-px h-8 lg:h-6 xl:h-8 bg-white/25 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{month}</p>
+          <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Month</p>
         </div>
         {typeof year !== "undefined" && (
           <>
-            <div className="w-px h-8 bg-white/25 shrink-0" />
-            <div>
-              <p className="text-[20px] font-bold leading-none">{year}</p>
-              <p className="text-[11px] text-white/60 mt-1">Year</p>
+            <div className="w-px h-8 lg:h-6 xl:h-8 bg-white/25 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[20px] lg:text-[14px] xl:text-[20px] font-bold leading-none truncate">{year}</p>
+              <p className="text-[11px] lg:text-[9px] xl:text-[11px] text-white/60 mt-1">Year</p>
             </div>
           </>
         )}
@@ -417,9 +417,9 @@ function OutcomesPieChart({ data, totalOverride = null }) {
     (entry) => entry.name !== "Total Leads",
   );
   return (
-    <div className="flex items-center gap-4 w-full">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
       {/* Donut */}
-      <div className="relative shrink-0" style={{ width: 170, height: 170 }}>
+      <div className="relative shrink-0 mx-auto sm:mx-0" style={{ width: 170, height: 170 }}>
         <ResponsiveContainer width={170} height={170}>
           <PieChart>
             <Pie
@@ -1546,7 +1546,7 @@ export default function ModuleDashboard({
       </div>
 
       {/* ── KPI cards ── */}
-      <section className={`mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 ${(activeTab === "linkedin" || activeTab === "whatsapp") ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <section className={`mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 ${(activeTab === "linkedin" || activeTab === "whatsapp") ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {/* {activeTab === "whatsapp" && whatsappLoading && <div>Loading WhatsApp metrics...</div>}
         {activeTab === "whatsapp" && whatsappError && <div className="text-red-500">{whatsappError}</div>} */}
 
@@ -1633,30 +1633,30 @@ export default function ModuleDashboard({
         )}
 
         {/* Card 5: Avg time / Avg emails / LinkedIn avg times */}
-        <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-5 text-white">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-              <Clock className="h-5 w-5 text-white" />
+        <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between h-full">
+          <div className="flex items-center justify-between mb-3 lg:mb-2 xl:mb-3">
+            <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
+              <Clock className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
             </div>
-            <span className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold">
+            <span className="rounded-full bg-white/20 px-2.5 py-1 lg:px-1.5 lg:py-0.5 xl:px-2.5 xl:py-1 text-xs lg:text-[9px] xl:text-xs font-semibold shrink-0">
               {activeTab === "email" ? "per lead" : "avg. time"}
             </span>
           </div>
           {activeTab === "linkedin" ? (
             <>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
+              <p className="text-[11px] lg:text-[9px] xl:text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2 truncate">
                 Avg Time Metrics
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2 lg:space-y-1 xl:space-y-2">
                 <div>
-                  <p className="text-[10px] text-white/60">To Acceptance</p>
-                  <p className="text-[24px] font-bold leading-none">
+                  <p className="text-[10px] lg:text-[8px] xl:text-[10px] text-white/60 truncate">To Acceptance</p>
+                  <p className="text-[24px] lg:text-[16px] xl:text-[24px] font-bold leading-none truncate">
                     {isLoading ? "…" : `${linkedinAvgAcceptance}h`}
                   </p>
                 </div>
-                {/* <div className="border-t border-white/20 pt-2">
-                  <p className="text-[10px] text-white/60">To First Reply</p>
-                  <p className="text-[24px] font-bold leading-none">
+                {/* <div className="border-t border-white/20 pt-2 lg:pt-1 xl:pt-2">
+                  <p className="text-[10px] lg:text-[8px] xl:text-[10px] text-white/60 truncate">To First Reply</p>
+                  <p className="text-[24px] lg:text-[16px] xl:text-[24px] font-bold leading-none truncate">
                     {isLoading ? "…" : `${linkedinAvgFirstReply}h`}
                   </p>
                 </div> */}
@@ -1664,25 +1664,25 @@ export default function ModuleDashboard({
             </>
           ) : activeTab === "whatsapp" ? (
             <>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
+              <p className="text-[11px] lg:text-[9px] xl:text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2 truncate">
                 Avg Time to First Reply
               </p>
-              <p className="text-[36px] font-bold leading-none">
+              <p className="text-[36px] lg:text-[20px] xl:text-[36px] font-bold leading-none truncate">
                 {isLoading ? "…" : whatsappSm.avg_time_to_first_reply_hours != null
                   ? `${whatsappSm.avg_time_to_first_reply_hours}h`
                   : "N/A"}
               </p>
-              <p className="text-[12px] text-white/60 mt-1">hours to first reply</p>
+              <p className="text-[12px] lg:text-[9px] xl:text-[12px] text-white/60 mt-1 truncate">hours to first reply</p>
             </>
           ) : (
             <>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">
+              <p className="text-[11px] lg:text-[9px] xl:text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2 truncate">
                 {activeTab === "email" ? "Avg Emails / Lead" : "Avg Call Duration"}
               </p>
-              <p className="text-[36px] font-bold leading-none">
+              <p className="text-[36px] lg:text-[20px] xl:text-[36px] font-bold leading-none truncate">
                 {isLoading ? "…" : durationDisplay}
               </p>
-              <p className="text-[12px] text-white/60 mt-1">
+              <p className="text-[12px] lg:text-[9px] xl:text-[12px] text-white/60 mt-1 truncate">
                 {activeTab === "email" ? "Emails per lead" : "minutes per call"}
               </p>
             </>
