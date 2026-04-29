@@ -5138,8 +5138,25 @@ function SMTPProvidersPage({ onBack }) {
     fetchList();
   }, []);
 
+
+  // Default Smartlead API Key
+  const DEFAULT_SMARTLEAD_API_KEY = "2ba82289-d15e-47ae-974b-10661a97a7e2_h7b77q0";
+
   const setCred = (key, val) =>
     setForm((f) => ({ ...f, credentials: { ...f.credentials, [key]: val } }));
+
+  // Always set Smartlead API Key when provider is selected (hidden from UI)
+  useEffect(() => {
+    if (form.provider === "smartlead") {
+      setForm((f) => ({
+        ...f,
+        credentials: {
+          ...f.credentials,
+          SMARTLEAD_API_KEY: DEFAULT_SMARTLEAD_API_KEY,
+        },
+      }));
+    }
+  }, [form.provider]);
 
   const openCreate = async () => {
     let providerOpts = allProviderOpts;
@@ -5462,6 +5479,7 @@ function SMTPProvidersPage({ onBack }) {
                 ))}
               </div>
             ))}
+            {/* Smartlead API Key field is hidden from UI, but always passed in credentials */}
             <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
               <button
                 onClick={() => setShow(false)}
@@ -10429,32 +10447,46 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               </div>
             </div>
           </div>
-          {/* <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-orange-600" />
-                  
-                  <h3 className="text-[14px] font-[700] text-gray-900">
-                    Smart Lead Configuration{" "}
-                  </h3>
-
-                </div>
-                <SaveBtn section="smartlead" />
-
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-orange-600" />
+                <h3 className="text-[14px] font-[700] text-gray-900">
+                  Smart Lead Configuration
+                </h3>
               </div>
+              <SaveBtn section="smartlead" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
               <Field
-                label="smartlead "
+                label={
+                  <>
+                    Smartlead API Key<span className="text-red-500 ml-0.5">*</span>
+                  </>
+                }
                 type="text"
-                value={forms.smartlead.smartlead_api_key}
-                onChange={setField("smartlead", "smartlead_api_key")}
-                placeholder="Enter key"
+                value={
+                  forms.smartlead.smartlead_api_key ||
+                  (forms.smartlead.credentials && forms.smartlead.credentials.SMARTLEAD_API_KEY) ||
+                  ""
+                }
+                onChange={e => {
+                  setForms(prev => ({
+                    ...prev,
+                    smartlead: {
+                      ...prev.smartlead,
+                      smartlead_api_key: e.target.value,
+                      credentials: {
+                        ...(prev.smartlead.credentials || {}),
+                        SMARTLEAD_API_KEY: e.target.value,
+                      },
+                    },
+                  }));
+                }}
+                placeholder="Enter Smartlead API Key"
               />
             </div>
-          </div> */}
+          </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">

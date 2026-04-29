@@ -6,12 +6,17 @@ const nextConfig: NextConfig = {
       // ── Existing tenants ──
       {
         source: "/backend/:path*",
-        has: [{ type: "host", value: "campaign-management-1.technologymindz.com" }],
-        destination: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
+        has: [
+          { type: "host", value: "campaign-management-1.technologymindz.com" },
+        ],
+        destination:
+          "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
       },
       {
         source: "/backend/:path*",
-        has: [{ type: "host", value: "campaign-management-2.technologymindz.com" }],
+        has: [
+          { type: "host", value: "campaign-management-2.technologymindz.com" },
+        ],
         destination: "https://demo-api.technologymindz.net/:path*",
       },
 
@@ -38,14 +43,22 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/backend/:path*",
-        has: [{ type: "host", value: "channelbeacon-11labs-agent1.technologymindz.com" }],
-        destination: "https://channelbeacon-11labs-agent2.technologymindz.com/:path*",
+        has: [
+          {
+            type: "host",
+            value: "channelbeacon-11labs-agent1.technologymindz.com",
+          },
+        ],
+        destination:
+          "https://channelbeacon-11labs-agent2.technologymindz.com/:path*",
       },
       {
         source: "/backend/:path*",
         has: [{ type: "host", value: "fms-aisdr-agent1.technologymindz.com" }],
-        destination: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
+        destination:
+          "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
       },
+
       {
         source: "/backend/:path*",
         has: [{ type: "host", value: "hr-tm.technologymindz.net" }],
@@ -55,7 +68,8 @@ const nextConfig: NextConfig = {
       // ── Local development fallback (matches when no host rule above matched) ──
       {
         source: "/backend/:path*",
-        destination: "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
+        destination:
+          "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com/:path*",
       },
     ];
   },

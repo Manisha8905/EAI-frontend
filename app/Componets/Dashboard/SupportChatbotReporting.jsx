@@ -127,13 +127,13 @@ const TAB_TO_FILTER = {
 // const TAB_TO_FILTER = {
 //   "Open Chats": { status: ["open"] },
 
-//   "Escalated Chats": { 
-//     status: ["open", "responded"], 
-//     escalated: true 
+//   "Escalated Chats": {
+//     status: ["open", "responded"],
+//     escalated: true
 //   },
 
-//   "Responded Chats": { 
-//     status: ["responded", "partial"] 
+//   "Responded Chats": {
+//     status: ["responded", "partial"]
 //   },
 
 //   "Closed Chats": { status: ["closed"] },
@@ -187,7 +187,11 @@ const normalizeConversation = (row = {}) => {
       "Unknown Lead",
     email: row.email ?? row.customer_email ?? row.user_email ?? "No email",
     preview:
-      row.preview ?? row.last_message ?? row.message_preview ?? row.message ?? "No message preview",
+      row.preview ??
+      row.last_message ??
+      row.message_preview ??
+      row.message ??
+      "No message preview",
     time:
       row.time ??
       row.last_message_at ??
@@ -220,7 +224,9 @@ function SkeletonConvItem() {
 function SkeletonMessage({ isBot }) {
   return (
     <div className="flex animate-pulse items-start gap-3 rounded-xl px-3 py-3">
-      <span className={`inline-flex h-8 w-8 shrink-0 rounded-lg ${isBot ? "bg-purple-200" : "bg-blue-200"}`} />
+      <span
+        className={`inline-flex h-8 w-8 shrink-0 rounded-lg ${isBot ? "bg-purple-200" : "bg-blue-200"}`}
+      />
       <div className="flex-1 space-y-2">
         <div className="h-3 w-16 rounded bg-gray-200" />
         <div className="h-3 w-full rounded bg-gray-200" />
@@ -238,7 +244,9 @@ function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
     purple: "from-violet-500 to-fuchsia-600",
   };
   return (
-    <article className={`rounded-2xl bg-gradient-to-br px-4 py-4 text-white shadow-md flex flex-col items-stretch min-h-[110px] h-full ${tones[tone]}`}> 
+    <article
+      className={`rounded-2xl bg-gradient-to-br px-4 py-4 text-white shadow-md flex flex-col items-stretch min-h-[110px] h-full ${tones[tone]}`}
+    >
       <div className="flex flex-1 items-center justify-between gap-2 min-h-[70px]">
         <div className="flex flex-col justify-center flex-1">
           <p className="text-[12px] font-[600] text-white/80 mb-0.5">{title}</p>
@@ -269,11 +277,37 @@ const getFirstNumber = (obj, keys, fallback = 0) => {
   return fallback;
 };
 const mapStatsResponse = (payload, fallback) => {
-  const root = payload?.webchat ?? payload?.data?.webchat ?? payload?.data ?? payload ?? {};
-  const total        = getFirstNumber(root, ["total_chats", "total", "totalChats", "total_conversations"], fallback.cards.total);
-  const escalated    = getFirstNumber(root, ["escalated", "escalated_chats", "escalatedChats"], fallback.cards.escalated);
-  const today        = getFirstNumber(root, ["today", "today_chats", "todayChats"], fallback.cards.today);
-  const avgMessages  = getFirstNumber(root, ["avg_messages_per_chat", "avgMessages", "avg_messages", "average_messages_per_chat"], fallback.cards.avgMessages);
+  const root =
+    payload?.webchat ??
+    payload?.data?.webchat ??
+    payload?.data ??
+    payload ??
+    {};
+  const total = getFirstNumber(
+    root,
+    ["total_chats", "total", "totalChats", "total_conversations"],
+    fallback.cards.total,
+  );
+  const escalated = getFirstNumber(
+    root,
+    ["escalated", "escalated_chats", "escalatedChats"],
+    fallback.cards.escalated,
+  );
+  const today = getFirstNumber(
+    root,
+    ["today", "today_chats", "todayChats"],
+    fallback.cards.today,
+  );
+  const avgMessages = getFirstNumber(
+    root,
+    [
+      "avg_messages_per_chat",
+      "avgMessages",
+      "avg_messages",
+      "average_messages_per_chat",
+    ],
+    fallback.cards.avgMessages,
+  );
   return {
     cards: { total, escalated, today, avgMessages },
   };
@@ -296,8 +330,10 @@ export default function SupportChatbotReporting() {
   }, []);
   // ...existing code...
   const [search, setSearch] = useState("");
-  const [activeConversationTab, setActiveConversationTab] = useState("Open Chats");
-  const [selectedConversationId, setSelectedConversationId] = useState("conv-2");
+  const [activeConversationTab, setActiveConversationTab] =
+    useState("Open Chats");
+  const [selectedConversationId, setSelectedConversationId] =
+    useState("conv-2");
   const [isAgentsOpen, setIsAgentsOpen] = useState(false);
   const [selectedChats, setSelectedChats] = useState(new Set());
   const [isConvPanelAssignOpen, setIsConvPanelAssignOpen] = useState(false);
@@ -312,7 +348,9 @@ export default function SupportChatbotReporting() {
   // WhatsApp credentials debug output (remove or style as needed)
   // This block is for demonstration/debug only
   // Place this inside your render/return if you want to see the credentials
-  const [cardData, setCardData] = useState({ cards: { total: 0, escalated: 0, today: 0, avgMessages: 0 } });
+  const [cardData, setCardData] = useState({
+    cards: { total: 0, escalated: 0, today: 0, avgMessages: 0 },
+  });
   const [loadingCards, setLoadingCards] = useState(false);
   const [cardError, setCardError] = useState("");
 
@@ -321,7 +359,9 @@ export default function SupportChatbotReporting() {
       setLoadingCards(true);
       setCardError("");
       try {
-        const res = await axiosInstance.get("/api/chatbot/stats", { params: { channel: "webchat" } });
+        const res = await axiosInstance.get("/api/chatbot/stats", {
+          params: { channel: "webchat" },
+        });
         setCardData(mapStatsResponse(res?.data, REPORTING_DATA.webchat));
       } catch (err) {
         setCardError("Unable to load summary cards. Showing fallback data.");
@@ -377,7 +417,8 @@ export default function SupportChatbotReporting() {
     typeof window === "undefined"
       ? ""
       : normalizeRole(localStorage.getItem("userRole"));
-  const canAccess = role === "SUPPORT" || role === "MANAGER" || role === "SUPERADMIN";
+  const canAccess =
+    role === "SUPPORT" || role === "MANAGER" || role === "SUPERADMIN";
 
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
@@ -400,7 +441,9 @@ export default function SupportChatbotReporting() {
   const selectedConversationCard = useMemo(() => {
     return (
       selectedConversation ??
-      conversations.find((c) => String(c.id) === String(selectedConversationId)) ??
+      conversations.find(
+        (c) => String(c.id) === String(selectedConversationId),
+      ) ??
       null
     );
   }, [selectedConversation, conversations, selectedConversationId]);
@@ -418,7 +461,9 @@ export default function SupportChatbotReporting() {
         limit: pagination.limit,
         offset: pagination.offset,
         status_filter: safeStatus,
-        ...(filters.escalated !== undefined && { escalated: filters.escalated }),
+        ...(filters.escalated !== undefined && {
+          escalated: filters.escalated,
+        }),
         ...(filters.startDate && { start_date: filters.startDate }),
         ...(filters.endDate && { end_date: filters.endDate }),
         ...params,
@@ -434,7 +479,9 @@ export default function SupportChatbotReporting() {
           : Array.isArray(payload?.items)
             ? payload.items
             : [];
-      const normalizedRows = rows.map(normalizeConversation).filter((r) => r.id);
+      const normalizedRows = rows
+        .map(normalizeConversation)
+        .filter((r) => r.id);
       if (append) {
         setConversations((prev) => {
           // Avoid duplicates
@@ -460,7 +507,7 @@ export default function SupportChatbotReporting() {
   const fetchConversationDetail = async (conversationId) => {
     try {
       const response = await axiosInstance.get(
-        `/api/chatbot/conversations/${conversationId}`
+        `/api/chatbot/conversations/${conversationId}`,
       );
       const payload = response?.data?.data ?? response?.data ?? {};
       setSelectedConversation(normalizeConversation(payload));
@@ -494,12 +541,13 @@ export default function SupportChatbotReporting() {
         msgs.map((msg, idx) => ({
           id: msg.id ?? msg.message_id ?? `msg-${idx}`,
           role:
-            String(msg.role ?? msg.sender ?? "USER").toUpperCase() === "ASSISTANT"
+            String(msg.role ?? msg.sender ?? "USER").toUpperCase() ===
+            "ASSISTANT"
               ? "BOT"
               : String(msg.role ?? msg.sender ?? "USER").toUpperCase(),
           text: msg.content ?? msg.text ?? msg.message ?? msg.body ?? "",
           timestamp: msg.timestamp ?? msg.created_at ?? null,
-        }))
+        })),
       );
     } catch {
       setChatHistory([]);
@@ -536,7 +584,11 @@ export default function SupportChatbotReporting() {
     try {
       const response = await axiosInstance.get("/api/chatbot/support-agents");
       const payload = response?.data ?? [];
-      const list = Array.isArray(payload) ? payload : Array.isArray(payload?.results) ? payload.results : [];
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.results)
+          ? payload.results
+          : [];
       setAgents(list);
     } catch (error) {
       console.error("Error fetching agents:", error);
@@ -569,12 +621,16 @@ export default function SupportChatbotReporting() {
       // API expects session_id values in chat_ids, not conversation id
       const sessionIds = convIds
         .map((convId) => {
-          const conv = conversations.find((c) => String(c.id) === String(convId));
+          const conv = conversations.find(
+            (c) => String(c.id) === String(convId),
+          );
           return conv?.session_id ?? null;
         })
         .filter(Boolean);
       if (!sessionIds.length) {
-        setAssignToastMessage("Could not find session ID for selected conversation.");
+        setAssignToastMessage(
+          "Could not find session ID for selected conversation.",
+        );
         setAssignResponseData(null);
         setIsAssignedToast(true);
         setTimeout(() => setIsAssignedToast(false), 3000);
@@ -585,21 +641,25 @@ export default function SupportChatbotReporting() {
         agent_id: agentId,
       });
       const apiMsg =
-           response?.data?.message ||
-          response?.data?.detail ||
+        response?.data?.message ||
+        response?.data?.detail ||
         "Conversation assigned successfully";
       setAssignToastMessage(apiMsg);
       setAssignResponseData(response.data ?? null);
       setIsAssignedToast(true);
-      setTimeout(() => { setIsAssignedToast(false); setAssignResponseData(null); }, 3000);
+      setTimeout(() => {
+        setIsAssignedToast(false);
+        setAssignResponseData(null);
+      }, 3000);
       await fetchConversations();
       return response.data;
     } catch (error) {
       console.error("Error assigning chat:", error);
-      setConversationsError(          error?.response?.data?.message ||
+      setConversationsError(
+        error?.response?.data?.message ||
           error?.response?.data?.detail ||
-          "Failed to assign conversation."
-);
+          "Failed to assign conversation.",
+      );
     }
   };
 
@@ -612,7 +672,7 @@ export default function SupportChatbotReporting() {
       const apiMsg =
         response?.data?.message ||
         response?.data?.detail ||
-        `Status updated to "${status}"` ;
+        `Status updated to "${status}"`;
       setAssignToastMessage(apiMsg);
       setAssignResponseData(null);
       setIsAssignedToast(true);
@@ -733,7 +793,9 @@ export default function SupportChatbotReporting() {
   };
 
   const createAgentInitials = (name) => {
-    const parts = String(name || "").trim().split(/\s+/);
+    const parts = String(name || "")
+      .trim()
+      .split(/\s+/);
     if (parts.length === 0) return "";
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -759,7 +821,9 @@ export default function SupportChatbotReporting() {
     setChatHistory([]);
     setChatHistoryLoading(true);
     fetchConversationDetail(conversationId);
-    const conv = conversations.find((c) => String(c.id) === String(conversationId));
+    const conv = conversations.find(
+      (c) => String(c.id) === String(conversationId),
+    );
     if (conv?.session_id) {
       fetchChatHistory(conv.session_id);
     } else {
@@ -819,7 +883,7 @@ export default function SupportChatbotReporting() {
                 text: newRuleText.trim(),
                 createdAt: new Date().toLocaleString(),
               }
-            : rule
+            : rule,
         );
       }
 
@@ -867,7 +931,10 @@ export default function SupportChatbotReporting() {
       if (!el || conversationsLoading || !hasMoreConversations) return;
       if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
         // Near bottom, fetch next batch
-        setPagination((prev) => ({ ...prev, offset: prev.offset + prev.limit }));
+        setPagination((prev) => ({
+          ...prev,
+          offset: prev.offset + prev.limit,
+        }));
       }
     };
     const el = convListRef.current;
@@ -884,35 +951,50 @@ export default function SupportChatbotReporting() {
     <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-4">
       {/* Global Assign Toast — fixed so overflow-hidden never clips it */}
       {(isRightAssignToast || isAssignedToast) && (
-        <div className="fixed bottom-6 right-6 z-[9999] flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-2xl" style={{ minWidth: 260 }}>
+        <div
+          className="fixed bottom-6 right-6 z-[9999] flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-2xl"
+          style={{ minWidth: 260 }}
+        >
           <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#061a43]">
             <Check className="h-4 w-4 text-white" />
           </span>
           <div className="flex flex-col gap-0.5">
-            <p className="text-[14px] font-[700] text-[#061a43]">{assignToastMessage || "Conversation assigned successfully"}</p>
+            <p className="text-[14px] font-[700] text-[#061a43]">
+              {assignToastMessage || "Conversation assigned successfully"}
+            </p>
             {assignResponseData?.assigned_to && (
               <p className="text-[12px] text-gray-500">
-                <span className="font-[600] text-[#253b69]">Assigned to:</span> {assignResponseData.assigned_to}
+                <span className="font-[600] text-[#253b69]">Assigned to:</span>{" "}
+                {assignResponseData.assigned_to}
               </p>
             )}
             {assignResponseData?.agent_email && (
-              <p className="text-[12px] text-gray-400">{assignResponseData.agent_email}</p>
+              <p className="text-[12px] text-gray-400">
+                {assignResponseData.agent_email}
+              </p>
             )}
             <div className="mt-1 flex items-center gap-3">
               {assignResponseData?.count != null && (
-                <span className="text-[11px] font-[600] text-[#6d28d9]">{assignResponseData.count} chat{assignResponseData.count !== 1 ? "s" : ""} assigned</span>
+                <span className="text-[11px] font-[600] text-[#6d28d9]">
+                  {assignResponseData.count} chat
+                  {assignResponseData.count !== 1 ? "s" : ""} assigned
+                </span>
               )}
               {assignResponseData?.email_sent != null && (
-                <span className={`text-[11px] font-[600] ${assignResponseData.email_sent ? "text-green-600" : "text-gray-400"}`}>
-                  {assignResponseData.email_sent ? "Email sent" : "No email sent"}
+                <span
+                  className={`text-[11px] font-[600] ${assignResponseData.email_sent ? "text-green-600" : "text-gray-400"}`}
+                >
+                  {assignResponseData.email_sent
+                    ? "Email sent"
+                    : "No email sent"}
                 </span>
               )}
             </div>
           </div>
         </div>
       )}
-            {/* Error Display */}
-            {/* {conversationsError && (
+      {/* Error Display */}
+      {/* {conversationsError && (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-[14px] text-red-600">
                 <p className="font-[600]">Error loading conversations</p>
                 <p className="text-sm text-red-500">{conversationsError}</p>
@@ -1081,23 +1163,21 @@ export default function SupportChatbotReporting() {
             )}
           </div>
 
-
-
           {/* Business Rules List button (open list popup) */}
           <button
             type="button"
             onClick={openBusinessRulesList}
             className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#8b5cf6] bg-white px-3 py-2 text-[12px] font-[600] text-[#6d28d9] sm:flex-none sm:px-4"
           >
-            <ClipboardList className="h-3.5 w-3.5" />  Business Rules
+            <ClipboardList className="h-3.5 w-3.5" /> Business Rules
           </button>
 
           {/* Export CSV */}
           <button
             type="button"
             className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#4f46e5] px-3 py-2 text-[12px] font-[700] text-white sm:flex-none sm:px-4"
-                      onClick={handleExport}
-                      disabled={conversationsLoading}
+            onClick={handleExport}
+            disabled={conversationsLoading}
           >
             <Download className="h-3.5 w-3.5" /> Export CSV
           </button>
@@ -1110,7 +1190,9 @@ export default function SupportChatbotReporting() {
         <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-3 py-3 sm:px-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-[14px] font-[800] text-[#061a43]">Conversations</h3>
+              <h3 className="text-[14px] font-[800] text-[#061a43]">
+                Conversations
+              </h3>
               {selectedChats.size > 0 && (
                 <div className="relative" ref={convAssignDropdownRef}>
                   <button
@@ -1123,7 +1205,9 @@ export default function SupportChatbotReporting() {
                   </button>
                   {isConvPanelAssignOpen && (
                     <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-                      <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Assign to agent</p>
+                      <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">
+                        Assign to agent
+                      </p>
                       {agents.map((agent) => (
                         <button
                           key={agent.id}
@@ -1132,7 +1216,11 @@ export default function SupportChatbotReporting() {
                           className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
                         >
                           <span className="font-[600]">{agent.name}</span>
-                          <span className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}>{agent.is_active ? "Online" : "Offline"}</span>
+                          <span
+                            className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}
+                          >
+                            {agent.is_active ? "Online" : "Offline"}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -1163,7 +1251,11 @@ export default function SupportChatbotReporting() {
           </div>
 
           {/* Conversation list */}
-          <div className="max-h-[300px] overflow-y-auto" ref={convListRef}>
+          <div
+            className="flex-1 min-h-[200px] max-h-[calc(100vh-320px)] overflow-y-auto"
+            ref={convListRef}
+          >
+            {" "}
             {conversationsLoading ? (
               <>
                 {[...Array(4)].map((_, i) => (
@@ -1175,8 +1267,12 @@ export default function SupportChatbotReporting() {
                 <div className="mx-auto mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
                   <MessageCircle className="h-7 w-7 text-gray-400" />
                 </div>
-                <p className="text-[15px] font-[700] text-[#334e78]">No conversations yet</p>
-                <p className="mt-1 text-[13px] text-gray-400">There are no chats in this category right now.</p>
+                <p className="text-[15px] font-[700] text-[#334e78]">
+                  No conversations yet
+                </p>
+                <p className="mt-1 text-[13px] text-gray-400">
+                  There are no chats in this category right now.
+                </p>
                 <button
                   type="button"
                   onClick={() => fetchConversations()}
@@ -1210,7 +1306,10 @@ export default function SupportChatbotReporting() {
                         aria-label="Select conversation"
                       >
                         {selectedChats.has(conv.id) && (
-                          <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                          <Check
+                            className="h-3 w-3 text-white"
+                            strokeWidth={3}
+                          />
                         )}
                       </button>
                     </div>
@@ -1249,13 +1348,19 @@ export default function SupportChatbotReporting() {
                           </span>
                         )}
                         {conv.status && (
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-[600] ${
-                            conv.status === "open" ? "bg-blue-100 text-blue-700" :
-                            conv.status === "responded" ? "bg-green-100 text-green-700" :
-                            conv.status === "closed" ? "bg-gray-100 text-gray-500" :
-                            "bg-yellow-100 text-yellow-700"
-                          }`}>
-                            {conv.status.charAt(0).toUpperCase() + conv.status.slice(1)}
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-[600] ${
+                              conv.status === "open"
+                                ? "bg-blue-100 text-blue-700"
+                                : conv.status === "responded"
+                                  ? "bg-green-100 text-green-700"
+                                  : conv.status === "closed"
+                                    ? "bg-gray-100 text-gray-500"
+                                    : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                            {conv.status.charAt(0).toUpperCase() +
+                              conv.status.slice(1)}
                           </span>
                         )}
                       </div>
@@ -1274,10 +1379,11 @@ export default function SupportChatbotReporting() {
             <div className="flex items-center gap-2">
               {/* Three-dots status menu */}
               <div className="relative" ref={statusMenuRef}>
-             
                 {isStatusMenuOpen && (
                   <div className="absolute right-0 z-30 mt-2 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Update Status</p>
+                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">
+                      Update Status
+                    </p>
                     {[
                       // { label: "Mark as open", status: "open" },
                       { label: "Mark as responded", status: "responded" },
@@ -1289,11 +1395,15 @@ export default function SupportChatbotReporting() {
                         onClick={() => handleUpdateStatus(item.status)}
                         className="flex w-full items-center px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
                       >
-                        <span className={`mr-2 h-2 w-2 rounded-full ${
-                          item.status === "open" ? "bg-blue-500" :
-                          item.status === "responded" ? "bg-green-500" :
-                          "bg-gray-400"
-                        }`} />
+                        <span
+                          className={`mr-2 h-2 w-2 rounded-full ${
+                            item.status === "open"
+                              ? "bg-blue-500"
+                              : item.status === "responded"
+                                ? "bg-green-500"
+                                : "bg-gray-400"
+                          }`}
+                        />
                         <span className="font-[600]">{item.label}</span>
                       </button>
                     ))}
@@ -1314,9 +1424,13 @@ export default function SupportChatbotReporting() {
                 </button>
                 {isRightAssignOpen && (
                   <div className="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
-                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">Assign to agent</p>
+                    <p className="border-b border-gray-100 px-3 py-2 text-[11px] font-[700] uppercase tracking-wide text-gray-400">
+                      Assign to agent
+                    </p>
                     {agents.length === 0 ? (
-                      <p className="px-3 py-3 text-[13px] text-gray-400">No agents available</p>
+                      <p className="px-3 py-3 text-[13px] text-gray-400">
+                        No agents available
+                      </p>
                     ) : (
                       agents.map((agent) => (
                         <button
@@ -1326,7 +1440,11 @@ export default function SupportChatbotReporting() {
                           className="flex w-full items-center justify-between px-3 py-2.5 text-left text-[13px] text-[#1f365f] hover:bg-[#f7f9ff]"
                         >
                           <span className="font-[600]">{agent.name}</span>
-                          <span className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}>{agent.is_active ? "Online" : "Offline"}</span>
+                          <span
+                            className={`text-[11px] ${agent.is_active ? "text-green-600" : "text-gray-400"}`}
+                          >
+                            {agent.is_active ? "Online" : "Offline"}
+                          </span>
                         </button>
                       ))
                     )}
@@ -1340,15 +1458,15 @@ export default function SupportChatbotReporting() {
               >
                 <ClipboardList className="h-3.5 w-3.5" /> Add Rules
               </button>
-                 <button
-                  type="button"
-                  onClick={() => setIsStatusMenuOpen((v) => !v)}
-                  disabled={!selectedConversationId}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  title="Update status"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
+              <button
+                type="button"
+                onClick={() => setIsStatusMenuOpen((v) => !v)}
+                disabled={!selectedConversationId}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Update status"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
@@ -1384,8 +1502,12 @@ export default function SupportChatbotReporting() {
                   <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
                     <MessageCircle className="h-6 w-6 text-gray-300" />
                   </span>
-                  <p className="text-[14px] font-[600] text-gray-400">No messages to display</p>
-                  <p className="mt-1 text-[12px] text-gray-300">Select a conversation to view its messages</p>
+                  <p className="text-[14px] font-[600] text-gray-400">
+                    No messages to display
+                  </p>
+                  <p className="mt-1 text-[12px] text-gray-300">
+                    Select a conversation to view its messages
+                  </p>
                 </div>
               ) : (
                 <div className="animate-fadeInUp space-y-1 bg-white px-4 py-3">
@@ -1427,22 +1549,31 @@ export default function SupportChatbotReporting() {
               )}
             </div>
           </div>
-
         </article>
       </section>
 
-{/* Business Rules List Modal */}
+      {/* Business Rules List Modal */}
       {isBusinessRulesListOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setIsBusinessRulesListOpen(false); }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsBusinessRulesListOpen(false);
+          }}
         >
-          <div className="relative flex w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "85vh" }}>
+          <div
+            className="relative flex w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl"
+            style={{ maxHeight: "85vh" }}
+          >
             {/* Modal header */}
             <div className="flex items-start justify-between border-b border-gray-100 px-8 pt-7 pb-5">
               <div className="flex-1 pr-4">
-                <h2 className="text-[22px] font-[800] text-[#061a43]">Business Rules List</h2>
-                <p className="mt-1 text-[14px] text-gray-500">View all business rules that have been created for the chatbot.</p>
+                <h2 className="text-[22px] font-[800] text-[#061a43]">
+                  Business Rules List
+                </h2>
+                <p className="mt-1 text-[14px] text-gray-500">
+                  View all business rules that have been created for the
+                  chatbot.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -1464,7 +1595,9 @@ export default function SupportChatbotReporting() {
             {/* Inline add form (shown when Add Business Rules clicked) */}
             {isRulesInlineAddOpen && (
               <div className="border-b border-gray-100 bg-[#faf8ff] px-8 py-4">
-                <p className="mb-2 text-[13px] font-[600] text-[#061a43]">New Business Rule</p>
+                <p className="mb-2 text-[13px] font-[600] text-[#061a43]">
+                  New Business Rule
+                </p>
                 <textarea
                   value={newRuleInListText}
                   onChange={(e) => setNewRuleInListText(e.target.value)}
@@ -1475,7 +1608,10 @@ export default function SupportChatbotReporting() {
                 <div className="mt-2 flex justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => { setIsRulesInlineAddOpen(false); setNewRuleInListText(""); }}
+                    onClick={() => {
+                      setIsRulesInlineAddOpen(false);
+                      setNewRuleInListText("");
+                    }}
                     className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50"
                   >
                     Cancel
@@ -1493,7 +1629,9 @@ export default function SupportChatbotReporting() {
             {/* Rules list */}
             <div className="flex-1 overflow-y-auto px-8 py-5 space-y-4">
               {businessRules.length === 0 ? (
-                <p className="py-8 text-center text-[14px] text-gray-400">No business rules yet. Add your first rule above.</p>
+                <p className="py-8 text-center text-[14px] text-gray-400">
+                  No business rules yet. Add your first rule above.
+                </p>
               ) : (
                 businessRules.map((rule) => {
                   const isSelected = selectedRuleId === rule.id;
@@ -1504,15 +1642,26 @@ export default function SupportChatbotReporting() {
                       onClick={() => handleRuleClick(rule)}
                       className={`w-full rounded-xl border px-0 text-left transition ${isSelected ? "border-green-500 bg-green-50" : "border-gray-100 bg-white hover:bg-gray-50"}`}
                     >
-                      <div style={{ borderLeft: "4px solid #7c3aed" }} className="px-5 py-4">
+                      <div
+                        style={{ borderLeft: "4px solid #7c3aed" }}
+                        className="px-5 py-4"
+                      >
                         <div className="flex items-start justify-between gap-3">
-                          <span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">Rule #{rule.number}</span>
+                          <span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">
+                            Rule #{rule.number}
+                          </span>
                           <div className="text-right">
-                            <p className="text-[13px] font-[500] text-gray-500">Created by {rule.createdBy}</p>
-                            <p className="text-[12px] text-gray-400">{rule.createdAt}</p>
+                            <p className="text-[13px] font-[500] text-gray-500">
+                              Created by {rule.createdBy}
+                            </p>
+                            <p className="text-[12px] text-gray-400">
+                              {rule.createdAt}
+                            </p>
                           </div>
                         </div>
-                        <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">{rule.text}</p>
+                        <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">
+                          {rule.text}
+                        </p>
                       </div>
                     </button>
                   );
@@ -1566,10 +1715,18 @@ export default function SupportChatbotReporting() {
                 View details for the selected business rule.
               </p>
               <div className="mt-6 rounded-xl border border-gray-200 bg-[#f8fbff] p-4">
-                <p className="text-[13px] font-[700] text-[#253b69]">Rule #{ruleDetailData.number}</p>
-                <p className="mt-2 text-[14px] text-[#1a2d57]">{ruleDetailData.text}</p>
-                <p className="mt-3 text-[12px] text-gray-500">Created by {ruleDetailData.createdBy}</p>
-                <p className="text-[12px] text-gray-400">{ruleDetailData.createdAt}</p>
+                <p className="text-[13px] font-[700] text-[#253b69]">
+                  Rule #{ruleDetailData.number}
+                </p>
+                <p className="mt-2 text-[14px] text-[#1a2d57]">
+                  {ruleDetailData.text}
+                </p>
+                <p className="mt-3 text-[12px] text-gray-500">
+                  Created by {ruleDetailData.createdBy}
+                </p>
+                <p className="text-[12px] text-gray-400">
+                  {ruleDetailData.createdAt}
+                </p>
               </div>
               <div className="mt-5 flex justify-end gap-2">
                 <button
@@ -1619,11 +1776,21 @@ export default function SupportChatbotReporting() {
                 View details for the selected agent.
               </p>
               <div className="mt-6 rounded-xl border border-gray-200 bg-[#f8fbff] p-4">
-                <p className="text-[13px] font-[700] text-[#253b69]">{selectedAgent.name}</p>
-                <p className="mt-2 text-[14px] text-[#1a2d57]">Email: {selectedAgent.email}</p>
-                <p className="mt-2 text-[14px] text-[#1a2d57]">Status: {selectedAgent.is_active ? "Active" : "Inactive"}</p>
-                <p className="mt-2 text-[12px] text-gray-500">ID: {selectedAgent.id ?? "N/A"}</p>
-                <p className="mt-3 text-[12px] text-gray-500">Initials: {createAgentInitials(selectedAgent.name)}</p>
+                <p className="text-[13px] font-[700] text-[#253b69]">
+                  {selectedAgent.name}
+                </p>
+                <p className="mt-2 text-[14px] text-[#1a2d57]">
+                  Email: {selectedAgent.email}
+                </p>
+                <p className="mt-2 text-[14px] text-[#1a2d57]">
+                  Status: {selectedAgent.is_active ? "Active" : "Inactive"}
+                </p>
+                <p className="mt-2 text-[12px] text-gray-500">
+                  ID: {selectedAgent.id ?? "N/A"}
+                </p>
+                <p className="mt-3 text-[12px] text-gray-500">
+                  Initials: {createAgentInitials(selectedAgent.name)}
+                </p>
               </div>
               <div className="mt-5 flex justify-end gap-2">
                 <button
@@ -1663,8 +1830,12 @@ export default function SupportChatbotReporting() {
               <X className="h-5 w-5" />
             </button>
             <div className="px-8 pb-8 pt-8">
-              <h2 className="text-[22px] font-[800] text-[#061a43]">Add New Agent</h2>
-              <p className="mt-1 text-[14px] text-gray-500">Enter agent name and email to add to team.</p>
+              <h2 className="text-[22px] font-[800] text-[#061a43]">
+                Add New Agent
+              </h2>
+              <p className="mt-1 text-[14px] text-gray-500">
+                Enter agent name and email to add to team.
+              </p>
               <input
                 value={newAgentName}
                 onChange={(e) => setNewAgentName(e.target.value)}
