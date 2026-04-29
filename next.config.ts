@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   async rewrites() {
     return [
-      // ── Existing tenants ──
+      // ── Tenants ──
       {
         source: "/backend/:path*",
         has: [{ type: "host", value: "campaign-management-1.technologymindz.com" }],
@@ -14,8 +14,6 @@ const nextConfig: NextConfig = {
         has: [{ type: "host", value: "campaign-management-2.technologymindz.com" }],
         destination: "https://demo-api.technologymindz.net/:path*",
       },
-
-      // ── New tenants ──
       {
         source: "/backend/:path*",
         has: [{ type: "host", value: "demo.technologymindz.net" }],
