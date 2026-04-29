@@ -339,6 +339,8 @@ function KpiCard({
   today,
   week,
   month,
+  year,
+  showToday = true,
 }) {
   return (
     <article className={`rounded-2xl ${gradient} ${shadow} p-5 text-white`}>
@@ -346,19 +348,20 @@ function KpiCard({
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
           <Icon className="h-5 w-5 text-white" />
         </div>
-        <span className="flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold">
-          <TrendingUp className="h-3 w-3" /> {trend}
-        </span>
       </div>
       <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-3">
         {title}
       </p>
       <div className="flex items-end gap-4">
-        <div>
-          <p className="text-[20px] font-bold leading-none">{today}</p>
-          <p className="text-[11px] text-white/60 mt-1">Today</p>
-        </div>
-        <div className="w-px h-8 bg-white/25 shrink-0" />
+        {showToday && (
+          <>
+            <div>
+              <p className="text-[20px] font-bold leading-none">{today}</p>
+              <p className="text-[11px] text-white/60 mt-1">Today</p>
+            </div>
+            <div className="w-px h-8 bg-white/25 shrink-0" />
+          </>
+        )}
         <div>
           <p className="text-[20px] font-bold leading-none">{week}</p>
           <p className="text-[11px] text-white/60 mt-1">Week</p>
@@ -368,6 +371,15 @@ function KpiCard({
           <p className="text-[20px] font-bold leading-none">{month}</p>
           <p className="text-[11px] text-white/60 mt-1">Month</p>
         </div>
+        {typeof year !== "undefined" && (
+          <>
+            <div className="w-px h-8 bg-white/25 shrink-0" />
+            <div>
+              <p className="text-[20px] font-bold leading-none">{year}</p>
+              <p className="text-[11px] text-white/60 mt-1">Year</p>
+            </div>
+          </>
+        )}
       </div>
     </article>
   );
@@ -1558,6 +1570,8 @@ export default function ModuleDashboard({
           today={isLoading ? "…" : calls.today}
           week={isLoading ? "…" : calls.week}
           month={isLoading ? "…" : calls.month}
+          year={activeFilter === "this_year" ? (isLoading ? "…" : calls.year ?? calls.month) : undefined}
+          showToday={activeFilter !== "this_year"}
         />
 
         {/* Meetings / Responses */}
@@ -1576,6 +1590,8 @@ export default function ModuleDashboard({
           today={isLoading ? "…" : meetings.today}
           week={isLoading ? "…" : meetings.week}
           month={isLoading ? "…" : meetings.month}
+          year={activeFilter === "this_year" ? (isLoading ? "…" : meetings.year ?? meetings.month) : undefined}
+          showToday={activeFilter !== "this_year"}
         />
 
         {/* Card 3: Tasks / Engagement / Meetings Scheduled (linkedin) */}
@@ -1596,6 +1612,8 @@ export default function ModuleDashboard({
           today={isLoading ? "…" : tasks.today}
           week={isLoading ? "…" : tasks.week}
           month={isLoading ? "…" : tasks.month}
+          year={activeFilter === "this_year" ? (isLoading ? "…" : tasks.year ?? tasks.month) : undefined}
+          showToday={activeFilter !== "this_year"}
         />
 
         {/* Card 4 (LinkedIn / WhatsApp): Replies Received */}
@@ -1609,6 +1627,8 @@ export default function ModuleDashboard({
             today={isLoading ? "…" : (activeTab === "linkedin" ? linkedinReplies?.today : whatsappReplies?.today) ?? 0}
             week={isLoading ? "…" : (activeTab === "linkedin" ? linkedinReplies?.week : whatsappReplies?.week) ?? 0}
             month={isLoading ? "…" : (activeTab === "linkedin" ? linkedinReplies?.month : whatsappReplies?.month) ?? 0}
+            year={activeFilter === "this_year" ? (isLoading ? "…" : (activeTab === "linkedin" ? linkedinReplies?.year ?? linkedinReplies?.month : whatsappReplies?.year ?? whatsappReplies?.month)) : undefined}
+            showToday={activeFilter !== "this_year"}
           />
         )}
 

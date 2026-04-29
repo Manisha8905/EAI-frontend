@@ -13,11 +13,14 @@ import {
   type MainSection,
 } from "./dashboardData";
 
+export type MetricFilter = "Today" | "Week" | "Month" | "Year";
+
 export default function SalesDashboard() {
   const [selectedRole, setSelectedRole] = useState<DashboardRole>("Sales");
   const [selectedSection, setSelectedSection] = useState<MainSection>("Outbound Calls");
+  const [metricFilter, setMetricFilter] = useState<MetricFilter>("Month");
 
-  const scenario = useMemo(() => getScenario(selectedRole, selectedSection), [selectedRole, selectedSection]);
+  const scenario = useMemo(() => getScenario(selectedRole, selectedSection, metricFilter), [selectedRole, selectedSection, metricFilter]);
 
   return (
     <main className="h-[calc(100vh-64px)] overflow-auto bg-slate-50 p-6">
@@ -27,6 +30,8 @@ export default function SalesDashboard() {
         tabs={mainSections}
         selectedTab={selectedSection}
         onSelectTab={setSelectedSection}
+        metricFilter={metricFilter}
+        onMetricFilterChange={setMetricFilter}
       />
 
       <section className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

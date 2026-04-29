@@ -26,6 +26,8 @@ export interface KpiCardData {
   progress?: number;
 }
 
+import type { MetricFilter } from "./SalesDashboard";
+
 export interface DashboardScenario {
   cards: KpiCardData[];
   leftChartTitle: string;
@@ -93,7 +95,7 @@ const salesOutbound: DashboardScenario = {
   rightChartTitle: "Call Success Rate Trend",
 };
 
-function mutateScenario(base: DashboardScenario, roleShift: number, sectionShift: number): DashboardScenario {
+function mutateScenario(base: DashboardScenario, roleShift: number, sectionShift: number, metricFilter: MetricFilter): DashboardScenario {
   const aggregateShift = roleShift + sectionShift;
 
   return {
@@ -146,12 +148,19 @@ function mutateScenario(base: DashboardScenario, roleShift: number, sectionShift
         const day = 40 + aggregateShift * 2;
         const week = 280 + aggregateShift * 9;
         const month = 1100 + aggregateShift * 24;
+        const year = 12000 + aggregateShift * 100;
 
-        newCard.value = String(month);
+        let value = month;
+        if (metricFilter === "Today") value = day;
+        else if (metricFilter === "Week") value = week;
+        else if (metricFilter === "Year") value = year;
+
+        newCard.value = String(value);
         newCard.footer = [
           { label: String(day), sublabel: "Today" },
           { label: String(week), sublabel: "Week" },
           { label: String(month), sublabel: "Month" },
+          { label: String(year), sublabel: "Year" },
         ];
       }
 
@@ -176,9 +185,9 @@ function mutateScenario(base: DashboardScenario, roleShift: number, sectionShift
   };
 }
 
-export function getScenario(role: DashboardRole, section: MainSection): DashboardScenario {
+export function getScenario(role: DashboardRole, section: MainSection, metricFilter: MetricFilter = "Month"): DashboardScenario {
   const roleIndex = roles.indexOf(role);
   const sectionIndex = mainSections.indexOf(section);
 
-  return mutateScenario(salesOutbound, Math.max(0, roleIndex), Math.max(0, sectionIndex) * 2);
+  return mutateScenario(salesOutbound, Math.max(0, roleIndex), Math.max(0, sectionIndex) * 2, metricFilter);
 }

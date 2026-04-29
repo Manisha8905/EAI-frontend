@@ -106,7 +106,15 @@ export const loginUser = (values, router) => async (dispatch) => {
       // Non-critical — ignore errors silently
     }
 
-    // Redirect based on role
+    // If the user was redirected to login from a specific page, return them there
+    const returnUrl = typeof window !== "undefined" ? sessionStorage.getItem("returnUrl") : null;
+    if (returnUrl && returnUrl !== "/login") {
+      sessionStorage.removeItem("returnUrl");
+      router.push(returnUrl);
+      return;
+    }
+
+    // Default redirect based on role
     const role = (response.data.role || "").toUpperCase().replace(/[\s_-]/g, "");
     if (role === "SUPERADMIN" || role === "SALES") {
       router.push("/metrics");
@@ -120,6 +128,10 @@ export const loginUser = (values, router) => async (dispatch) => {
       router.push("/metrics");
     }
   } catch (error) {
+    dispatch({
+      type: LOGIN_FAILURE,
+      payload: error.response?.data?.detail || "Login failed",
+    });
     toast.error(error.response?.data?.detail || "login failed");
   }
 };

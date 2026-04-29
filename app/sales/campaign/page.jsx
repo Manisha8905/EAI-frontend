@@ -2521,143 +2521,176 @@ export default function CampaignPage() {
                 {/* Email Config fields — only for Email channel */}
                 {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
                   <>
-                  <Field label="SMTP Provider Name (Optional)">
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setSmtpProvidersOpen((o) => !o)}
-                        className={`${selectCls} flex items-center justify-between w-full text-left`}
-                      >
-                        <span className="flex items-center gap-2 min-w-0">
-                          {form.smtp_provider_name ? (
-                            <>
-                              {(() => {
-                                const p = smtpProvidersList.find((x) => x.name === form.smtp_provider_name);
-                                return p?.is_current ? (
-                                  <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
-                                ) : null;
-                              })()}
-                              <span className="truncate">{form.smtp_provider_name}</span>
-                            </>
-                          ) : (
-                            <span className="text-gray-400">— Select Provider —</span>
-                          )}
-                        </span>
-                        <ChevronDown className="shrink-0 h-4 w-4 text-gray-400 ml-2" />
-                      </button>
-                      {smtpProvidersOpen && (
-                        <div className="absolute z-50 top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-56 overflow-y-auto">
-                          <div
-                            className="px-3 py-2 text-[12px] text-gray-400 hover:bg-gray-50 cursor-pointer"
-                            onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: "" })); }}
-                          >
-                            — Select Provider —
+                    <Field label="SMTP Provider Name (Optional)">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setSmtpProvidersOpen((o) => !o)}
+                          className={`${selectCls} flex items-center justify-between w-full text-left`}
+                        >
+                          <span className="flex items-center gap-2 min-w-0">
+                            {form.smtp_provider_name ? (
+                              <>
+                                {(() => {
+                                  const p = smtpProvidersList.find((x) => x.name === form.smtp_provider_name);
+                                  return p?.is_current ? (
+                                    <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
+                                  ) : null;
+                                })()}
+                                <span className="truncate">{form.smtp_provider_name}</span>
+                              </>
+                            ) : (
+                              <span className="text-gray-400">— Select Provider —</span>
+                            )}
+                          </span>
+                          <ChevronDown className="shrink-0 h-4 w-4 text-gray-400 ml-2" />
+                        </button>
+                        {smtpProvidersOpen && (
+                          <div className="absolute z-50 top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-1 max-h-56 overflow-y-auto">
+                            <div
+                              className="px-3 py-2 text-[12px] text-gray-400 hover:bg-gray-50 cursor-pointer"
+                              onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: "" })); }}
+                            >
+                              — Select Provider —
+                            </div>
+                            {smtpProvidersList.length === 0 ? (
+                              <div className="px-3 py-2 text-[12px] text-gray-400 italic">No providers found</div>
+                            ) : (
+                              smtpProvidersList.map((p) => (
+                                <div
+                                  key={p.name}
+                                  className={`flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-gray-50 ${form.smtp_provider_name === p.name ? "bg-indigo-50 text-indigo-700 font-[600]" : "text-gray-700"}`}
+                                  onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: p.name })); }}
+                                >
+                                  {p.is_current ? (
+                                    <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
+                                  ) : (
+                                    <span className="shrink-0 w-2 h-2 rounded-full bg-gray-200" />
+                                  )}
+                                  <span className="truncate">{p.name}</span>
+                                  {p.is_current && (
+                                    <span className="ml-auto text-[10px] font-[600] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200 shrink-0">Available</span>
+                                  )}
+                                </div>
+                              ))
+                            )}
                           </div>
-                          {smtpProvidersList.length === 0 ? (
-                            <div className="px-3 py-2 text-[12px] text-gray-400 italic">No providers found</div>
-                          ) : (
-                            smtpProvidersList.map((p) => (
-                              <div
-                                key={p.name}
-                                className={`flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-gray-50 ${form.smtp_provider_name === p.name ? "bg-indigo-50 text-indigo-700 font-[600]" : "text-gray-700"}`}
-                                onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: p.name })); }}
-                              >
-                                {p.is_current ? (
-                                  <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
-                                ) : (
-                                  <span className="shrink-0 w-2 h-2 rounded-full bg-gray-200" />
-                                )}
-                                <span className="truncate">{p.name}</span>
-                                {p.is_current && (
-                                  <span className="ml-auto text-[10px] font-[600] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200 shrink-0">Available</span>
-                                )}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </Field>
-                  <Field label="Email Template">
-                  <div className="relative">
-                    <select
-                      name="template_id"
-                      value={form.template_id ?? ""}
-                      onChange={handleFormChange}
-                      required
-                      className={selectCls}
-                    >
-                      <option value="">— Select a template —</option>
-                      {form.template_id &&
-                        !(emailTemplates ?? []).some(
-                          (t) => String(t.id) === String(form.template_id),
-                        ) && (
-                          <option value={form.template_id}>
-                            Current template ({form.template_id})
-                          </option>
                         )}
-                      {(emailTemplates ?? []).map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  </div>
-                </Field>
-                {emailSendingService !== "CRM" && (
-                  <>
-                    <Field label="From Name">
-                      <input
-                        name="from_name"
-                        value={form.from_name ?? ""}
-                        onChange={handleFormChange}
-                        placeholder="John from Acme Corp"
-                        className={inputCls}
-                      />
+                      </div>
                     </Field>
-                    <Field label="From Email">
-                      <input
-                        type="email"
-                        name="from_email"
-                        value={form.from_email ?? ""}
-                        onChange={handleFormChange}
-                        placeholder="john@acme.com"
-                        className={inputCls}
-                      />
-                    </Field>
-                    <Field label="Reply to Email">
-                      <input
-                        type="email"
-                        name="reply_to_email"
-                        value={form.reply_to_email ?? ""}
-                        onChange={handleFormChange}
-                        placeholder="support@acme.com"
-                        className={inputCls}
-                      />
-                    </Field>
-                    <Field label="Emails per Batch">
-                      <input
-                        type="number"
-                        name="emails_per_batch"
-                        value={form.emails_per_batch ?? ""}
-                        onChange={handleFormChange}
-                        min={1}
-                        className={inputCls}
-                      />
-                    </Field>
-                    <Field label="Delay between Batches (Seconds)">
-                      <input
-                        type="number"
-                        name="delay_between_batches_seconds"
-                        value={form.delay_between_batches_seconds ?? ""}
-                        onChange={handleFormChange}
-                        min={0}
-                        className={inputCls}
-                      />
-                    </Field>
-                  </>
-                )}
+                    {/* Only show Email Template if provider is smartlead, and hide all other fields */}
+                    {form.smtp_provider_name && form.smtp_provider_name.toLowerCase() === "smartlead" ? (
+                      <Field label="Email Template">
+                        <div className="relative">
+                          <select
+                            name="template_id"
+                            value={form.template_id ?? ""}
+                            onChange={handleFormChange}
+                            required
+                            className={selectCls}
+                          >
+                            <option value="">— Select a template —</option>
+                            {form.template_id &&
+                              !(emailTemplates ?? []).some(
+                                (t) => String(t.id) === String(form.template_id),
+                              ) && (
+                                <option value={form.template_id}>
+                                  Current template ({form.template_id})
+                                </option>
+                              )}
+                            {(emailTemplates ?? []).map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        </div>
+                      </Field>
+                    ) : (
+                      <>
+                        <Field label="Email Template">
+                          <div className="relative">
+                            <select
+                              name="template_id"
+                              value={form.template_id ?? ""}
+                              onChange={handleFormChange}
+                              required
+                              className={selectCls}
+                            >
+                              <option value="">— Select a template —</option>
+                              {form.template_id &&
+                                !(emailTemplates ?? []).some(
+                                  (t) => String(t.id) === String(form.template_id),
+                                ) && (
+                                  <option value={form.template_id}>
+                                    Current template ({form.template_id})
+                                  </option>
+                                )}
+                              {(emailTemplates ?? []).map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          </div>
+                        </Field>
+                        {emailSendingService !== "CRM" && (
+                          <>
+                            <Field label="From Name">
+                              <input
+                                name="from_name"
+                                value={form.from_name ?? ""}
+                                onChange={handleFormChange}
+                                placeholder="John from Acme Corp"
+                                className={inputCls}
+                              />
+                            </Field>
+                            <Field label="From Email">
+                              <input
+                                type="email"
+                                name="from_email"
+                                value={form.from_email ?? ""}
+                                onChange={handleFormChange}
+                                placeholder="john@acme.com"
+                                className={inputCls}
+                              />
+                            </Field>
+                            <Field label="Reply to Email">
+                              <input
+                                type="email"
+                                name="reply_to_email"
+                                value={form.reply_to_email ?? ""}
+                                onChange={handleFormChange}
+                                placeholder="support@acme.com"
+                                className={inputCls}
+                              />
+                            </Field>
+                            <Field label="Emails per Batch">
+                              <input
+                                type="number"
+                                name="emails_per_batch"
+                                value={form.emails_per_batch ?? ""}
+                                onChange={handleFormChange}
+                                min={1}
+                                className={inputCls}
+                              />
+                            </Field>
+                            <Field label="Delay between Batches (Seconds)">
+                              <input
+                                type="number"
+                                name="delay_between_batches_seconds"
+                                value={form.delay_between_batches_seconds ?? ""}
+                                onChange={handleFormChange}
+                                min={0}
+                                className={inputCls}
+                              />
+                            </Field>
+                          </>
+                        )}
+                      </>
+                    )}
                   </>
                 )}
               </div>

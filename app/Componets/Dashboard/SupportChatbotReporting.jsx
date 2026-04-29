@@ -1,3 +1,4 @@
+// ...existing imports...
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -236,31 +237,67 @@ function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
     green: "from-emerald-500 to-green-600",
     purple: "from-violet-500 to-fuchsia-600",
   };
-
   return (
-    <article className={`rounded-xl bg-gradient-to-br px-4 py-3 text-white shadow-md ${tones[tone]}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-[11px] font-[500] text-white/80">{title}</p>
-          <p className="mt-0.5 text-[22px] font-[800] leading-none tracking-tight text-white">
+    <article className={`rounded-2xl bg-gradient-to-br px-4 py-4 text-white shadow-md flex flex-col items-stretch min-h-[110px] h-full ${tones[tone]}`}> 
+      <div className="flex flex-1 items-center justify-between gap-2 min-h-[70px]">
+        <div className="flex flex-col justify-center flex-1">
+          <p className="text-[12px] font-[600] text-white/80 mb-0.5">{title}</p>
+          <p className="text-[24px] font-[900] leading-none tracking-tight text-white">
             {formatter ? formatter(value) : value}
           </p>
         </div>
-        <span className="inline-flex shrink-0 rounded-xl bg-white/20 p-2">
-          <Icon className="h-4 w-4" />
+        <span className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white/20 p-2">
+          <Icon className="h-5 w-5" />
         </span>
       </div>
     </article>
   );
 }
 
+// --- Utility functions for mapping API data (from SupportChatbotMetrics.jsx) ---
+const toNum = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+const getFirstNumber = (obj, keys, fallback = 0) => {
+  for (const key of keys) {
+    const value = obj?.[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return toNum(value, fallback);
+    }
+  }
+  return fallback;
+};
+const mapStatsResponse = (payload, fallback) => {
+  const root = payload?.webchat ?? payload?.data?.webchat ?? payload?.data ?? payload ?? {};
+  const total        = getFirstNumber(root, ["total_chats", "total", "totalChats", "total_conversations"], fallback.cards.total);
+  const escalated    = getFirstNumber(root, ["escalated", "escalated_chats", "escalatedChats"], fallback.cards.escalated);
+  const today        = getFirstNumber(root, ["today", "today_chats", "todayChats"], fallback.cards.today);
+  const avgMessages  = getFirstNumber(root, ["avg_messages_per_chat", "avgMessages", "avg_messages", "average_messages_per_chat"], fallback.cards.avgMessages);
+  return {
+    cards: { total, escalated, today, avgMessages },
+  };
+};
+
 export default function SupportChatbotReporting() {
   const [activeApp] = useState("webchat");
+  // WhatsApp credentials state for debug/visibility
+  const [whatsappCreds, setWhatsappCreds] = useState(null);
+  useEffect(() => {
+    const fetchWhatsappCreds = async () => {
+      try {
+        const res = await axiosInstance.get("/api/whatsapp/credentials");
+        setWhatsappCreds(res?.data?.data ?? res?.data ?? {});
+      } catch (e) {
+        setWhatsappCreds({ error: "Unable to fetch WhatsApp credentials" });
+      }
+    };
+    fetchWhatsappCreds();
+  }, []);
+  // ...existing code...
   const [search, setSearch] = useState("");
-  const [activeConversationTab, setActiveConversationTab] =
-    useState("Open Chats");
-  const [selectedConversationId, setSelectedConversationId] =
-    useState("conv-2");
+  const [activeConversationTab, setActiveConversationTab] = useState("Open Chats");
+  const [selectedConversationId, setSelectedConversationId] = useState("conv-2");
   const [isAgentsOpen, setIsAgentsOpen] = useState(false);
   const [selectedChats, setSelectedChats] = useState(new Set());
   const [isConvPanelAssignOpen, setIsConvPanelAssignOpen] = useState(false);
@@ -271,24 +308,29 @@ export default function SupportChatbotReporting() {
   const rightAssignDropdownRef = useRef(null);
   const statusMenuRef = useRef(null);
 
-  // Close Agents, ConvPanel-Assign, and RightAssign dropdowns when clicking outside
+  // --- API-driven summary card state ---
+  // WhatsApp credentials debug output (remove or style as needed)
+  // This block is for demonstration/debug only
+  // Place this inside your render/return if you want to see the credentials
+  const [cardData, setCardData] = useState({ cards: { total: 0, escalated: 0, today: 0, avgMessages: 0 } });
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [cardError, setCardError] = useState("");
+
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (agentsDropdownRef.current && !agentsDropdownRef.current.contains(e.target)) {
-        setIsAgentsOpen(false);
-      }
-      if (convAssignDropdownRef.current && !convAssignDropdownRef.current.contains(e.target)) {
-        setIsConvPanelAssignOpen(false);
-      }
-      if (rightAssignDropdownRef.current && !rightAssignDropdownRef.current.contains(e.target)) {
-        setIsRightAssignOpen(false);
-      }
-      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target)) {
-        setIsStatusMenuOpen(false);
+    const fetchStats = async () => {
+      setLoadingCards(true);
+      setCardError("");
+      try {
+        const res = await axiosInstance.get("/api/chatbot/stats", { params: { channel: "webchat" } });
+        setCardData(mapStatsResponse(res?.data, REPORTING_DATA.webchat));
+      } catch (err) {
+        setCardError("Unable to load summary cards. Showing fallback data.");
+        setCardData(REPORTING_DATA.webchat);
+      } finally {
+        setLoadingCards(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    fetchStats();
   }, []);
   const [isAddRuleOpen, setIsAddRuleOpen] = useState(false);
   const [newRuleText, setNewRuleText] = useState("");
@@ -324,10 +366,12 @@ export default function SupportChatbotReporting() {
     startDate: null,
     endDate: null,
   });
+  // Infinite scroll state
   const [pagination, setPagination] = useState({
-    limit: 20,
+    limit: 40, // Start with a larger batch
     offset: 0,
   });
+  const [hasMoreConversations, setHasMoreConversations] = useState(true);
 
   const role =
     typeof window === "undefined"
@@ -362,7 +406,8 @@ export default function SupportChatbotReporting() {
   }, [selectedConversation, conversations, selectedConversationId]);
 
   // API Helper Functions
-  const fetchConversations = async (params = {}) => {
+  // Infinite scroll fetch
+  const fetchConversations = async (params = {}, append = false) => {
     try {
       setConversationsLoading(true);
       setConversationsError(null);
@@ -390,10 +435,20 @@ export default function SupportChatbotReporting() {
             ? payload.items
             : [];
       const normalizedRows = rows.map(normalizeConversation).filter((r) => r.id);
-      setConversations(normalizedRows);
-      if (normalizedRows.length && !selectedConversationId) {
-        setSelectedConversationId(normalizedRows[0].id);
+      if (append) {
+        setConversations((prev) => {
+          // Avoid duplicates
+          const ids = new Set(prev.map((c) => c.id));
+          return [...prev, ...normalizedRows.filter((c) => !ids.has(c.id))];
+        });
+      } else {
+        setConversations(normalizedRows);
+        if (normalizedRows.length && !selectedConversationId) {
+          setSelectedConversationId(normalizedRows[0].id);
+        }
       }
+      // If less than limit returned, no more data
+      setHasMoreConversations(normalizedRows.length === pagination.limit);
     } catch (error) {
       console.error("Error fetching conversations:", error);
       setConversationsError(error.message);
@@ -603,12 +658,24 @@ export default function SupportChatbotReporting() {
   // Fetch conversations on mount and when params change
   useEffect(() => {
     if (canAccess) {
-      fetchConversations();
+      setPagination((prev) => ({ ...prev, offset: 0 }));
+      fetchConversations({}, false);
       fetchAgents();
     }
-  }, [filters, pagination, canAccess]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, canAccess]);
 
-  const data = useMemo(() => REPORTING_DATA[activeApp], [activeApp]);
+  // When pagination.offset changes (for infinite scroll)
+  useEffect(() => {
+    if (pagination.offset === 0) return; // already loaded first batch
+    if (canAccess) {
+      fetchConversations({}, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.offset]);
+
+  // Use API-driven cardData for summary cards
+  const data = cardData;
 
   const handleAssignClick = async () => {
     if (selectedConversationId) {
@@ -792,6 +859,27 @@ export default function SupportChatbotReporting() {
     );
   }
 
+  // Infinite scroll handler
+  const convListRef = useRef(null);
+  useEffect(() => {
+    const handleScroll = () => {
+      const el = convListRef.current;
+      if (!el || conversationsLoading || !hasMoreConversations) return;
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+        // Near bottom, fetch next batch
+        setPagination((prev) => ({ ...prev, offset: prev.offset + prev.limit }));
+      }
+    };
+    const el = convListRef.current;
+    if (el) {
+      el.addEventListener("scroll", handleScroll);
+    }
+    return () => {
+      if (el) el.removeEventListener("scroll", handleScroll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationsLoading, hasMoreConversations]);
+
   return (
     <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-4">
       {/* Global Assign Toast — fixed so overflow-hidden never clips it */}
@@ -858,6 +946,11 @@ export default function SupportChatbotReporting() {
           tone="purple"
         />
       </section>
+      {cardError && (
+        <div className="mb-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[13px] text-red-600">
+          {cardError}
+        </div>
+      )}
 
       {/* Toolbar */}
       <section className="mb-3 flex flex-wrap items-center gap-2">
@@ -1070,7 +1163,7 @@ export default function SupportChatbotReporting() {
           </div>
 
           {/* Conversation list */}
-          <div className="max-h-[300px] overflow-y-auto">
+          <div className="max-h-[300px] overflow-y-auto" ref={convListRef}>
             {conversationsLoading ? (
               <>
                 {[...Array(4)].map((_, i) => (

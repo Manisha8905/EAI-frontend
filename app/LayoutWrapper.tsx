@@ -32,6 +32,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     if (!isTokenValid) {
       setIsAuthChecked(true);
       if (pathname !== "/login") {
+        // Save the intended URL so we can return after login
+        sessionStorage.setItem("returnUrl", pathname + window.location.search);
         router.replace("/login");
       }
       return;
@@ -40,6 +42,23 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     setIsAuthChecked(true);
 
     const role = (localStorage.getItem("userRole") || "").toUpperCase().replace(/[\s_-]/g, "");
+
+    // If already authenticated, don't let user stay on /login
+    if (pathname === "/login") {
+      if (role === "SUPERADMIN" || role === "SALES") {
+        router.replace("/metrics");
+      } else if (isAdminRole(role)) {
+        router.replace("/user-management");
+      } else if (role === "FINANCE") {
+        router.replace("/finance");
+      } else if (role === "SUPPORT") {
+        router.replace("/support");
+      } else {
+        router.replace("/metrics");
+      }
+      return;
+    }
+
     // Redirect root "/" to role-appropriate home
     if (pathname === "/") {
       if (role === "SUPERADMIN" || role === "SALES") {

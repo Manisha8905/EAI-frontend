@@ -8447,7 +8447,7 @@ function LeadsPage({ onBack }) {
             <div className="space-y-5">
               {/* Scrollable filter area */}
               <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {/* Array tag fields */}
+                {/* Tag fields for keywords, job_titles, locations, industries */}
                 {[
                   {
                     key: "keywords",
@@ -8468,21 +8468,6 @@ function LeadsPage({ onBack }) {
                     key: "industries",
                     label: "Industries",
                     placeholder: "e.g. Technology — press Enter",
-                  },
-                  {
-                    key: "seniorities",
-                    label: "Seniorities",
-                    placeholder: "e.g. director — press Enter",
-                  },
-                  {
-                    key: "technologies",
-                    label: "Technologies",
-                    placeholder: "e.g. Salesforce — press Enter",
-                  },
-                  {
-                    key: "company_sizes",
-                    label: "Company Sizes",
-                    placeholder: "e.g. 11,20 — press Enter",
                   },
                 ].map(({ key, label, placeholder }) => (
                   <div key={key}>
@@ -8553,6 +8538,117 @@ function LeadsPage({ onBack }) {
                         style={{ outline: "none", boxShadow: "none" }}
                       />
                     </div>
+                  </div>
+                ))}
+
+                {/* Multi-select for seniorities, technologies, company_sizes */}
+                {[
+                  {
+                    key: "seniorities",
+                    label: "Seniorities",
+                    options: [
+                      "Intern",
+                      "Junior",
+                      "Mid",
+                      "Senior",
+                      "Lead",
+                      "Director",
+                      "VP",
+                      "C-Level",
+                    ],
+                  },
+                  {
+                    key: "technologies",
+                    label: "Technologies",
+                    options: [
+                      "Salesforce",
+                      "HubSpot",
+                      "Marketo",
+                      "Outreach",
+                      "Pardot",
+                      "Mailchimp",
+                      "Zapier",
+                      "Other",
+                    ],
+                  },
+                  {
+                    key: "company_sizes",
+                    label: "Company Sizes",
+                    options: [
+                      "1-10",
+                      "11-50",
+                      "51-200",
+                      "201-500",
+                      "501-1000",
+                      "1001-5000",
+                      "5001-10000",
+                      "10000+",
+                    ],
+                  },
+                ].map(({ key, label, options }) => (
+                  <div key={key}>
+                    <label className="block text-[11px] font-[600] uppercase tracking-wide text-gray-500 mb-2">
+                      {label}
+                    </label>
+
+                    {/* ✅ Custom Multi Select Buttons */}
+                    <div className="flex flex-wrap gap-2">
+                      {options.map((opt) => {
+                        const selected = apolloFilters[key]?.includes(opt);
+
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => {
+                              setApolloFilters((f) => {
+                                const exists = f[key]?.includes(opt);
+
+                                return {
+                                  ...f,
+                                  [key]: exists
+                                    ? f[key].filter((v) => v !== opt)
+                                    : [...(f[key] || []), opt],
+                                };
+                              });
+                            }}
+                            className={`px-3 py-1 rounded-full text-[12px] font-[600] border transition ${
+                              selected
+                                ? "bg-violet-100 text-violet-700 border-violet-300"
+                                : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* ✅ Selected values preview (same as your tags UI) */}
+                    {apolloFilters[key]?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {apolloFilters[key].map((val, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[11px] font-[600]"
+                          >
+                            {val}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setApolloFilters((f) => ({
+                                  ...f,
+                                  [key]: f[key].filter((_, i) => i !== idx),
+                                }))
+                              }
+                              className="hover:text-violet-900"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -9696,11 +9792,14 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
       const res = await axiosInstance.put(endpoint, payload);
 
       const successMessages = {
-        xai_api_key: "xAI API Key saved successfully.",
+        xai_api_key: " API Key saved successfully.",
         enable_grok_enrichment: "Enrichment saved successfully.",
         grok_email_style: "Email Style saved successfully.",
       };
-      toast.success(successMessages[fieldName] ?? `${fieldName.replace(/_/g, " ")} saved successfully.`);
+      toast.success(
+        successMessages[fieldName] ??
+          `${fieldName.replace(/_/g, " ")} saved successfully.`,
+      );
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
@@ -9824,10 +9923,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
           campaign_prompt: forms.campaign_email_settings.campaign_prompt,
         });
       }
-        if (section === "smartlead") {
+      if (section === "smartlead") {
         await axiosInstance.put("/api/deliverability/smartlead/settings", {
           smartlead_api_key: forms.smartlead.smartlead_api_key,
-          
         });
       }
       const sectionLabels = {
@@ -9843,7 +9941,9 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
         linkedin_config: "LinkedIn Config",
         smartlead: "Smartlead",
       };
-      toast.success(`${sectionLabels[section] ?? "Configuration"} saved successfully.`);
+      toast.success(
+        `${sectionLabels[section] ?? "Configuration"} saved successfully.`,
+      );
     } catch (err) {
       toast.error(
         err?.response?.data?.detail ??
@@ -10329,7 +10429,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          {/* <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 
@@ -10354,7 +10454,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 placeholder="Enter key"
               />
             </div>
-          </div>
+          </div> */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -10623,7 +10723,7 @@ function GlobalIntegrationsPage({ onBack, canAccess }) {
                 onChange={setField("appConfig", "default_agent_name")}
               />
               <Field
-                label="Company Sales Pain Solution"
+                label="About Company"
                 value={forms.appConfig.company_sales_pain_solution}
                 onChange={setField("appConfig", "company_sales_pain_solution")}
               />
@@ -10753,13 +10853,14 @@ export default function Setting() {
       setSmtpProviderLoading(true);
       try {
         const [availableRes, configuredRes] = await Promise.allSettled([
-          axiosInstance.get("/api/smtp/available-providers"),
+          // axiosInstance.get("/api/smtp/available-providers"),
           axiosInstance.get("/api/smtp/saved-providers"),
         ]);
 
         // Build provider list from available-providers
         // Response shape: { available_providers: [{ name, ready, description, ... }] }
         let providers = [];
+        console.log("Available SMTP providers response:", availableRes);
         if (availableRes.status === "fulfilled") {
           const d = availableRes.value.data;
           const raw =
@@ -10776,12 +10877,12 @@ export default function Setting() {
                 },
           );
         }
-        if (providers.length === 0) {
-          providers = [
-            { name: "mailgun", description: "Mailgun SMTP/API", ready: true },
-            { name: "sendgrid", description: "SendGrid", ready: true },
-          ];
-        }
+        // if (providers.length === 0) {
+        //   providers = [
+        //     { name: "mailgun", description: "Mailgun SMTP/API", ready: true },
+        //     { name: "sendgrid", description: "SendGrid", ready: true },
+        //   ];
+        // }
         setSmtpProviderList(providers);
 
         // Determine the currently active provider from /api/smtp/saved-providers
@@ -11174,7 +11275,6 @@ export default function Setting() {
                 >
                   <option>SMTP</option>
                   <option>CRM</option>
-                  <option>SmartLead</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>
@@ -11211,7 +11311,8 @@ export default function Setting() {
                       disabled={smtpSelectSaving}
                       className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      {smtpProviderList.map((p) => (
+                      {console.log(smtpProviderList, "smtpProviderList")}
+                      {smtpProviderList?.map((p) => (
                         <option key={p.name} value={p.name}>
                           {p.name}
                         </option>
