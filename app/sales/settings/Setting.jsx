@@ -1,4 +1,109 @@
 "use client";
+// Recursive renderer for nested AI data
+function RenderNestedData({ data, parentKey }) {
+  // Helper: check if value is ISO date string
+  const isIsoDate = (val) =>
+    typeof val === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(val);
+  // Helper: check if value is a URL
+  const isUrl = (val) =>
+    typeof val === "string" && /^https?:\/\//i.test(val);
+
+  if (Array.isArray(data)) {
+    return (
+      <div className="pl-3 border-l border-gray-200">
+        {data.map((item, idx) => (
+          <div key={idx} className="mb-1">
+            <RenderNestedData data={item} parentKey={parentKey} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (typeof data === "object" && data !== null) {
+    return (
+      <div className="pl-2 border-l border-gray-100">
+        {Object.entries(data).map(([key, value]) => (
+          <div key={key} className="mb-1">
+            <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
+              {key.replace(/[_-]+/g, " ")}
+            </span>
+            {typeof value === "object" && value !== null ? (
+              <RenderNestedData data={value} parentKey={key} />
+            ) : isUrl(value) ? (
+              <a
+                href={value}
+                target="_blank"
+                rel="noreferrer"
+                className="ml-2 text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
+                style={{ fontWeight: 600 }}
+              >
+                {value}
+              </a>
+            ) : isIsoDate(value) ? (
+              <span className="ml-2 text-[12px] text-green-700 break-all font-[500]">
+                {new Date(value).toLocaleString()}
+              </span>
+            ) : (
+              <span className="ml-2 text-[12px] text-gray-700 break-all">
+                {String(value)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // Primitive value
+  if (isUrl(data)) {
+    return (
+      <a
+        href={data}
+        target="_blank"
+        rel="noreferrer"
+        className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
+        style={{ fontWeight: 600 }}
+      >
+        {data}
+      </a>
+    );
+  }
+  if (isIsoDate(data)) {
+    return (
+      <span className="text-[12px] text-green-700 break-all font-[500]">
+        {new Date(data).toLocaleString()}
+      </span>
+    );
+  }
+  return (
+    <span className="text-[12px] text-gray-700 break-all">{String(data)}</span>
+  );
+}
+// Utility to format Apollo filters for API
+function formatApolloFiltersForApi(filters) {
+  const out = { ...filters };
+  // keywords: join array to string if array, else keep as string
+  if (Array.isArray(out.keywords)) {
+    out.keywords = out.keywords.join(" ");
+  }
+  // Remove technologies if not used, or ensure it's an array
+  if (out.technologies === undefined) {
+    // do nothing
+  } else if (!Array.isArray(out.technologies)) {
+    out.technologies = [];
+  }
+  // Remove empty technologies
+  if (Array.isArray(out.technologies) && out.technologies.length === 0) {
+    delete out.technologies;
+  }
+  // Ensure all other fields are arrays
+  ["company_sizes", "industries", "job_titles", "locations", "seniorities"].forEach((k) => {
+    if (out[k] && !Array.isArray(out[k])) {
+      out[k] = [out[k]];
+    }
+  });
+  return out;
+}
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
 import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
@@ -293,9 +398,9 @@ function PageHeader({ title, subtitle, onBack, action }) {
           <h1 className="font-poppins text-[18px] font-[700] text-[#0a0a0a]">
             {title}
           </h1>
-          {subtitle && (
+          {/* {subtitle && (
             <p className="text-[12px] text-gray-500 mt-0.5">{subtitle}</p>
-          )}
+          )} */}
         </div>
       </div>
       {action}
@@ -5140,7 +5245,7 @@ function SMTPProvidersPage({ onBack }) {
 
 
   // Default Smartlead API Key
-  const DEFAULT_SMARTLEAD_API_KEY = "2ba82289-d15e-47ae-974b-10661a97a7e2_h7b77q0";
+  const DEFAULT_SMARTLEAD_API_KEY = "";
 
   const setCred = (key, val) =>
     setForm((f) => ({ ...f, credentials: { ...f.credentials, [key]: val } }));
@@ -5479,7 +5584,34 @@ function SMTPProvidersPage({ onBack }) {
                 ))}
               </div>
             ))}
-            {/* Smartlead API Key field is hidden from UI, but always passed in credentials */}
+
+            {/* Show Smartlead API Key field only if provider is smartlead */}
+            {form.provider === "smartlead" && (
+              <div>
+                <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
+                  Smartlead API Key<span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter Smartlead API Key"
+                  value={form.credentials.SMARTLEAD_API_KEY || ""}
+                  onChange={e =>
+                    setForm(f => ({
+                      ...f,
+                      credentials: {
+                        ...f.credentials,
+                        SMARTLEAD_API_KEY: e.target.value,
+                      },
+                    }))
+                  }
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-400 outline-none transition focus:ring-2 focus:ring-violet-400/20
+                    ${errors.SMARTLEAD_API_KEY ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 bg-gray-50/60 focus:border-violet-400 focus:bg-white"}`}
+                />
+                {errors.SMARTLEAD_API_KEY && (
+                  <p className="mt-1 text-[11px] text-red-500">{errors.SMARTLEAD_API_KEY}</p>
+                )}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
               <button
                 onClick={() => setShow(false)}
@@ -5904,10 +6036,7 @@ function LeadsPage({ onBack }) {
   const handleApolloPreview = async () => {
     setApolloPreviewLoading(true);
     try {
-      const filters = {
-        ...apolloFilters,
-        keywords: apolloFilters.keywords.join(" "),
-      };
+      const filters = formatApolloFiltersForApi(apolloFilters);
       const res = await axiosInstance.post("/apollo/preview", { filters });
       setApolloPreview(res.data?.data ?? res.data);
     } catch (err) {
@@ -5925,10 +6054,7 @@ function LeadsPage({ onBack }) {
     }
     setApolloFetching(true);
     try {
-      const filters = {
-        ...apolloFilters,
-        keywords: apolloFilters.keywords.join(" "),
-      };
+      const filters = formatApolloFiltersForApi(apolloFilters);
       await axiosInstance.post("/apollo/fetch", {
         confirmed: true,
         estimated_count:
@@ -6895,10 +7021,10 @@ function LeadsPage({ onBack }) {
                 </table>
               </div>
               <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
-                <span className="text-[12px] text-gray-400">
+                {/* <span className="text-[12px] text-gray-400">
                   {filteredLeads.length} of{" "}
                   {viewList.total_leads ?? listLeads.length} leads
-                </span>
+                </span> */}
                 {Math.ceil(filteredLeads.length / LEADS_PER_PAGE) > 1 && (
                   <div className="flex items-center gap-1">
                     <button
@@ -7120,189 +7246,35 @@ function LeadsPage({ onBack }) {
                           </div>
                         )}
 
-                        {/* Apollo flat fields */}
+                        {/* Apollo (recursive) */}
                         {aiData.apollo && typeof aiData.apollo === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
-                              Apollo
-                            </p>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                              {Object.entries(aiData.apollo)
-                                .filter(
-                                  ([k, v]) =>
-                                    k !== "fetched_at" &&
-                                    v !== null &&
-                                    v !== undefined &&
-                                    v !== "" &&
-                                    typeof v !== "object",
-                                )
-                                .map(([key, val]) => {
-                                  const str = String(val);
-                                  const isUrl = /^https?:\/\//i.test(str);
-                                  return (
-                                    <div
-                                      key={key}
-                                      className="flex flex-col gap-0.5"
-                                    >
-                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
-                                        {key.replace(/[_-]+/g, " ")}
-                                      </span>
-                                      {isUrl ? (
-                                        <a
-                                          href={str}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
-                                        >
-                                          {str}
-                                        </a>
-                                      ) : (
-                                        <span className="text-[12px] text-gray-700 break-all">
-                                          {str}
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                            </div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Apollo</p>
+                            <RenderNestedData data={aiData.apollo} parentKey="apollo" />
                           </div>
                         )}
 
-                        {/* Apify — LinkedIn posts */}
-                        {aiData.apify?.linkedin_posts?.length > 0 && (
+                        {/* Apify (recursive) */}
+                        {aiData.apify && typeof aiData.apify === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
-                              LinkedIn Posts (
-                              {aiData.apify.linkedin_posts.length})
-                            </p>
-                            <div className="space-y-2 max-h-52 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                              {aiData.apify.linkedin_posts.map((post, idx) => (
-                                <div
-                                  key={idx}
-                                  className="rounded-lg border border-gray-100 bg-gray-50/60 p-3"
-                                >
-                                  <div className="flex items-center gap-3 mb-1.5 text-[10px] text-gray-400">
-                                    <span>👍 {post.likes ?? 0}</span>
-                                    <span>💬 {post.comments ?? 0}</span>
-                                    <span>🔁 {post.shares ?? 0}</span>
-                                    {post.posted_date && (
-                                      <span>
-                                        {new Date(
-                                          post.posted_date,
-                                        ).toLocaleDateString()}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-[11px] text-gray-600 line-clamp-3 leading-relaxed">
-                                    {post.content}
-                                  </p>
-                                  {post.url && (
-                                    <a
-                                      href={post.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-[10px] text-violet-500 hover:underline mt-1 inline-block"
-                                    >
-                                      View post →
-                                    </a>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Apify</p>
+                            <RenderNestedData data={aiData.apify} parentKey="apify" />
                           </div>
                         )}
 
-                        {/* Grok */}
+                        {/* Grok (recursive) */}
                         {aiData.grok && typeof aiData.grok === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
-                              Grok
-                            </p>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                              {Object.entries(aiData.grok)
-                                .filter(
-                                  ([, v]) =>
-                                    v !== null &&
-                                    v !== undefined &&
-                                    v !== "" &&
-                                    typeof v !== "object",
-                                )
-                                .map(([key, val]) => {
-                                  const str = String(val);
-                                  const isUrl = /^https?:\/\//i.test(str);
-                                  return (
-                                    <div
-                                      key={key}
-                                      className="flex flex-col gap-0.5"
-                                    >
-                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
-                                        {key.replace(/[_-]+/g, " ")}
-                                      </span>
-                                      {isUrl ? (
-                                        <a
-                                          href={str}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
-                                        >
-                                          {str}
-                                        </a>
-                                      ) : (
-                                        <span className="text-[12px] text-gray-700 break-all">
-                                          {str}
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                            </div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Grok</p>
+                            <RenderNestedData data={aiData.grok} parentKey="grok" />
                           </div>
                         )}
 
-                        {/* Groq */}
+                        {/* Groq (recursive) */}
                         {aiData.groq && typeof aiData.groq === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
-                              Groq
-                            </p>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-                              {Object.entries(aiData.groq)
-                                .filter(
-                                  ([, v]) =>
-                                    v !== null &&
-                                    v !== undefined &&
-                                    v !== "" &&
-                                    typeof v !== "object",
-                                )
-                                .map(([key, val]) => {
-                                  const str = String(val);
-                                  const isUrl = /^https?:\/\//i.test(str);
-                                  return (
-                                    <div
-                                      key={key}
-                                      className="flex flex-col gap-0.5"
-                                    >
-                                      <span className="text-[10px] font-[600] uppercase tracking-wide text-gray-400">
-                                        {key.replace(/[_-]+/g, " ")}
-                                      </span>
-                                      {isUrl ? (
-                                        <a
-                                          href={str}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="text-[12px] text-blue-600 hover:text-blue-800 hover:underline break-all font-[500]"
-                                        >
-                                          {str}
-                                        </a>
-                                      ) : (
-                                        <span className="text-[12px] text-gray-700 break-all">
-                                          {str}
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                            </div>
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Groq</p>
+                            <RenderNestedData data={aiData.groq} parentKey="groq" />
                           </div>
                         )}
                       </div>
@@ -8532,10 +8504,14 @@ function LeadsPage({ onBack }) {
                               .trim()
                               .replace(/,$/, "");
                             if (val && !apolloFilters[key].includes(val)) {
-                              setApolloFilters((f) => ({
-                                ...f,
-                                [key]: [...f[key], val],
-                              }));
+                              setApolloFilters((f) => {
+                                const updated = {
+                                  ...f,
+                                  [key]: [...f[key], val],
+                                };
+                                // Optionally, trigger API call or update here if needed
+                                return updated;
+                              });
                             }
                             setApolloTagInputs((t) => ({ ...t, [key]: "" }));
                           } else if (
@@ -8549,6 +8525,17 @@ function LeadsPage({ onBack }) {
                             }));
                           }
                         }}
+                        onBlur={() => {
+                          // Add value on blur if not empty
+                          const val = apolloTagInputs[key]?.trim().replace(/,$/, "");
+                          if (val && !apolloFilters[key].includes(val)) {
+                            setApolloFilters((f) => ({
+                              ...f,
+                              [key]: [...f[key], val],
+                            }));
+                          }
+                          setApolloTagInputs((t) => ({ ...t, [key]: "" }));
+                        }}
                         placeholder={
                           apolloFilters[key].length === 0 ? placeholder : ""
                         }
@@ -8560,13 +8547,14 @@ function LeadsPage({ onBack }) {
                 ))}
 
                 {/* Multi-select for seniorities, technologies, company_sizes */}
-                {[
+                {[ 
                   {
                     key: "seniorities",
                     label: "Seniorities",
                     options: [
                       "Intern",
                       "Junior",
+                      "Manager",
                       "Mid",
                       "Senior",
                       "Lead",
@@ -8575,20 +8563,7 @@ function LeadsPage({ onBack }) {
                       "C-Level",
                     ],
                   },
-                  {
-                    key: "technologies",
-                    label: "Technologies",
-                    options: [
-                      "Salesforce",
-                      "HubSpot",
-                      "Marketo",
-                      "Outreach",
-                      "Pardot",
-                      "Mailchimp",
-                      "Zapier",
-                      "Other",
-                    ],
-                  },
+                  // Technologies field hidden for now
                   {
                     key: "company_sizes",
                     label: "Company Sizes",
@@ -10468,7 +10443,7 @@ function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [], smtp
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          {/* <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-orange-600" />
@@ -10507,7 +10482,7 @@ function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [], smtp
                 placeholder="Enter Smartlead API Key"
               />
             </div>
-          </div>
+          </div> */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -10614,7 +10589,7 @@ function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [], smtp
                 <div className="flex gap-2 items-end">
                   <div className="flex-1">
                     <Field
-                      label="API Key (XAI)"
+                      label="API Key"
                       type="password"
                       value={forms.enrichment.xai_api_key}
                       onChange={setField("enrichment", "xai_api_key")}
