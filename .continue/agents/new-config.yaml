@@ -1,0 +1,10 @@
+name: Remote Ollama LLM Setup
+version: 1.0.0
+schema: v1
+
+models:
+- name: QwenCoder32B
+  provider: openai
+  model: qwen2.5-coder:32b
+  apiBase: http://175.28.230.22:50321/v1
+  apiKey: dummy-key

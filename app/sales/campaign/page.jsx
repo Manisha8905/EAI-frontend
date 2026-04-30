@@ -246,6 +246,7 @@ export default function CampaignPage() {
   const [filter, setFilter] = useState("All");
   const [commFilter, setCommFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [histRefreshing, setHistRefreshing] = useState(false);
@@ -909,14 +910,23 @@ export default function CampaignPage() {
     const p = { page, page_size: PAGE_SIZE, ...overrides };
     if (filter !== "All") p.status = filter.toUpperCase();
     if (commFilter !== "All") p.communication_type = commFilter.toUpperCase();
+    if (debouncedSearch) p.search = debouncedSearch;
     return p;
   };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
 
   /* ── Dispatch when filters / page change ── */
   useEffect(() => {
     dispatch(listCampaigns(buildParams()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, commFilter, page]);
+  }, [filter, commFilter, debouncedSearch, page]);
 
   // After successful create, poll list briefly so async lead generation updates card counts.
   useEffect(() => {
@@ -1488,10 +1498,8 @@ export default function CampaignPage() {
     }
   };
 
-  /* ── Client-side name search (against current page) ── */
-  const filtered = (campaigns ?? []).filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  /* ── Campaign rows now come from the API search result ── */
+  const filtered = campaigns ?? [];
 
   const totalPages = Math.ceil((campaignTotal ?? 0) / PAGE_SIZE);
 
@@ -6891,8 +6899,11 @@ export default function CampaignPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name…"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by name..."
             className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 placeholder-gray-400 shadow-sm"
           />
         </div>

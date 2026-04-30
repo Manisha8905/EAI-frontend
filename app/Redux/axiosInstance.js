@@ -21,15 +21,21 @@ axiosInstance.interceptors.request.use(
       // ✅ Ensure headers exist
       config.headers = config.headers || {};
 
-      // ✅ Attach token safely
+      // ✅ Attach token safely (header only)
       if (session_token && session_token !== "undefined") {
         config.headers.Authorization = `Bearer ${session_token}`;
+        console.log("✅ Authorization header attached");
+      } else {
+        console.warn("⚠️ WARNING: No session_token found in localStorage");
       }
 
-      // 🔍 Debug (remove later)
-      console.log("➡️ API:", config.url);
-      console.log("➡️ Token:", session_token);
-      console.log("➡️ Authorization:", config.headers.Authorization);
+      // ✅ 3. Ensure token is in cookie (survives cross-origin redirects)
+      if (session_token && !document.cookie.includes("session_token=")) {
+        document.cookie = `session_token=${session_token}; path=/; samesite=none; secure`;
+        console.log("🍪 Session token set as cookie");
+      }
+
+      console.log("➡️ Request to:", config.url);
     }
 
     return config;

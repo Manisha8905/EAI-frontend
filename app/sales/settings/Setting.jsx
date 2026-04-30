@@ -6,8 +6,7 @@ function RenderNestedData({ data, parentKey }) {
     typeof val === "string" &&
     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(val);
   // Helper: check if value is a URL
-  const isUrl = (val) =>
-    typeof val === "string" && /^https?:\/\//i.test(val);
+  const isUrl = (val) => typeof val === "string" && /^https?:\/\//i.test(val);
 
   if (Array.isArray(data)) {
     return (
@@ -82,26 +81,52 @@ function RenderNestedData({ data, parentKey }) {
 // Utility to format Apollo filters for API
 function formatApolloFiltersForApi(filters) {
   const out = { ...filters };
-  // keywords: join array to string if array, else keep as string
+  // Normalize: trim and lowercase all string values (arrays or scalars)
+  const normalizeValue = (v) => {
+    if (Array.isArray(v)) {
+      return v
+        .map((x) => (typeof x === "string" ? x.trim().toLowerCase() : x))
+        .filter((x) => x !== "" && x != null);
+    }
+    if (typeof v === "string") return v.trim().toLowerCase();
+    return v;
+  };
+
+  Object.keys(out).forEach((key) => {
+    out[key] = normalizeValue(out[key]);
+  });
+
+  // Backend expects industry_keywords, not industries.
+  if (Array.isArray(out.industries) && !out.industry_keywords) {
+    out.industry_keywords = out.industries;
+  }
+  delete out.industries;
+
+  // keywords: if array -> join to space-separated lowercase string
   if (Array.isArray(out.keywords)) {
     out.keywords = out.keywords.join(" ");
   }
-  // Remove technologies if not used, or ensure it's an array
-  if (out.technologies === undefined) {
-    // do nothing
-  } else if (!Array.isArray(out.technologies)) {
-    out.technologies = [];
-  }
-  // Remove empty technologies
-  if (Array.isArray(out.technologies) && out.technologies.length === 0) {
+
+  // Remove technologies if empty or not provided
+  if (
+    !out.technologies ||
+    (Array.isArray(out.technologies) && out.technologies.length === 0)
+  ) {
     delete out.technologies;
   }
-  // Ensure all other fields are arrays
-  ["company_sizes", "industries", "job_titles", "locations", "seniorities"].forEach((k) => {
+
+  // Ensure expected fields are arrays
+  [
+    "company_sizes",
+    "job_titles",
+    "locations",
+    "seniorities",
+  ].forEach((k) => {
     if (out[k] && !Array.isArray(out[k])) {
       out[k] = [out[k]];
     }
   });
+
   return out;
 }
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
@@ -151,6 +176,7 @@ import {
   FileDown,
   Check,
   Loader2,
+  ClipboardList,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -170,6 +196,9 @@ import {
 const appBaseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
 const absoluteApiBaseUrl = `${appBaseUrl}/backend`;
+
+const getApiError = (err, fallback = "Something went wrong.") =>
+  err?.response?.data?.detail || err?.message || fallback;
 
 const isAdminRole = (role) => {
   const normalizedRole = String(role || "")
@@ -1815,6 +1844,287 @@ function AgentsPage({ onBack }) {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Chatbot Business Rules ── */
+function BusinessRulesPage({ onBack }) {
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [newRuleText, setNewRuleText] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [editRule, setEditRule] = useState(null);
+  const [editRuleText, setEditRuleText] = useState("");
+  const [editRuleActive, setEditRuleActive] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const fetchRules = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await axiosInstance.get("/api/chatbot/business-rules/");
+      const data = res?.data?.data ?? res?.data ?? [];
+      setRules(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(getApiError(err) || "Failed to load business rules.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
+
+  const handleAddRule = async () => {
+    console.log("handleAddRule triggered with text:", newRuleText);
+    if (!newRuleText.trim()) return;
+    setCreating(true);
+    try {
+      const payload = { rule_text: newRuleText.trim() };
+      console.log(
+        "Sending POST /api/chatbot/business-rules with payload:",
+        payload,
+      );
+      const res = await axiosInstance.post(
+        "/api/chatbot/business-rules",
+        payload,
+      );
+      console.log("Add Rule Success:", res.data);
+      setNewRuleText("");
+      fetchRules();
+      toast.success("Business rule added successfully.");
+    } catch (err) {
+      console.error("Add Rule Error:", err);
+      toast.error(getApiError(err) || "Failed to add rule.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleUpdateRule = async () => {
+    if (!editRuleText.trim()) return;
+    setUpdating(true);
+    try {
+      await axiosInstance.patch(`/api/chatbot/business-rules/${editRule.id}`, {
+        rule_text: editRuleText.trim(),
+        is_active: editRuleActive,
+      });
+      setEditRule(null);
+      fetchRules();
+      toast.success("Business rule updated successfully.");
+    } catch (err) {
+      toast.error(getApiError(err) || "Failed to update rule.");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDeleteRule = async (ruleId) => {
+    setDeleting(true);
+    try {
+      await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}`);
+      setDeleteTarget(null);
+      fetchRules();
+      toast.success("Business rule deleted successfully.");
+    } catch (err) {
+      toast.error(getApiError(err) || "Failed to delete rule.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="anim-fade">
+      <PageHeader
+        title="Chatbot Business Rules"
+        subtitle="Define rules that guide the AI chatbot behavior and responses"
+        onBack={onBack}
+        action={
+          <button
+            onClick={fetchRules}
+            disabled={loading}
+            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        }
+      />
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
+        <label className="block text-[12px] font-[600] text-gray-700 mb-3 uppercase tracking-wider">
+          Add New Rule
+        </label>
+        <div className="flex gap-4">
+          <textarea
+            value={newRuleText}
+            onChange={(e) => setNewRuleText(e.target.value)}
+            placeholder="e.g. Always greet the user politely and ask for their email if not provided."
+            className="flex-1 rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 min-h-[100px] resize-y transition-all"
+          />
+          <button
+            onClick={handleAddRule}
+            disabled={creating || !newRuleText.trim()}
+            className="self-end rounded-xl bg-[#0a0a0a] px-6 py-3.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition-all shadow-lg shadow-gray-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {creating ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Add Rule
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {loading && rules.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 mb-4">
+              <RefreshCw className="h-6 w-6 text-violet-500 animate-spin" />
+            </div>
+            <p className="text-[14px] text-gray-500 font-[500]">
+              Loading business rules...
+            </p>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-100 rounded-3xl p-8 text-center">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 mb-4">
+              <AlertCircle className="h-6 w-6 text-red-600" />
+            </div>
+            <p className="text-[14px] text-red-700 font-[600] mb-2">{error}</p>
+            <button
+              onClick={fetchRules}
+              className="text-[13px] text-red-600 hover:bg-red-100 px-4 py-2 rounded-xl transition-colors font-[600] border border-red-200"
+            >
+              Try again
+            </button>
+          </div>
+        ) : rules.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center shadow-sm">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-50 mb-4">
+              <ClipboardList className="h-6 w-6 text-gray-300" />
+            </div>
+            <p className="text-[14px] text-gray-400 font-[500]">
+              No business rules defined yet.
+            </p>
+          </div>
+        ) : (
+          rules.map((rule) => (
+            <div
+              key={rule.id}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:border-violet-200 hover:shadow-md transition-all group relative overflow-hidden"
+            >
+              <div
+                className={`absolute left-0 top-0 bottom-0 w-1.5 ${rule.is_active ? "bg-emerald-500" : "bg-gray-200"}`}
+              />
+              <div className="flex justify-between gap-6">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-[700] uppercase tracking-wider ${rule.is_active ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-gray-50 text-gray-500 border border-gray-100"}`}
+                    >
+                      {rule.is_active ? "Active" : "Inactive"}
+                    </span>
+                    <span className="text-[11px] font-[600] text-gray-400 font-mono">
+                      #{rule.id}
+                    </span>
+                  </div>
+                  <p className="text-[14px] text-gray-700 leading-relaxed whitespace-pre-wrap break-words font-[450]">
+                    {rule.rule_text}
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button
+                    onClick={() => {
+                      setEditRule(rule);
+                      setEditRuleText(rule.rule_text);
+                      setEditRuleActive(rule.is_active);
+                    }}
+                    className="p-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                    title="Edit Rule"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(rule)}
+                    className="p-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                    title="Delete Rule"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Edit Modal */}
+      {editRule && (
+        <Modal title="Edit Business Rule" onClose={() => setEditRule(null)}>
+          <div className="space-y-5">
+            <div>
+              <label className="block text-[12px] font-[600] text-gray-700 mb-2 uppercase tracking-wider">
+                Rule Text
+              </label>
+              <textarea
+                value={editRuleText}
+                onChange={(e) => setEditRuleText(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 min-h-[150px] resize-y transition-all"
+              />
+            </div>
+            <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editRuleActive}
+                  onChange={(e) => setEditRuleActive(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+                <span className="ml-3 text-[13px] font-[600] text-gray-700">
+                  Rule is active
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+              <button
+                onClick={() => setEditRule(null)}
+                className="px-5 py-2.5 rounded-xl border border-gray-200 text-[13px] font-[600] text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateRule}
+                disabled={updating || !editRuleText.trim()}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#0a0a0a] text-white text-[13px] font-[600] hover:bg-gray-800 transition-all shadow-lg shadow-gray-200 disabled:opacity-50"
+              >
+                {updating ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          label="this business rule"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDeleteRule(deleteTarget.id)}
+          loading={deleting}
+        />
       )}
     </div>
   );
@@ -5243,7 +5553,6 @@ function SMTPProvidersPage({ onBack }) {
     fetchList();
   }, []);
 
-
   // Default Smartlead API Key
   const DEFAULT_SMARTLEAD_API_KEY = "";
 
@@ -5589,14 +5898,15 @@ function SMTPProvidersPage({ onBack }) {
             {form.provider === "smartlead" && (
               <div>
                 <label className="block text-[12px] font-[600] text-gray-700 mb-1.5">
-                  Smartlead API Key<span className="text-red-500 ml-0.5">*</span>
+                  Smartlead API Key
+                  <span className="text-red-500 ml-0.5">*</span>
                 </label>
                 <input
                   type="text"
                   placeholder="Enter Smartlead API Key"
                   value={form.credentials.SMARTLEAD_API_KEY || ""}
-                  onChange={e =>
-                    setForm(f => ({
+                  onChange={(e) =>
+                    setForm((f) => ({
                       ...f,
                       credentials: {
                         ...f.credentials,
@@ -5608,7 +5918,9 @@ function SMTPProvidersPage({ onBack }) {
                     ${errors.SMARTLEAD_API_KEY ? "border-red-300 bg-red-50 focus:border-red-400" : "border-gray-200 bg-gray-50/60 focus:border-violet-400 focus:bg-white"}`}
                 />
                 {errors.SMARTLEAD_API_KEY && (
-                  <p className="mt-1 text-[11px] text-red-500">{errors.SMARTLEAD_API_KEY}</p>
+                  <p className="mt-1 text-[11px] text-red-500">
+                    {errors.SMARTLEAD_API_KEY}
+                  </p>
                 )}
               </div>
             )}
@@ -5674,8 +5986,6 @@ const LEAD_CHANNELS = [
 ];
 
 /* ── Shared API error extractor ── */
-const getApiError = (err, fallback = "Something went wrong.") =>
-  err?.response?.data?.detail || err?.message || fallback;
 
 /* ── Leads ── */
 function LeadsPage({ onBack }) {
@@ -5686,6 +5996,7 @@ function LeadsPage({ onBack }) {
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [listsPage, setListsPage] = useState(1);
   const [listsTotal, setListsTotal] = useState(0);
 
@@ -5919,11 +6230,15 @@ function LeadsPage({ onBack }) {
   };
 
   /* ── GET /lead-lists ── */
-  const fetchLists = async (page = 1) => {
+  const fetchLists = async (page = 1, searchTerm = "") => {
     setLoading(true);
     try {
       const res = await axiosInstance.get("/lead-lists", {
-        params: { page, page_size: LISTS_PER_PAGE },
+        params: {
+          page,
+          page_size: LISTS_PER_PAGE,
+          ...(searchTerm ? { search: searchTerm } : {}),
+        },
       });
       const d = res.data;
       const raw = Array.isArray(d)
@@ -5943,8 +6258,16 @@ function LeadsPage({ onBack }) {
   };
 
   useEffect(() => {
-    fetchLists(listsPage);
-  }, [listsPage]);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    fetchLists(listsPage, debouncedSearch);
+  }, [listsPage, debouncedSearch]);
 
   /* ── Wizard helpers ── */
   const closeWizard = () => {
@@ -6461,9 +6784,7 @@ function LeadsPage({ onBack }) {
     setAiData(null);
   };
 
-  const filteredLists = lists.filter((l) =>
-    (l.name ?? "").toLowerCase().includes(search.toLowerCase()),
-  );
+  const filteredLists = lists;
   const filteredLeads = listLeads.filter((l) => {
     const q = leadSearch.toLowerCase();
     const ld = l.lead_data ?? {};
@@ -7249,32 +7570,52 @@ function LeadsPage({ onBack }) {
                         {/* Apollo (recursive) */}
                         {aiData.apollo && typeof aiData.apollo === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Apollo</p>
-                            <RenderNestedData data={aiData.apollo} parentKey="apollo" />
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              Apollo
+                            </p>
+                            <RenderNestedData
+                              data={aiData.apollo}
+                              parentKey="apollo"
+                            />
                           </div>
                         )}
 
                         {/* Apify (recursive) */}
                         {aiData.apify && typeof aiData.apify === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Apify</p>
-                            <RenderNestedData data={aiData.apify} parentKey="apify" />
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              Apify
+                            </p>
+                            <RenderNestedData
+                              data={aiData.apify}
+                              parentKey="apify"
+                            />
                           </div>
                         )}
 
                         {/* Grok (recursive) */}
                         {aiData.grok && typeof aiData.grok === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Grok</p>
-                            <RenderNestedData data={aiData.grok} parentKey="grok" />
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              Grok
+                            </p>
+                            <RenderNestedData
+                              data={aiData.grok}
+                              parentKey="grok"
+                            />
                           </div>
                         )}
 
                         {/* Groq (recursive) */}
                         {aiData.groq && typeof aiData.groq === "object" && (
                           <div>
-                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">Groq</p>
-                            <RenderNestedData data={aiData.groq} parentKey="groq" />
+                            <p className="text-[10px] font-[700] uppercase tracking-widest text-violet-400 mb-2">
+                              Groq
+                            </p>
+                            <RenderNestedData
+                              data={aiData.groq}
+                              parentKey="groq"
+                            />
                           </div>
                         )}
                       </div>
@@ -7972,7 +8313,7 @@ function LeadsPage({ onBack }) {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => fetchLists(listsPage)}
+              onClick={() => fetchLists(listsPage, debouncedSearch)}
               disabled={loading}
               className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition"
               title="Refresh"
@@ -7985,7 +8326,10 @@ function LeadsPage({ onBack }) {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setListsPage(1);
+                }}
                 placeholder="Search lists…"
                 className="pl-7 pr-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 focus:bg-white transition w-[190px] placeholder:text-gray-400"
               />
@@ -8527,7 +8871,9 @@ function LeadsPage({ onBack }) {
                         }}
                         onBlur={() => {
                           // Add value on blur if not empty
-                          const val = apolloTagInputs[key]?.trim().replace(/,$/, "");
+                          const val = apolloTagInputs[key]
+                            ?.trim()
+                            .replace(/,$/, "");
                           if (val && !apolloFilters[key].includes(val)) {
                             setApolloFilters((f) => ({
                               ...f,
@@ -8547,7 +8893,7 @@ function LeadsPage({ onBack }) {
                 ))}
 
                 {/* Multi-select for seniorities, technologies, company_sizes */}
-                {[ 
+                {[
                   {
                     key: "seniorities",
                     label: "Seniorities",
@@ -8568,13 +8914,16 @@ function LeadsPage({ onBack }) {
                     key: "company_sizes",
                     label: "Company Sizes",
                     options: [
-                      "1-10",
-                      "11-50",
-                      "51-200",
-                      "201-500",
-                      "501-1000",
-                      "1001-5000",
-                      "5001-10000",
+                      "1,10",
+                      "11,20",
+                      "21,50",
+                      "51,100",
+                      "101,200",
+                      "201,500",
+                      "501,1000",
+                      "1001,2000",
+                      "2001,5000",
+                      "5001,10000",
                       "10000+",
                     ],
                   },
@@ -9230,7 +9579,12 @@ function MappingsPage({ onBack }) {
 /* ════════════════════════════════════════════════════════════
    MAIN SETTINGS DASHBOARD
 ════════════════════════════════════════════════════════════ */
-function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [], smtpProvider = "" }) {
+function GlobalIntegrationsPage({
+  onBack,
+  canAccess,
+  smtpProviderList = [],
+  smtpProvider = "",
+}) {
   const [forms, setForms] = useState({
     twilio: {
       twilio_auth_token: "",
@@ -10374,7 +10728,11 @@ function GlobalIntegrationsPage({ onBack, canAccess, smtpProviderList = [], smtp
                 </label>
                 <div className="relative">
                   <select
-                    value={forms.campaign_email_settings.smtp_provider_name || smtpProvider || ""}
+                    value={
+                      forms.campaign_email_settings.smtp_provider_name ||
+                      smtpProvider ||
+                      ""
+                    }
                     onChange={(e) =>
                       setForms((prev) => ({
                         ...prev,
@@ -10800,27 +11158,27 @@ export default function Setting() {
   const [emailPlatform, setEP] = useState("");
   const [emailPlatformOptions, setEmailPlatformOptions] = useState([]);
   const [emailPlatformLoading, setEmailPlatformLoading] = useState(true);
-    // Fetch email sending services/platforms
-    useEffect(() => {
-      const fetchEmailPlatforms = async () => {
-        setEmailPlatformLoading(true);
-        try {
-          const res = await axiosInstance.get("/api/email-sending/services");
-          const d = res.data;
-          setEmailPlatformOptions(Array.isArray(d?.services) ? d.services : []);
-          setEP(d?.selected_service || "");
-        } catch {
-          setEmailPlatformOptions([
-            { service: "SMTP", label: "SMTP" },
-            { service: "CRM", label: "CRM" },
-          ]);
-          setEP("SMTP");
-        } finally {
-          setEmailPlatformLoading(false);
-        }
-      };
-      fetchEmailPlatforms();
-    }, []);
+  // Fetch email sending services/platforms
+  useEffect(() => {
+    const fetchEmailPlatforms = async () => {
+      setEmailPlatformLoading(true);
+      try {
+        const res = await axiosInstance.get("/api/email-sending/services");
+        const d = res.data;
+        setEmailPlatformOptions(Array.isArray(d?.services) ? d.services : []);
+        setEP(d?.selected_service || "");
+      } catch {
+        setEmailPlatformOptions([
+          { service: "SMTP", label: "SMTP" },
+          { service: "CRM", label: "CRM" },
+        ]);
+        setEP("SMTP");
+      } finally {
+        setEmailPlatformLoading(false);
+      }
+    };
+    fetchEmailPlatforms();
+  }, []);
   const [emailPlatformSaving, setEmailPlatformSaving] = useState(false);
   const [smtpProvider, setSMTP] = useState("");
   const [smtpProviderList, setSmtpProviderList] = useState([]); // [{name, description, ready}]
@@ -10901,17 +11259,23 @@ export default function Setting() {
         const res = await axiosInstance.get("/api/smtp/saved-providers");
         const d = res.data;
         const raw = d?.providers ?? (Array.isArray(d) ? d : []);
-        
+
         const providers = raw.map((p) => ({
           name: p.provider ?? p.name ?? String(p),
           description: p.description ?? "",
           ready: p.ready ?? true,
         }));
-        
+
         setSmtpProviderList(providers);
 
-        const activeProvider = raw.find((p) => p.is_selected === true || p.is_active === true || p.is_current === true || p.selected === true);
-        
+        const activeProvider = raw.find(
+          (p) =>
+            p.is_selected === true ||
+            p.is_active === true ||
+            p.is_current === true ||
+            p.selected === true,
+        );
+
         if (activeProvider) {
           setSMTP(activeProvider.provider ?? activeProvider.name);
         } else if (providers.length > 0) {
@@ -11035,6 +11399,12 @@ export default function Setting() {
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
         <SuperAdminMetricsPage onBack={() => setActivePage(null)} />
+      </div>
+    );
+  if (activePage === "business-rules")
+    return (
+      <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
+        <BusinessRulesPage onBack={() => setActivePage(null)} />
       </div>
     );
 
@@ -11233,6 +11603,14 @@ export default function Setting() {
             action={<GearBtn page="users" />}
           />
         )}
+        <SettingCard
+          icon={ClipboardList}
+          iconBg="bg-blue-50"
+          iconColor="text-blue-600"
+          title="Chatbot Business Rules"
+          desc="Define rules that guide the AI chatbot behavior and responses"
+          action={<GearBtn page="business-rules" />}
+        />
         {/* {userIsSuperAdmin && (
           <SettingCard icon={ShieldCheck} iconBg="bg-indigo-50" iconColor="text-indigo-600" title="Superadmin Metrics" desc="Select users and send metrics data — superadmin only" action={<GearBtn page="superadmin-metrics" />} />
         )} */}
@@ -11273,8 +11651,8 @@ export default function Setting() {
                         {s.label || s.service}
                       </option>
                     ))}
-{                    console.log(emailPlatform)
-}                  </select>
+                    {console.log(emailPlatform)}{" "}
+                  </select>
                 )}
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               </div>

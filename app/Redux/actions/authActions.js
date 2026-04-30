@@ -461,6 +461,7 @@ export const listCampaigns = (params = {}) => async (dispatch) => {
     if (params.page_size)          query.page_size          = params.page_size;
     if (params.status)             query.status             = params.status;
     if (params.communication_type) query.communication_type = params.communication_type;
+    if (params.search)             query.search             = params.search;
 
     const res = await axiosInstance.get("/list-campaigns", { params: query });
 

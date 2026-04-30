@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import axiosInstance from "../../Redux/axiosInstance";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area,
@@ -251,17 +252,15 @@ const WHATSAPP_STATUS_STYLE = {
 /* ══════════════════════════════════════════════════════════════
    CAMPAIGN LIST  (no channel tabs — shows all campaigns)
 ══════════════════════════════════════════════════════════════ */
-function CampaignList({ campaigns, onViewDetails, onAddCampaign }) {
-  const [search, setSearch]             = useState("");
+function CampaignList({ campaigns, onViewDetails, onAddCampaign, search, setSearch, loading }) {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [period, setPeriod]             = useState("This Year");
   const [refreshing, setRefreshing]     = useState(false);
   const [showModal, setShowModal]       = useState(false);
 
   const filtered = campaigns.filter((c) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "ALL" || c.status === statusFilter;
-    return matchSearch && matchStatus;
+    return matchStatus;
   });
 
   const periodOptions = ["This Week", "This Month", "This Year"];
@@ -308,7 +307,11 @@ function CampaignList({ campaigns, onViewDetails, onAddCampaign }) {
         {/* ── search + status filter ── */}
         <div className="mb-5 flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            {loading ? (
+              <RefreshCw className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-violet-500 animate-spin pointer-events-none" />
+            ) : (
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            )}
             <input
               type="text"
               placeholder="Search campaigns…"
@@ -2636,17 +2639,58 @@ function CampaignDetail({ campaign, activity, onBack }) {
    ROOT — list → activities → detail navigation
 ══════════════════════════════════════════════════════════════ */
 export default function CampaignDashboard() {
-  const [allCampaigns, setAllCampaigns]   = useState(campaigns);
-  const [view, setView]                   = useState("list");         // "list" | "activities" | "detail"
-  const [selectedCampaign, setSelected]   = useState(null);
-  const [selectedActivity, setActivity]   = useState(null);
+  const [allCampaigns, setAllCampaigns] = useState([]);
+  const [view, setView] = useState("list"); // "list" | "activities" | "detail"
+  const [selectedCampaign, setSelected] = useState(null);
+  const [selectedActivity, setActivity] = useState(null);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const fetchCampaigns = useCallback(async (query = "") => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get("/list-campaigns", {
+        params: { query: query || null },
+      });
+      // Assuming res.data or res.data.data is the array of campaigns
+      const data = res?.data?.data ?? res?.data ?? [];
+      setAllCampaigns(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error fetching campaigns:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  // Debounced search
+  useEffect(() => {
+    if (search === "") {
+      fetchCampaigns("");
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchCampaigns(search);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search, fetchCampaigns]);
 
   if (view === "activities" && selectedCampaign) {
     return (
       <CampaignActivities
         campaign={selectedCampaign}
-        onBack={() => { setView("list"); setSelected(null); }}
-        onSelectActivity={(act) => { setActivity(act); setView("detail"); }}
+        onBack={() => {
+          setView("list");
+          setSelected(null);
+        }}
+        onSelectActivity={(act) => {
+          setActivity(act);
+          setView("detail");
+        }}
       />
     );
   }
@@ -2664,8 +2708,16 @@ export default function CampaignDashboard() {
   return (
     <CampaignList
       campaigns={allCampaigns}
-      onViewDetails={(c) => { setSelected(c); setView("activities"); }}
-      onAddCampaign={(newCampaign) => setAllCampaigns((prev) => [newCampaign, ...prev])}
+      search={search}
+      setSearch={setSearch}
+      loading={loading}
+      onViewDetails={(c) => {
+        setSelected(c);
+        setView("activities");
+      }}
+      onAddCampaign={(newCampaign) =>
+        setAllCampaigns((prev) => [newCampaign, ...prev])
+      }
     />
   );
 }

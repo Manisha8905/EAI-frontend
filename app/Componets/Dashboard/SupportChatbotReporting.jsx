@@ -139,22 +139,7 @@ const TAB_TO_FILTER = {
 //   "Closed Chats": { status: ["closed"] },
 // };
 
-const INITIAL_RULES = [
-  {
-    id: "rule-1",
-    number: 1,
-    text: "If customer asks about refund policy, always mention 30-day money-back guarantee",
-    createdBy: "Sarah Chen",
-    createdAt: "3/20/2026, 04:00 PM",
-  },
-  {
-    id: "rule-2",
-    number: 2,
-    text: "Always greet the customer by name when available.",
-    createdBy: "Mike Johnson",
-    createdAt: "3/21/2026, 10:30 AM",
-  },
-];
+// API-driven business rules state
 
 const normalizeConversation = (row = {}) => {
   const isEscalated =
@@ -387,8 +372,106 @@ export default function SupportChatbotReporting() {
   const [isRightAssignToast, setIsRightAssignToast] = useState(false);
   const [assignToastMessage, setAssignToastMessage] = useState("");
   const [assignResponseData, setAssignResponseData] = useState(null);
-  const [businessRules, setBusinessRules] = useState(INITIAL_RULES);
-  const [isBusinessRulesListOpen, setIsBusinessRulesListOpen] = useState(false);
+  const [businessRules, setBusinessRules] = useState([]);
+  const [businessRulesLoading, setBusinessRulesLoading] = useState(false);
+  const [businessRulesError, setBusinessRulesError] = useState("");
+    const [editRuleId, setEditRuleId] = useState(null);
+    const [editRuleText, setEditRuleText] = useState("");
+    const [editRuleActive, setEditRuleActive] = useState(true);
+    const [isBusinessRulesListOpen, setIsBusinessRulesListOpen] = useState(false); // Restored for modal logic
+    // Fetch rules when modal opens
+    useEffect(() => {
+      if (isBusinessRulesListOpen) fetchBusinessRules();
+    }, [isBusinessRulesListOpen]);
+
+  // Fetch rules from API
+  const fetchBusinessRules = async () => {
+    setBusinessRulesLoading(true);
+    setBusinessRulesError("");
+    try {
+      const res = await axiosInstance.get("/api/chatbot/business-rules/");
+      const data = res?.data?.data ?? res?.data ?? [];
+      setBusinessRules(data);
+    } catch (e) {
+      setBusinessRulesError(e.message || "Error loading business rules");
+    } finally {
+      setBusinessRulesLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (isBusinessRulesListOpen) fetchBusinessRules();
+  }, [isBusinessRulesListOpen]);
+
+  // Add rule from inline list
+  const handleAddRuleInList = async () => {
+    if (!newRuleInListText.trim()) return;
+    try {
+      await axiosInstance.post("/api/chatbot/business-rules/", {
+        rule_text: newRuleInListText.trim(),
+      });
+      setNewRuleInListText("");
+      setIsRulesInlineAddOpen(false);
+      fetchBusinessRules();
+    } catch (e) {
+      alert(e.message || "Error adding rule");
+    }
+  };
+
+  // Add rule from dedicated modal
+  const handleAddRule = async () => {
+    if (!newRuleText.trim()) return;
+    try {
+      if (selectedRuleId) {
+        await axiosInstance.patch(`/api/chatbot/business-rules/${selectedRuleId}`, {
+          rule_text: newRuleText.trim(),
+          is_active: true, // Ensuring it stays active on update from this modal
+        });
+      } else {
+        await axiosInstance.post("/api/chatbot/business-rules/", {
+          rule_text: newRuleText.trim(),
+        });
+      }
+      setNewRuleText("");
+      setSelectedRuleId(null);
+      setIsAddRuleOpen(false);
+      fetchBusinessRules();
+    } catch (e) {
+      alert(e.message || `Error ${selectedRuleId ? "updating" : "adding"} rule`);
+    }
+  };
+
+  // Edit rule
+  const handleEditRule = (rule) => {
+    setEditRuleId(rule.id);
+    setEditRuleText(rule.rule_text);
+    setEditRuleActive(rule.is_active);
+  };
+  const handleUpdateRule = async () => {
+    if (!editRuleText.trim()) return;
+    try {
+      await axiosInstance.patch(`/api/chatbot/business-rules/${editRuleId}`, {
+        rule_text: editRuleText.trim(),
+        is_active: editRuleActive,
+      });
+      setEditRuleId(null);
+      setEditRuleText("");
+      fetchBusinessRules();
+    } catch (e) {
+      alert(e.message || "Error updating rule");
+    }
+  };
+
+  // Delete rule
+  const handleDeleteRule = async (ruleId) => {
+    if (!window.confirm("Delete this rule?")) return;
+    try {
+      await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}`);
+      fetchBusinessRules();
+    } catch (e) {
+      alert(e.message || "Error deleting rule");
+    }
+  };
+  // const [isBusinessRulesListOpen, setIsBusinessRulesListOpen] = useState(false); // Duplicate removed
   const [isRulesInlineAddOpen, setIsRulesInlineAddOpen] = useState(false);
   const [newRuleInListText, setNewRuleInListText] = useState("");
 
@@ -751,28 +834,14 @@ export default function SupportChatbotReporting() {
     setTimeout(() => setIsRightAssignToast(false), 3000);
   };
 
-  const handleAddRuleInList = () => {
-    if (!newRuleInListText.trim()) return;
-    setBusinessRules((prev) => [
-      ...prev,
-      {
-        id: `rule-${Date.now()}`,
-        number: prev.length + 1,
-        text: newRuleInListText.trim(),
-        createdBy: "You",
-        createdAt: new Date().toLocaleString(),
-      },
-    ]);
-    setNewRuleInListText("");
-    setIsRulesInlineAddOpen(false);
-  };
+  // (Removed duplicate handleAddRuleInList. Only API-driven version remains.)
 
   const openAddRuleModal = (rule = null) => {
     setIsBusinessRulesListOpen(false);
     setIsRulesInlineAddOpen(false);
     if (rule) {
       setSelectedRuleId(rule.id);
-      setNewRuleText(rule.text || "");
+      setNewRuleText(rule.rule_text || rule.text || "");
     } else {
       setSelectedRuleId(null);
       setNewRuleText("");
@@ -870,38 +939,6 @@ export default function SupportChatbotReporting() {
     await assignChat([...selectedChats], agentId);
     setSelectedChats(new Set());
     setIsConvPanelAssignOpen(false);
-  };
-  const handleAddRule = () => {
-    if (!newRuleText.trim()) return;
-
-    setBusinessRules((prev) => {
-      if (selectedRuleId) {
-        return prev.map((rule) =>
-          rule.id === selectedRuleId
-            ? {
-                ...rule,
-                text: newRuleText.trim(),
-                createdAt: new Date().toLocaleString(),
-              }
-            : rule,
-        );
-      }
-
-      return [
-        ...prev,
-        {
-          id: `rule-${Date.now()}`,
-          number: prev.length + 1,
-          text: newRuleText.trim(),
-          createdBy: "You",
-          createdAt: new Date().toLocaleString(),
-        },
-      ];
-    });
-
-    setNewRuleText("");
-    setSelectedRuleId(null);
-    setIsAddRuleOpen(false);
   };
 
   if (!canAccess) {
@@ -1028,11 +1065,11 @@ export default function SupportChatbotReporting() {
           tone="purple"
         />
       </section>
-      {cardError && (
+      {/* {cardError && (
         <div className="mb-2 rounded-xl border border-red-200 bg-red-50 p-2 text-[13px] text-red-600">
           {cardError}
         </div>
-      )}
+      )} */}
 
       {/* Toolbar */}
       <section className="mb-3 flex flex-wrap items-center gap-2">
@@ -1628,42 +1665,58 @@ export default function SupportChatbotReporting() {
             )}
             {/* Rules list */}
             <div className="flex-1 overflow-y-auto px-8 py-5 space-y-4">
-              {businessRules.length === 0 ? (
-                <p className="py-8 text-center text-[14px] text-gray-400">
-                  No business rules yet. Add your first rule above.
-                </p>
+              {businessRulesLoading ? (
+                <p className="py-8 text-center text-[14px] text-gray-400">Loading…</p>
+              ) : businessRulesError ? (
+                <p className="py-8 text-center text-[14px] text-red-500">{businessRulesError}</p>
+              ) : businessRules.length === 0 ? (
+                <p className="py-8 text-center text-[14px] text-gray-400">No business rules yet. Add your first rule above.</p>
               ) : (
                 businessRules.map((rule) => {
                   const isSelected = selectedRuleId === rule.id;
                   return (
-                    <button
-                      key={rule.id}
-                      type="button"
-                      onClick={() => handleRuleClick(rule)}
-                      className={`w-full rounded-xl border px-0 text-left transition ${isSelected ? "border-green-500 bg-green-50" : "border-gray-100 bg-white hover:bg-gray-50"}`}
-                    >
-                      <div
-                        style={{ borderLeft: "4px solid #7c3aed" }}
-                        className="px-5 py-4"
-                      >
+                    <div key={rule.id} className={`w-full rounded-xl border px-0 text-left transition ${isSelected ? "border-green-500 bg-green-50" : "border-gray-100 bg-white hover:bg-gray-50"}`}>
+                      <div style={{ borderLeft: "4px solid #7c3aed" }} className="px-5 py-4">
                         <div className="flex items-start justify-between gap-3">
                           <span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">
-                            Rule #{rule.number}
+                            {rule.is_active ? <span className="text-green-600 mr-1">●</span> : <span className="text-gray-400 mr-1">●</span>}
+                            Rule
                           </span>
                           <div className="text-right">
-                            <p className="text-[13px] font-[500] text-gray-500">
-                              Created by {rule.createdBy}
-                            </p>
-                            <p className="text-[12px] text-gray-400">
-                              {rule.createdAt}
-                            </p>
+                            <p className="text-[13px] font-[500] text-gray-500">Created by {rule.created_by}</p>
+                            <p className="text-[12px] text-gray-400">{new Date(rule.created_at).toLocaleString()}</p>
+                            <p className="text-[12px] text-gray-400">Updated: {new Date(rule.updated_at).toLocaleString()}</p>
                           </div>
                         </div>
-                        <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">
-                          {rule.text}
-                        </p>
+                        {editRuleId === rule.id ? (
+                          <div className="mt-4 flex flex-col gap-2">
+                            <textarea
+                              value={editRuleText}
+                              onChange={e => setEditRuleText(e.target.value)}
+                              rows={3}
+                              className="w-full resize-none rounded-xl border border-gray-300 bg-white p-3 text-[13px] text-gray-700 outline-none focus:border-[#a78bfa]"
+                            />
+                            <label className="flex items-center gap-2 text-[12px]">
+                              <input type="checkbox" checked={editRuleActive} onChange={e => setEditRuleActive(e.target.checked)} />
+                              Active
+                            </label>
+                            <div className="flex gap-2 mt-2">
+                              <button type="button" onClick={handleUpdateRule} className="rounded-xl bg-[#7c3aed] px-4 py-2 text-[13px] font-[700] text-white hover:bg-[#6d28d9]">Save</button>
+                              <button type="button" onClick={() => setEditRuleId(null)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">{rule.rule_text}</p>
+                            <div className="flex gap-2 mt-3">
+                              <button type="button" onClick={() => handleEditRule(rule)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50">Edit</button>
+                              <button type="button" onClick={() => handleDeleteRule(rule.id)} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-[13px] font-[600] text-red-700 hover:bg-red-100">Delete</button>
+                              <button type="button" onClick={() => handleRuleClick(rule)} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-[13px] font-[600] text-blue-700 hover:bg-blue-100">Details</button>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    </button>
+                    </div>
                   );
                 })
               )}
@@ -1716,16 +1769,16 @@ export default function SupportChatbotReporting() {
               </p>
               <div className="mt-6 rounded-xl border border-gray-200 bg-[#f8fbff] p-4">
                 <p className="text-[13px] font-[700] text-[#253b69]">
-                  Rule #{ruleDetailData.number}
+                  Rule ID: {ruleDetailData.id}
                 </p>
                 <p className="mt-2 text-[14px] text-[#1a2d57]">
-                  {ruleDetailData.text}
+                  {ruleDetailData.rule_text || ruleDetailData.text}
                 </p>
                 <p className="mt-3 text-[12px] text-gray-500">
-                  Created by {ruleDetailData.createdBy}
+                  Created by {ruleDetailData.created_by || ruleDetailData.createdBy}
                 </p>
                 <p className="text-[12px] text-gray-400">
-                  {ruleDetailData.createdAt}
+                  {new Date(ruleDetailData.created_at || ruleDetailData.createdAt).toLocaleString()}
                 </p>
               </div>
               <div className="mt-5 flex justify-end gap-2">

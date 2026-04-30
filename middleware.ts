@@ -28,6 +28,23 @@ export function middleware(request: NextRequest) {
   const host = request.headers.get("host") || request.nextUrl.host;
   requestHeaders.set("X-Forwarded-Host", host);
 
+  // Prefer an incoming Authorization header from the browser (axiosInstance sets it),
+  // otherwise fall back to session_token cookie.
+  const incomingAuth = request.headers.get("authorization");
+  if (incomingAuth) {
+    requestHeaders.set("Authorization", incomingAuth);
+    console.log("🔐 [Middleware] Forwarding incoming Authorization header");
+  } else {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const sessionTokenMatch = cookieHeader.match(/session_token=([^;]+)/);
+    const sessionToken = sessionTokenMatch ? sessionTokenMatch[1] : null;
+    if (sessionToken) {
+      requestHeaders.set("Authorization", `Bearer ${sessionToken}`);
+      requestHeaders.set("X-Session-Token", sessionToken);
+      console.log("🔐 [Middleware] session_token from cookie forwarded in Authorization header");
+    }
+  }
+
   return NextResponse.next({
     request: { headers: requestHeaders },
   });
