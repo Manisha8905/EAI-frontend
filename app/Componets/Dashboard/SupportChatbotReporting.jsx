@@ -192,6 +192,7 @@ const normalizeConversation = (row = {}) => {
     escalated: isEscalated,
     messageCount: row.message_count ?? null,
     assignedTo: row.assigned_to ?? row.assignee ?? null,
+    feedback: row.feedback ?? row.user_feedback ?? row.rating ?? null,
   };
 };
 
@@ -550,6 +551,7 @@ export default function SupportChatbotReporting() {
   const [conversationsError, setConversationsError] = useState(null);
   const [chatHistory, setChatHistory] = useState([]);
   const [chatHistoryLoading, setChatHistoryLoading] = useState(false);
+  const [feedbackFilter, setFeedbackFilter] = useState("all"); // "all" | "positive" | "negative"
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     status: "open",
@@ -585,9 +587,19 @@ export default function SupportChatbotReporting() {
         c.lead.toLowerCase().includes(q) ||
         c.email.toLowerCase().includes(q) ||
         c.preview.toLowerCase().includes(q);
-      return inTab && matchesSearch;
+      // feedback filter — based on conv-level feedback field
+      const matchesFeedback = (() => {
+        if (feedbackFilter === "all") return true;
+        const raw = String(c.feedback ?? "").toLowerCase();
+        const isPos = ["positive","good","thumbs_up","1","true","like","satisfied"].includes(raw);
+        const isNeg = ["negative","bad","thumbs_down","0","false","dislike","unsatisfied"].includes(raw);
+        if (feedbackFilter === "positive") return isPos;
+        if (feedbackFilter === "negative") return isNeg;
+        return true;
+      })();
+      return inTab && matchesSearch && matchesFeedback;
     });
-  }, [conversations, activeConversationTab, search]);
+  }, [conversations, activeConversationTab, search, feedbackFilter]);
 
   const selectedConversationCard = useMemo(() => {
     return (
@@ -698,6 +710,7 @@ export default function SupportChatbotReporting() {
               : String(msg.role ?? msg.sender ?? "USER").toUpperCase(),
           text: msg.content ?? msg.text ?? msg.message ?? msg.body ?? "",
           timestamp: msg.timestamp ?? msg.created_at ?? null,
+          feedback_type: msg.feedback_type ?? msg.feedback ?? null,
         })),
       );
     } catch {
@@ -1210,6 +1223,28 @@ export default function SupportChatbotReporting() {
             title="End Date"
           /> */}
 
+          {/* Feedback filter buttons */}
+          <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-1.5 py-1.5">
+            {[["all","All"],["positive","👍 Positive"],["negative","👎 Negative"]].map(([val, label]) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setFeedbackFilter(val)}
+                className={`rounded-lg px-2.5 py-1 text-[11px] font-[600] transition ${
+                  feedbackFilter === val
+                    ? val === "positive"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : val === "negative"
+                        ? "bg-red-100 text-red-600"
+                        : "bg-violet-100 text-violet-700"
+                    : "text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Agents button + dropdown */}
           <div className="relative flex-1 sm:flex-none" ref={agentsDropdownRef}>
             <button
@@ -1452,6 +1487,28 @@ export default function SupportChatbotReporting() {
                             {conv.assignedTo}
                           </span>
                         )}
+                        {conv.feedback != null && (() => {
+                          const raw = String(conv.feedback).toLowerCase();
+                          const isPositive =
+                            raw === "positive" || raw === "good" || raw === "thumbs_up" ||
+                            raw === "1" || raw === "true" || raw === "like" || raw === "satisfied";
+                          const isNegative =
+                            raw === "negative" || raw === "bad" || raw === "thumbs_down" ||
+                            raw === "0" || raw === "false" || raw === "dislike" || raw === "unsatisfied";
+                          if (!isPositive && !isNegative) return null;
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-[600] ${
+                                isPositive
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-red-50 text-red-600 border border-red-200"
+                              }`}
+                            >
+                              {isPositive ? "👍" : "👎"}
+                              {isPositive ? "Positive" : "Negative"}
+                            </span>
+                          );
+                        })()}
                         {conv.status && (
                           <span
                             className={`rounded-full px-2 py-0.5 text-[10px] font-[600] ${
@@ -1633,7 +1690,7 @@ export default function SupportChatbotReporting() {
                           )}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-[14px] font-[700] text-[#1a2d57]">
                               {isBot ? "BOT" : "USER"}
                             </p>
@@ -1642,6 +1699,19 @@ export default function SupportChatbotReporting() {
                                 {new Date(item.timestamp).toLocaleString()}
                               </p>
                             )}
+                            {item.feedback_type && (() => {
+                              const ft = String(item.feedback_type).toLowerCase();
+                              const isPos = ["positive","good","thumbs_up","1","like"].includes(ft);
+                              const isNeg = ["negative","bad","thumbs_down","0","dislike"].includes(ft);
+                              if (!isPos && !isNeg) return null;
+                              return (
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-[600] ${
+                                  isPos ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-600 border border-red-200"
+                                }`}>
+                                  {isPos ? "👍" : "👎"} {isPos ? "Positive" : "Negative"}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <p className="mt-1 text-[13px] leading-relaxed text-slate-700">
                             {item.text}
