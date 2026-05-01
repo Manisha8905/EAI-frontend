@@ -413,17 +413,17 @@ export default function SupportChatbotReporting() {
   const handleAddRuleInList = async () => {
     if (!newRuleInListText.trim()) return;
     try {
-      await axiosInstance.post("/api/chatbot/business-rules/", {
+      const res = await axiosInstance.post("/api/chatbot/business-rules/", {
         rule_text: newRuleInListText.trim(),
       });
       setNewRuleInListText("");
       setIsRulesInlineAddOpen(false);
       fetchBusinessRules();
-      setAssignToastMessage("Rule added successfully");
+      setAssignToastMessage(res.data?.message || res.data?.detail || "Rule added successfully");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      setAssignToastMessage(e.message || "Error adding rule");
+      setAssignToastMessage(e.response?.data?.message || e.response?.data?.detail || e.message || "Error adding rule");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     }
@@ -433,13 +433,14 @@ export default function SupportChatbotReporting() {
   const handleAddRule = async () => {
     if (!newRuleText.trim()) return;
     try {
+      let res;
       if (selectedRuleId) {
-        await axiosInstance.patch(`/api/chatbot/business-rules/${selectedRuleId}`, {
+        res = await axiosInstance.patch(`/api/chatbot/business-rules/${selectedRuleId}`, {
           rule_text: newRuleText.trim(),
           is_active: true, // Ensuring it stays active on update from this modal
         });
       } else {
-        await axiosInstance.post("/api/chatbot/business-rules/", {
+        res = await axiosInstance.post("/api/chatbot/business-rules/", {
           rule_text: newRuleText.trim(),
         });
       }
@@ -447,11 +448,11 @@ export default function SupportChatbotReporting() {
       setSelectedRuleId(null);
       setIsAddRuleOpen(false);
       fetchBusinessRules();
-      setAssignToastMessage(selectedRuleId ? "Rule updated successfully" : "Rule added successfully");
+      setAssignToastMessage(res.data?.message || res.data?.detail || (selectedRuleId ? "Rule updated successfully" : "Rule added successfully"));
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      setAssignToastMessage(e.message || `Error ${selectedRuleId ? "updating" : "adding"} rule`);
+      setAssignToastMessage(e.response?.data?.message || e.response?.data?.detail || e.message || `Error ${selectedRuleId ? "updating" : "adding"} rule`);
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     }
@@ -466,18 +467,18 @@ export default function SupportChatbotReporting() {
   const handleUpdateRule = async () => {
     if (!editRuleText.trim()) return;
     try {
-      await axiosInstance.patch(`/api/chatbot/business-rules/${editRuleId}`, {
+      const res = await axiosInstance.patch(`/api/chatbot/business-rules/${editRuleId}`, {
         rule_text: editRuleText.trim(),
         is_active: editRuleActive,
       });
       setEditRuleId(null);
       setEditRuleText("");
       fetchBusinessRules();
-      setAssignToastMessage("Rule updated successfully");
+      setAssignToastMessage(res.data?.message || res.data?.detail || "Rule updated successfully");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      setAssignToastMessage(e.message || "Error updating rule");
+      setAssignToastMessage(e.response?.data?.message || e.response?.data?.detail || e.message || "Error updating rule");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     }
@@ -486,16 +487,16 @@ export default function SupportChatbotReporting() {
   // Delete rule
   const handleDeleteRule = async (ruleId) => {
     try {
-      await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}`);
+      const res = await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}`);
       setDeleteConfirmRuleId(null);
       setSelectedRuleIds((prev) => { const n = new Set(prev); n.delete(ruleId); return n; });
       fetchBusinessRules();
-      setAssignToastMessage("Rule deleted successfully");
+      setAssignToastMessage(res.data?.message || res.data?.detail || "Rule deleted successfully");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
       setDeleteConfirmRuleId(null);
-      setAssignToastMessage(e.message || "Error deleting rule");
+      setAssignToastMessage(e.response?.data?.message || e.response?.data?.detail || e.message || "Error deleting rule");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     }
@@ -510,12 +511,12 @@ export default function SupportChatbotReporting() {
     );
     setTogglingActiveId(rule.id);
     try {
-      await axiosInstance.patch(`/api/chatbot/business-rules/${rule.id}`, {
+      const res = await axiosInstance.patch(`/api/chatbot/business-rules/${rule.id}`, {
         rule_text: rule.rule_text,
         is_active: newActive,
       });
       setAssignToastMessage(
-        newActive ? "Rule activated successfully" : "Rule deactivated successfully"
+        res.data?.message || res.data?.detail || (newActive ? "Rule activated" : "Rule deactivated")
       );
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
@@ -524,7 +525,7 @@ export default function SupportChatbotReporting() {
       setBusinessRules((prev) =>
         prev.map((r) => (r.id === rule.id ? { ...r, is_active: rule.is_active } : r))
       );
-      setAssignToastMessage(e.message || "Error updating rule");
+      setAssignToastMessage(e.response?.data?.message || e.response?.data?.detail || e.message || "Error updating rule");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     } finally {
@@ -1813,14 +1814,14 @@ export default function SupportChatbotReporting() {
                 businessRules.map((rule, idx) => {
                   const isChecked = selectedRuleIds.has(rule.id);
                   return (
-                    <div key={rule.id} className={`relative rounded-xl border text-left transition ${isChecked ? "border-violet-400 bg-violet-50/30" : "border-gray-100 bg-white"}`} style={{ borderLeft: "5px solid #7c3aed" }}>
-                      <div className="px-4 py-4 pb-10">
+                    <div key={rule.id} className={`rounded-xl border text-left transition ${isChecked ? "border-violet-400 bg-violet-50/30" : "border-gray-100 bg-white"}`} style={{ borderLeft: "5px solid #7c3aed" }}>
+                      <div className="px-4 py-3">
                         {/* Top row: badge + creator + toggle */}
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <span className="shrink-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">
                             Rule #{idx + 1}
                           </span>
-                          <div className="flex items-start gap-3 ml-auto">
+                          <div className="flex items-center gap-2 ml-auto flex-wrap">
                             <div className="text-right leading-snug">
                               <p className="text-[12px] font-[500] text-gray-500">Created by {rule.created_by}</p>
                               <p className="text-[11px] text-gray-400">{new Date(rule.created_at).toLocaleString()}</p>
@@ -1842,9 +1843,9 @@ export default function SupportChatbotReporting() {
                           </div>
                         </div>
 
-                        {/* Rule text / edit form */}
+                        {/* Rule text row with action icons on right */}
                         {editRuleId === rule.id ? (
-                          <div className="mt-3 flex flex-col gap-2">
+                          <div className="mt-2.5 flex flex-col gap-2">
                             <textarea
                               value={editRuleText}
                               onChange={e => setEditRuleText(e.target.value)}
@@ -1861,15 +1862,16 @@ export default function SupportChatbotReporting() {
                             </div>
                           </div>
                         ) : (
-                          <p className="mt-3 text-[14px] leading-relaxed text-[#1a2d57]">{rule.rule_text}</p>
+                          <div className="mt-2 flex items-start justify-between gap-2">
+                            <p className="flex-1 text-[13px] leading-relaxed text-[#1a2d57]">{rule.rule_text}</p>
+                            {/* Action icons aligned right of rule text */}
+                            <div className="flex shrink-0 items-center gap-0.5">
+                              <button type="button" onClick={() => handleEditRule(rule)} title="Edit" className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"><Pencil className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => setDeleteConfirmRuleId(rule.id)} title="Delete" className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"><Trash2 className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => handleRuleClick(rule)} title="Details" className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"><Eye className="h-3.5 w-3.5" /></button>
+                            </div>
+                          </div>
                         )}
-                      </div>
-
-                      {/* Action icons — bottom right */}
-                      <div className="absolute bottom-2 right-3 flex items-center gap-0.5">
-                        <button type="button" onClick={() => handleEditRule(rule)} title="Edit" className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"><Pencil className="h-[11px] w-[11px]" /></button>
-                        <button type="button" onClick={() => setDeleteConfirmRuleId(rule.id)} title="Delete" className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"><Trash2 className="h-[11px] w-[11px]" /></button>
-                        <button type="button" onClick={() => handleRuleClick(rule)} title="Details" className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"><Eye className="h-[11px] w-[11px]" /></button>
                       </div>
                     </div>
                   );
@@ -1954,9 +1956,7 @@ export default function SupportChatbotReporting() {
                 View details for the selected business rule.
               </p>
               <div className="mt-6 rounded-xl border border-gray-200 bg-[#f8fbff] p-4">
-                <p className="text-[13px] font-[700] text-[#253b69]">
-                  Rule ID: {ruleDetailData.id}
-                </p>
+               
                 <p className="mt-2 text-[14px] text-[#1a2d57]">
                   {ruleDetailData.rule_text || ruleDetailData.text}
                 </p>
