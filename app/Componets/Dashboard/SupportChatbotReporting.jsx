@@ -10,11 +10,14 @@ import {
   Check,
   ClipboardList,
   Download,
+  Eye,
   MessageCircle,
   MoreVertical,
+  Pencil,
   Plus,
   Search,
   ShieldAlert,
+  Trash2,
   User,
   UserCog,
   X,
@@ -375,6 +378,9 @@ export default function SupportChatbotReporting() {
   const [businessRules, setBusinessRules] = useState([]);
   const [businessRulesLoading, setBusinessRulesLoading] = useState(false);
   const [businessRulesError, setBusinessRulesError] = useState("");
+  const [deleteConfirmRuleId, setDeleteConfirmRuleId] = useState(null);
+  const [selectedRuleIds, setSelectedRuleIds] = useState(new Set());
+  const [togglingActiveId, setTogglingActiveId] = useState(null);
     const [editRuleId, setEditRuleId] = useState(null);
     const [editRuleText, setEditRuleText] = useState("");
     const [editRuleActive, setEditRuleActive] = useState(true);
@@ -412,8 +418,13 @@ export default function SupportChatbotReporting() {
       setNewRuleInListText("");
       setIsRulesInlineAddOpen(false);
       fetchBusinessRules();
+      setAssignToastMessage("Rule added successfully");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      alert(e.message || "Error adding rule");
+      setAssignToastMessage(e.message || "Error adding rule");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     }
   };
 
@@ -435,8 +446,13 @@ export default function SupportChatbotReporting() {
       setSelectedRuleId(null);
       setIsAddRuleOpen(false);
       fetchBusinessRules();
+      setAssignToastMessage(selectedRuleId ? "Rule updated successfully" : "Rule added successfully");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      alert(e.message || `Error ${selectedRuleId ? "updating" : "adding"} rule`);
+      setAssignToastMessage(e.message || `Error ${selectedRuleId ? "updating" : "adding"} rule`);
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     }
   };
 
@@ -456,20 +472,72 @@ export default function SupportChatbotReporting() {
       setEditRuleId(null);
       setEditRuleText("");
       fetchBusinessRules();
+      setAssignToastMessage("Rule updated successfully");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      alert(e.message || "Error updating rule");
+      setAssignToastMessage(e.message || "Error updating rule");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     }
   };
 
   // Delete rule
   const handleDeleteRule = async (ruleId) => {
-    if (!window.confirm("Delete this rule?")) return;
     try {
       await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}`);
+      setDeleteConfirmRuleId(null);
+      setSelectedRuleIds((prev) => { const n = new Set(prev); n.delete(ruleId); return n; });
       fetchBusinessRules();
+      setAssignToastMessage("Rule deleted successfully");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      alert(e.message || "Error deleting rule");
+      setDeleteConfirmRuleId(null);
+      setAssignToastMessage(e.message || "Error deleting rule");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
     }
+  };
+
+  // Toggle is_active for a rule
+  const handleToggleActive = async (rule) => {
+    const newActive = !rule.is_active;
+    // Optimistic UI update
+    setBusinessRules((prev) =>
+      prev.map((r) => (r.id === rule.id ? { ...r, is_active: newActive } : r))
+    );
+    setTogglingActiveId(rule.id);
+    try {
+      await axiosInstance.patch(`/api/chatbot/business-rules/${rule.id}`, {
+        rule_text: rule.rule_text,
+        is_active: newActive,
+      });
+      setAssignToastMessage(
+        newActive ? "Rule activated successfully" : "Rule deactivated successfully"
+      );
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
+    } catch (e) {
+      // Revert on error
+      setBusinessRules((prev) =>
+        prev.map((r) => (r.id === rule.id ? { ...r, is_active: rule.is_active } : r))
+      );
+      setAssignToastMessage(e.message || "Error updating rule");
+      setIsAssignedToast(true);
+      setTimeout(() => setIsAssignedToast(false), 3000);
+    } finally {
+      setTogglingActiveId(null);
+    }
+  };
+
+  // Toggle rule selection
+  const toggleRuleSelection = (ruleId) => {
+    setSelectedRuleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ruleId)) next.delete(ruleId); else next.add(ruleId);
+      return next;
+    });
   };
   // const [isBusinessRulesListOpen, setIsBusinessRulesListOpen] = useState(false); // Duplicate removed
   const [isRulesInlineAddOpen, setIsRulesInlineAddOpen] = useState(false);
@@ -1672,49 +1740,66 @@ export default function SupportChatbotReporting() {
               ) : businessRules.length === 0 ? (
                 <p className="py-8 text-center text-[14px] text-gray-400">No business rules yet. Add your first rule above.</p>
               ) : (
-                businessRules.map((rule) => {
-                  const isSelected = selectedRuleId === rule.id;
+                businessRules.map((rule, idx) => {
+                  const isChecked = selectedRuleIds.has(rule.id);
                   return (
-                    <div key={rule.id} className={`w-full rounded-xl border px-0 text-left transition ${isSelected ? "border-green-500 bg-green-50" : "border-gray-100 bg-white hover:bg-gray-50"}`}>
-                      <div style={{ borderLeft: "4px solid #7c3aed" }} className="px-5 py-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">
-                            {rule.is_active ? <span className="text-green-600 mr-1">●</span> : <span className="text-gray-400 mr-1">●</span>}
-                            Rule
+                    <div key={rule.id} className={`relative rounded-xl border text-left transition ${isChecked ? "border-violet-400 bg-violet-50/30" : "border-gray-100 bg-white"}`} style={{ borderLeft: "5px solid #7c3aed" }}>
+                      <div className="px-4 py-4 pb-10">
+                        {/* Top row: badge + creator + toggle */}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="shrink-0 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1 text-[13px] font-[600] text-[#253b69]">
+                            Rule #{idx + 1}
                           </span>
-                          <div className="text-right">
-                            <p className="text-[13px] font-[500] text-gray-500">Created by {rule.created_by}</p>
-                            <p className="text-[12px] text-gray-400">{new Date(rule.created_at).toLocaleString()}</p>
-                            <p className="text-[12px] text-gray-400">Updated: {new Date(rule.updated_at).toLocaleString()}</p>
+                          <div className="flex items-start gap-3 ml-auto">
+                            <div className="text-right leading-snug">
+                              <p className="text-[12px] font-[500] text-gray-500">Created by {rule.created_by}</p>
+                              <p className="text-[11px] text-gray-400">{new Date(rule.created_at).toLocaleString()}</p>
+                            </div>
+                            {/* is_active toggle */}
+                            <button
+                              type="button"
+                              disabled={togglingActiveId === rule.id}
+                              onClick={() => handleToggleActive(rule)}
+                              title={rule.is_active ? "Active — click to deactivate" : "Inactive — click to activate"}
+                              className={`relative shrink-0 inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
+                                rule.is_active ? "bg-[#7c3aed]" : "bg-gray-200"
+                              }`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                                rule.is_active ? "translate-x-4" : "translate-x-0.5"
+                              }`} />
+                            </button>
                           </div>
                         </div>
+
+                        {/* Rule text / edit form */}
                         {editRuleId === rule.id ? (
-                          <div className="mt-4 flex flex-col gap-2">
+                          <div className="mt-3 flex flex-col gap-2">
                             <textarea
                               value={editRuleText}
                               onChange={e => setEditRuleText(e.target.value)}
                               rows={3}
                               className="w-full resize-none rounded-xl border border-gray-300 bg-white p-3 text-[13px] text-gray-700 outline-none focus:border-[#a78bfa]"
                             />
-                            <label className="flex items-center gap-2 text-[12px]">
+                            <label className="flex items-center gap-2 text-[12px] text-gray-600">
                               <input type="checkbox" checked={editRuleActive} onChange={e => setEditRuleActive(e.target.checked)} />
                               Active
                             </label>
-                            <div className="flex gap-2 mt-2">
-                              <button type="button" onClick={handleUpdateRule} className="rounded-xl bg-[#7c3aed] px-4 py-2 text-[13px] font-[700] text-white hover:bg-[#6d28d9]">Save</button>
-                              <button type="button" onClick={() => setEditRuleId(null)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50">Cancel</button>
+                            <div className="flex gap-2">
+                              <button type="button" onClick={handleUpdateRule} className="rounded-xl bg-[#7c3aed] px-4 py-1.5 text-[13px] font-[700] text-white hover:bg-[#6d28d9]">Save</button>
+                              <button type="button" onClick={() => setEditRuleId(null)} className="rounded-xl border border-gray-200 bg-white px-4 py-1.5 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50">Cancel</button>
                             </div>
                           </div>
                         ) : (
-                          <>
-                            <p className="mt-4 text-[14px] leading-relaxed text-[#1a2d57]">{rule.rule_text}</p>
-                            <div className="flex gap-2 mt-3">
-                              <button type="button" onClick={() => handleEditRule(rule)} className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-[13px] font-[600] text-[#253b69] hover:bg-gray-50">Edit</button>
-                              <button type="button" onClick={() => handleDeleteRule(rule.id)} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-[13px] font-[600] text-red-700 hover:bg-red-100">Delete</button>
-                              <button type="button" onClick={() => handleRuleClick(rule)} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-[13px] font-[600] text-blue-700 hover:bg-blue-100">Details</button>
-                            </div>
-                          </>
+                          <p className="mt-3 text-[14px] leading-relaxed text-[#1a2d57]">{rule.rule_text}</p>
                         )}
+                      </div>
+
+                      {/* Action icons — bottom right */}
+                      <div className="absolute bottom-2 right-3 flex items-center gap-0.5">
+                        <button type="button" onClick={() => handleEditRule(rule)} title="Edit" className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all"><Pencil className="h-[11px] w-[11px]" /></button>
+                        <button type="button" onClick={() => setDeleteConfirmRuleId(rule.id)} title="Delete" className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"><Trash2 className="h-[11px] w-[11px]" /></button>
+                        <button type="button" onClick={() => handleRuleClick(rule)} title="Details" className="p-1 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"><Eye className="h-[11px] w-[11px]" /></button>
                       </div>
                     </div>
                   );
@@ -1739,6 +1824,37 @@ export default function SupportChatbotReporting() {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Popup */}
+      {deleteConfirmRuleId && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6 flex flex-col items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+              <Trash2 className="h-6 w-6 text-red-600" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-[16px] font-[700] text-gray-900">Delete this rule?</h3>
+              <p className="mt-1 text-[13px] text-gray-500">This action cannot be undone. The rule will be permanently removed.</p>
+            </div>
+            <div className="flex w-full gap-3 mt-1">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmRuleId(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteRule(deleteConfirmRuleId)}
+                className="flex-1 rounded-xl bg-red-600 py-2.5 text-[13px] font-[700] text-white hover:bg-red-700 transition"
+              >
+                Yes, Delete
+              </button>
             </div>
           </div>
         </div>

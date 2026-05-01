@@ -809,8 +809,7 @@ const normalizeFollowUpTasks = (value) => {
 export const fetchCallHistory = (campaignId) => async (dispatch) => {
   dispatch({ type: CALL_HISTORY_REQUEST });
   try {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const res = await axiosInstance.get(`${origin}/api/campaigns/${campaignId}/call-history/`);
+    const res = await axiosInstance.get(`/campaigns/${campaignId}/call-history/`);
     const raw = extractArray(res.data);
     const totalTasks = Number(res.data?.total_tasks ?? 0) || 0;
     const normalized = raw.map((r) => {
@@ -878,8 +877,7 @@ export const fetchCallHistory = (campaignId) => async (dispatch) => {
 export const fetchEmailHistory = (campaignId) => async (dispatch) => {
   dispatch({ type: EMAIL_HISTORY_REQUEST });
   try {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const res = await axiosInstance.get(`${origin}/api/email-history/`, {
+    const res = await axiosInstance.get("/email-history/", {
       params: { campaign_id: campaignId },
     });
     const raw = extractArray(res.data);

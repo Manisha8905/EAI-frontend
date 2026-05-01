@@ -448,6 +448,7 @@ export default function CampaignPage() {
   const [emailCardAnalyticsLoading, setEmailCardAnalyticsLoading] = useState(false);
   const [emailDeliverabilityDashboard, setEmailDeliverabilityDashboard] = useState(null);
   const [emailDeliverabilityLoading, setEmailDeliverabilityLoading] = useState(false);
+  const [seedTestReport, setSeedTestReport] = useState(null);
 
   const updateCampaignRoute = (campaign, tabKey = null) => {
     if (campaign && (campaign.id == null || String(campaign.id).trim() === "")) {
@@ -1097,18 +1098,33 @@ export default function CampaignPage() {
       setEmailStats(null);
       setEmailStatsLoading(true);
       axiosInstance
-        .get(`${window.location.origin}/api/campaigns/${selectedCampaign.id}/email-stats/`)
+        .get(`/campaigns/${selectedCampaign.id}/email-stats/`)
         .then((res) => setEmailStats(res.data))
         .catch(() => {})
         .finally(() => setEmailStatsLoading(false));
 
       setEmailDeliverabilityDashboard(null);
+      setSeedTestReport(null);
       setEmailDeliverabilityLoading(true);
+      // Step 1: get seed tests for this campaign, then fetch the latest report
       axiosInstance
-        .get("/api/deliverability/smartlead/mailboxes/health-dashboard", {
-          params: { campaign_id: selectedCampaign.id },
+        .get(`/api/deliverability/smartlead/campaigns/${selectedCampaign.id}/seed-tests`)
+        .then(async (res) => {
+          const tests = res.data?.seed_tests ?? [];
+          if (!tests.length) return;
+          // Use the most recent test (first in list)
+          const latestTest = tests[0];
+          setEmailDeliverabilityDashboard(latestTest);
+          // Step 2: fetch the full report for that test
+          try {
+            const reportRes = await axiosInstance.get(
+              `/api/deliverability/smartlead/seed-tests/${latestTest.id}/report`
+            );
+            setSeedTestReport(reportRes.data);
+          } catch {
+            // report fetch failed — dashboard still shows summary
+          }
         })
-        .then((res) => setEmailDeliverabilityDashboard(res.data))
         .catch(() => {})
         .finally(() => setEmailDeliverabilityLoading(false));
 
@@ -1831,7 +1847,7 @@ export default function CampaignPage() {
     const rowEmail = String(row?.to_email ?? row?.emailAddr ?? row?.email ?? "").trim().toLowerCase();
     const rowLead = String(row?.lead_name ?? row?.name ?? "").trim().toLowerCase();
 
-    const res = await axiosInstance.get(`${window.location.origin}/api/email-history/grouped/`, {
+    const res = await axiosInstance.get("/email-history/grouped/", {
       params: { campaign_id: selectedCampaign.id },
     });
 
@@ -4920,88 +4936,142 @@ export default function CampaignPage() {
           </section>
 
           {/* Email Deliverability Chart */}
-          {/* <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <section className="mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="text-[14px] font-[700] text-gray-900">Email Deliverability</h3>
-                <p className="text-[12px] text-gray-400 mt-0.5">Inbox vs spam</p>
+                <p className="text-[12px] text-gray-400 mt-0.5">Inbox vs spam · per provider seed test</p>
               </div>
-              {(() => {
-                const { total: totalVal } = getDeliverabilityCounts(emailDeliverabilityDashboard ?? {});
-                return (
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-[700] text-violet-600 bg-violet-50 border border-violet-100">
-                    {emailDeliverabilityLoading ? "…" : `${totalVal} total`}
-                  </span>
-                );
-              })()}
+              {emailDeliverabilityLoading ? (
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-[12px] font-[700] text-gray-400 bg-gray-50 border border-gray-100">…</span>
+              ) : emailDeliverabilityDashboard ? (
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-[700] border ${
+                  emailDeliverabilityDashboard.test_status === "COMPLETED"
+                    ? "text-green-700 bg-green-50 border-green-200"
+                    : "text-amber-700 bg-amber-50 border-amber-200"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    emailDeliverabilityDashboard.test_status === "COMPLETED" ? "bg-green-500" : "bg-amber-400"
+                  }`} />
+                  {emailDeliverabilityDashboard.test_status ?? "—"}
+                </span>
+              ) : null}
             </div>
-            {(() => {
-              const { inbox, spam, total } = getDeliverabilityCounts(emailDeliverabilityDashboard ?? {});
-              const inboxPct = total > 0 ? Math.round((inbox / total) * 100) : 0;
-              const spamPct = total > 0 ? Math.round((spam / total) * 100) : 0;
 
-              if (emailDeliverabilityLoading) {
-                return (
-                  <div className="flex items-center justify-center py-16 text-gray-400 text-[13px]">
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading deliverability...
-                  </div>
-                );
-              }
+            {emailDeliverabilityLoading ? (
+              <div className="flex items-center justify-center py-16 text-gray-400 text-[13px]">
+                <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading deliverability...
+              </div>
+            ) : !emailDeliverabilityDashboard ? (
+              <div className="flex items-center justify-center py-16 text-gray-400 text-[13px]">
+                No seed test data available for this campaign.
+              </div>
+            ) : (() => {
+              const test = emailDeliverabilityDashboard;
+              const report = seedTestReport?.report ?? null;
+              const providers = report?.result ?? [];
+              const overallInboxRate = Number(test.overall_inbox_rate ?? 0);
+              const overallSpamRate = Number(test.overall_spam_rate ?? 0);
+              const totalCount = Number(report?.overallTotalCount ?? 0);
+
+              // Aggregate totals from provider results
+              const totalInbox = providers.reduce((s, p) => s + (p.inbox_count ?? 0), 0);
+              const totalSpam  = providers.reduce((s, p) => s + (p.spam_count ?? 0), 0);
+              const totalTab   = providers.reduce((s, p) => s + (p.tab_count ?? 0), 0);
+              const grandTotal = totalCount || (totalInbox + totalSpam + totalTab) || 1;
+              const inboxPct = Math.round((totalInbox / grandTotal) * 100);
+              const spamPct  = Math.round((totalSpam  / grandTotal) * 100);
 
               return (
-                <div className="p-5">
-                  <div className="grid grid-cols-1 md:grid-cols-[320px_minmax(0,1fr)] gap-6 items-center">
-                    <div className="mx-auto">
-                      <ResponsiveContainer width={260} height={230}>
-                        <PieChart>
-                          <Pie
-                            data={[
-                              { name: "Inbox", value: inbox, color: "#22c55e" },
-                              { name: "Spam", value: spam, color: "#ef4444" },
-                            ]}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={62}
-                            outerRadius={92}
-                            paddingAngle={0}
-                            dataKey="value"
-                            stroke="none"
-                            label={({ name, percent }) => `${name === "Inbox" ? "" : ""}${Math.round((percent ?? 0) * 100)}%`}
-                            labelLine={false}
-                          >
-                            <Cell fill="#22c55e" />
-                            <Cell fill="#ef4444" />
-                          </Pie>
-                          <Tooltip formatter={(value, name) => [`${value}`, name]} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="-mt-24 text-center pointer-events-none">
-                        <p className="text-[24px] font-[800] text-gray-900 leading-none">{inbox}</p>
-                        <p className="text-[12px] font-[700] text-gray-500 mt-1">Inbox ({inboxPct}%)</p>
+                <div className="p-5 space-y-5">
+                  {/* Summary row */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: "Overall Inbox Rate", value: `${overallInboxRate}%`, color: "text-green-600", bg: "bg-green-50", border: "border-green-100" },
+                      { label: "Overall Spam Rate",  value: `${overallSpamRate}%`,  color: "text-red-500",   bg: "bg-red-50",   border: "border-red-100" },
+                      { label: "Total Inbox",         value: totalInbox,             color: "text-blue-600",  bg: "bg-blue-50",  border: "border-blue-100" },
+                      { label: "Total Spam",          value: totalSpam,              color: "text-rose-600",  bg: "bg-rose-50",  border: "border-rose-100" },
+                    ].map((s) => (
+                      <div key={s.label} className={`rounded-2xl border ${s.border} ${s.bg} p-4 flex flex-col gap-1`}>
+                        <p className={`text-[24px] font-[800] leading-none ${s.color}`}>{s.value}</p>
+                        <p className="text-[11px] text-gray-500 font-[500]">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Overall progress bars */}
+                  <div className="space-y-3">
+                    {[{ name: "Inbox", value: totalInbox, pct: inboxPct, color: "#22c55e" }, { name: "Spam", value: totalSpam, pct: spamPct, color: "#ef4444" }].map((row) => (
+                      <div key={row.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full" style={{ background: row.color }} />
+                            <span className="text-[13px] font-[700] text-gray-800">{row.name}</span>
+                          </div>
+                          <span className="text-[18px] font-[800] text-gray-900 leading-none">
+                            {row.value} <span className="text-[13px] font-[600] text-gray-400">({row.pct}%)</span>
+                          </span>
+                        </div>
+                        <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${row.pct}%`, background: row.color }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Per-provider breakdown */}
+                  {providers.length > 0 && (
+                    <div>
+                      <h4 className="text-[12px] font-[700] text-gray-700 uppercase tracking-wider mb-3">Per Provider Breakdown</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left" style={{ minWidth: "520px" }}>
+                          <thead>
+                            <tr className="bg-[#1e293b]">
+                              {["Provider", "Inbox", "Spam", "Tab", "Total", "Inbox %"].map((h) => (
+                                <th key={h} className="px-3 py-2.5 text-[11px] font-[600] uppercase tracking-wide text-white">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {providers.map((p, idx) => {
+                              const pTotal = p.adjusted_total_email_count ?? (p.inbox_count + p.spam_count + p.tab_count);
+                              const pInboxPct = pTotal > 0 ? Math.round((p.inbox_count / pTotal) * 100) : 0;
+                              return (
+                                <tr key={p.provider_id ?? idx} className={idx % 2 !== 0 ? "bg-gray-50/40" : ""}>
+                                  <td className="px-3 py-2.5 text-[12px] font-[600] text-gray-800">{p.provider_name}</td>
+                                  <td className="px-3 py-2.5 text-[13px] font-[700] text-green-600">{p.inbox_count}</td>
+                                  <td className="px-3 py-2.5 text-[13px] font-[700] text-red-500">{p.spam_count}</td>
+                                  <td className="px-3 py-2.5 text-[12px] text-gray-500">{p.tab_count}</td>
+                                  <td className="px-3 py-2.5 text-[12px] text-gray-600">{pTotal}</td>
+                                  <td className="px-3 py-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[60px]">
+                                        <div className="h-full rounded-full bg-green-500" style={{ width: `${pInboxPct}%` }} />
+                                      </div>
+                                      <span className="text-[11px] font-[700] text-gray-700 shrink-0">{pInboxPct}%</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      {[{ name: "Inbox", value: inbox, pct: inboxPct, color: "#22c55e" }, { name: "Spam", value: spam, pct: spamPct, color: "#ef4444" }].map((row) => (
-                        <div key={row.name}>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <span className="w-3.5 h-3.5 rounded-full" style={{ background: row.color }} />
-                              <span className="text-[16px] font-[700] text-gray-800">{row.name}</span>
-                            </div>
-                            <span className="text-[30px] font-[800] text-gray-900 leading-none">{row.value} <span className="text-[18px] font-[700] text-gray-400">({row.pct}%)</span></span>
-                          </div>
-                          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${row.pct}%`, background: row.color }} />
-                          </div>
-                        </div>
-                      ))}
-                      {total === 0 && <p className="text-[12px] text-gray-400 italic">No deliverability data available.</p>}
-                    </div>
+                  )}
+
+                  {/* Test meta */}
+                  <div className="flex flex-wrap gap-3 text-[11px] text-gray-400 border-t border-gray-100 pt-3">
+                    <span>Test ID: <span className="font-[600] text-gray-600">{test.sd_test_id}</span></span>
+                    <span>Type: <span className="font-[600] text-gray-600">{test.test_type}</span></span>
+                    {test.last_reported_at && (
+                      <span>Last Report: <span className="font-[600] text-gray-600">{new Date(test.last_reported_at).toLocaleString()}</span></span>
+                    )}
                   </div>
                 </div>
               );
             })()}
-          </section> */}
+          </section>
 
           {/* Table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible">
@@ -6837,139 +6907,133 @@ export default function CampaignPage() {
 
   return (
     <main className="min-h-screen bg-[#f4f5f7] p-6">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-        <div>
-          <h1 className="text-[20px] font-[700] text-[#0a0a0a]">
-            Campaign Setup
-          </h1>
-          <p className="text-[12px] text-gray-400 mt-0.5">
-            Manage your AI SDR campaigns
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Stop All Campaigns — visible only when any campaign is ACTIVE or PAUSED */}
-          {campaigns.some((c) => c.status === "ACTIVE" || c.status === "PAUSED") && (
-            <button
-              onClick={async () => {
-                setStoppingAll(true);
-                await dispatch(
-                  stopAllMultichannelCampaigns(() =>
-                    dispatch(listCampaigns(page, PAGE_SIZE))
-                  )
-                );
-                setStoppingAll(false);
-              }}
-              disabled={stoppingAll}
-              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-red-700 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {stoppingAll ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <StopCircle className="h-4 w-4" />
-              )}
-              Stop All Campaigns
-            </button>
-          )}
-          {/* Refresh */}
-          <button
-            onClick={handleRefresh}
-            className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${refreshing || loading ? "animate-spin" : ""}`}
-            />
-          </button>
-    
-          {/* Create */}
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Create New Campaign
-          </button>
-        </div>
-      </div>
-
-      {/* ── Filters Row ── */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
-        {/* Name search (client-side on current page) */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-          <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder="Search by name..."
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white text-[13px] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 placeholder-gray-400 shadow-sm"
-          />
-        </div>
-
-        {/* Status filter → calls API */}
-        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
-          {["All", "ACTIVE", "PAUSED", "COMPLETED"].map((f) => (
-            <button
-              key={f}
-              onClick={() => {
-                setFilter(f);
-                setPage(1);
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-[12px] font-[600] transition ${
-                filter === f
-                  ? "bg-[#7c3aed] text-white shadow-sm"
-                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-              }`}
-            >
-              {f === "All" ? "All" : f.charAt(0) + f.slice(1).toLowerCase()}
-            </button>
-          ))}
-        </div>
-
-        {/* Communication type filter → calls API */}
-        <div className="relative">
-          <select
-            value={commFilter}
-            onChange={(e) => {
-              setCommFilter(e.target.value);
-              setPage(1);
-            }}
-            className="appearance-none rounded-xl border border-gray-200 bg-white pl-3.5 pr-8 py-2.5 text-[12px] font-[500] text-gray-700 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 cursor-pointer shadow-sm"
-          >
-            <option value="All">All Types</option>
-            <option value="EMAIL">EMAIL</option>
-            <option value="CALL">CALL</option>
-            <option value="LINKEDIN">LINKEDIN</option>
-            <option value="WHATSAPP">WHATSAPP</option>
-
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-        </div>
-      </div>
-
-      {/* ── Stats Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {stats.map(({ label, value, icon: Icon, color, bg, border }) => (
-          <div
-            key={label}
-            className={`bg-white rounded-2xl border ${border} shadow-sm p-4 flex items-center gap-3`}
-          >
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${bg}`}
-            >
-              <Icon className={`h-5 w-5 ${color}`} />
-            </div>
+      <div className="max-w-9xl w-full mx-auto">
+          {/* ── Header ── */}
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
             <div>
-              <p className={`text-[22px] font-[800] ${color}`}>{value}</p>
-              <p className="text-[11px] text-gray-400 font-[500]">{label}</p>
+              <p className="text-[11px] font-[700] uppercase tracking-[0.24em] text-slate-400 mb-1">
+                Campaigns
+              </p>
+              <h1 className="text-[22px] md:text-[24px] font-[700] text-slate-900 tracking-tight">
+                Campaign Setup
+              </h1>
+              <p className="text-[13px] text-slate-500 mt-1 max-w-2xl">
+                Manage active, paused, and completed campaigns from one calm workspace.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {campaigns.some((c) => c.status === "ACTIVE" || c.status === "PAUSED") && (
+                <button
+                  onClick={async () => {
+                    setStoppingAll(true);
+                    await dispatch(
+                      stopAllMultichannelCampaigns(() =>
+                        dispatch(listCampaigns(page, PAGE_SIZE))
+                      )
+                    );
+                    setStoppingAll(false);
+                  }}
+                  disabled={stoppingAll}
+                  className="flex items-center gap-1.5 rounded-full border border-rose-200 bg-white px-4 py-2.5 text-[13px] font-[600] text-rose-600 hover:bg-rose-50 transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {stoppingAll ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <StopCircle className="h-4 w-4" />
+                  )}
+                  Stop All
+                </button>
+              )}
+              <button
+                onClick={handleRefresh}
+                className="rounded-full border border-slate-200 bg-white p-2.5 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition shadow-sm"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${refreshing || loading ? "animate-spin" : ""}`}
+                />
+              </button>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-slate-800 transition shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                Create New Campaign
+              </button>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* ── Campaign Cards ── */}
+          {/* ── Filters Row ── */}
+          <div className="flex items-center gap-3 mb-5 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search by name..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200 bg-white text-[13px] text-slate-700 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/15 placeholder-slate-400 shadow-sm"
+              />
+            </div>
+
+            <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+              {[{ value: "All", label: "All" }, { value: "ACTIVE", label: "Active" }, { value: "PAUSED", label: "Paused" }, { value: "COMPLETED", label: "Completed" }].map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => {
+                    setFilter(f.value);
+                    setPage(1);
+                  }}
+                  className={`px-4 py-2 rounded-full text-[13px] font-[600] transition ${
+                    filter === f.value
+                      ? "bg-violet-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative">
+              <select
+                value={commFilter}
+                onChange={(e) => {
+                  setCommFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="appearance-none rounded-full border border-slate-200 bg-white pl-4 pr-9 py-2.5 text-[13px] font-[600] text-slate-700 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/15 cursor-pointer shadow-sm"
+              >
+                <option value="All">All Types</option>
+                <option value="EMAIL">Email</option>
+                <option value="CALL">Call</option>
+                <option value="LINKEDIN">LinkedIn</option>
+                <option value="WHATSAPP">WhatsApp</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            </div>
+          </div>
+
+          {/* ── Stats Cards ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {stats.map(({ label, value, icon: Icon }) => (
+              <div
+                key={label}
+                className="rounded-2xl border border-slate-100 bg-white shadow-sm p-5 flex items-center gap-4"
+              >
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 border border-blue-100">
+                  <Icon className="h-5 w-5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-[26px] font-[800] text-slate-900 leading-none">{value}</p>
+                  <p className="text-[12px] text-slate-400 font-[500] mt-1">{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Campaign Cards ── */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-3">
           <RefreshCw className="h-6 w-6 text-violet-400 animate-spin" />
@@ -7032,145 +7096,110 @@ export default function CampaignPage() {
             return (
             <div
               key={c.id}
-              className="group bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-lg hover:border-gray-300/80 transition-all duration-200 overflow-hidden"
+              className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
             >
               {/* ── Top accent bar ── */}
-              <div className={`h-1 w-full ${
+              <div className={`h-1.5 w-full ${
                 c.status === "ACTIVE" ? "bg-gradient-to-r from-emerald-400 to-green-500"
                 : c.status === "PAUSED" ? "bg-gradient-to-r from-amber-400 to-orange-400"
                 : c.status === "COMPLETED" ? "bg-gradient-to-r from-blue-400 to-indigo-500"
                 : c.status === "RUNNING" ? "bg-gradient-to-r from-violet-400 to-purple-500"
-                : "bg-gray-200"
+                : "bg-slate-200"
               }`} />
 
               <div className="p-5">
-                {/* ── Card Header ── */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-[700] uppercase tracking-wide border ${statusBadge(c.status)}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusDot(c.status)}`} />
-                        {c.status}
+                {/* ── Header: badges + edit/delete icons ── */}
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-[700] uppercase tracking-wide border ${statusBadge(c.status)}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusDot(c.status)}`} />
+                      {c.status}
+                    </span>
+                    {c.communicationType && (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-[600] text-slate-600 uppercase tracking-wide">
+                        {c.communicationType}
                       </span>
-                      {/* {c.campaignType && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 border border-gray-200 text-[10px] font-[600] text-gray-500 uppercase tracking-wide">
-                          {c.campaignType}
-                        </span>
-                      )} */}
-                      {c.communicationType && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-[10px] font-[600] text-indigo-600 uppercase tracking-wide">
-                          {c.communicationType}
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="text-[16px] font-[700] text-gray-900 leading-snug truncate">{c.name}</h3>
-                    <p className="text-[12px] text-gray-400 mt-1 truncate">
-                      Agent: <span className="font-[600] text-gray-600">{c.agentName}</span>
-                      {c.fromEmail && <> · <span className="text-indigo-500">{c.fromEmail}</span></>}
-                    </p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-0.5 ml-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
                       disabled={loadingEdit}
                       onClick={(e) => { e.stopPropagation(); handleEdit(c.id); }}
                       title="Edit campaign"
-                      className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
                     >
-                      {loadingEdit ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                      {loadingEdit ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
                     </button>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm({ id: c.id, name: c.name }); }}
                       title="Delete campaign"
-                      className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* ── Stats Row ── */}
-                <div className="grid grid-cols-5 gap-1 mb-4 bg-gray-50/80 rounded-xl p-3">
-                  {[
-                    { label: "Leads",     value: c.totalLeads.toLocaleString(), color: "text-gray-900" },
-                    { label: "Completed", value: c.completed.toLocaleString(),  color: "text-emerald-600" },
-                    { label: "Meetings",  value: c.meetings.toLocaleString(),   color: "text-blue-600" },
-                    { label: "Tasks",     value: (c.total_tasks_count ?? 0).toLocaleString(), color: "text-violet-600" },
-                    { label: "Conv.",     value: `${c.convRate}%`,              color: "text-indigo-600" },
-                  ].map(({ label, value, color }, idx) => (
-                    <div key={label} className={`text-center ${idx < 4 ? "border-r border-gray-200" : ""}`}>
-                      <p className={`text-[16px] font-[800] leading-none ${color}`}>{value}</p>
-                      <p className="text-[10px] font-[500] text-gray-400 mt-1">{label}</p>
-                    </div>
-                  ))}
-                </div>
+                {/* ── Name + Agent ── */}
+                <h3 className="text-[17px] font-[700] text-slate-900 leading-snug truncate mb-0.5">{c.name}</h3>
+                <p className="text-[12px] text-slate-500 mb-4 truncate">
+                  Agent: <span className="font-[600] text-slate-700">{c.agentName}</span>
+                  {c.agentEmail ? <> · <span className="text-indigo-500">{c.agentEmail}</span></> : null}
+                </p>
 
-                {/* ── Channel Tabs ── */}
-                <div className="mb-4">
-                  <div className="flex flex-wrap gap-2">
-                    {channels.map((ch) => {
-                      const isActive = activeCampaignTab === ch.key;
-                      return (
-                        <button
-                          key={ch.key}
-                          type="button"
-                          onClick={() => openCampaignDetails(c, ch.key)}
-                          className={`rounded-full border px-3 py-1.5 text-[12px] font-[600] transition ${
-                            isActive
-                              ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
-                              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100"
-                          }`}
-                        >
-                          <span className="inline-flex items-center gap-1">
-                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 text-[11px]" style={{ color: ch.fill }}>
-                              {ch.icon}
-                            </span>
-                            {ch.label}
-                          </span>
-                        </button>
-                      );
-                    })}
+                {/* ── Stats row ── */}
+                <div className="grid grid-cols-5 divide-x divide-slate-100 border border-slate-100 rounded-xl mb-4 text-center">
+                  <div className="py-2.5 px-1">
+                    <p className="text-[15px] font-[700] text-slate-900 leading-none">{c.totalLeads.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Leads</p>
+                  </div>
+                  <div className="py-2.5 px-1">
+                    <p className="text-[15px] font-[700] text-emerald-600 leading-none">{c.completed.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Completed</p>
+                  </div>
+                  <div className="py-2.5 px-1">
+                    <p className="text-[15px] font-[700] text-sky-600 leading-none">{c.meetings.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Meetings</p>
+                  </div>
+                  <div className="py-2.5 px-1">
+                    <p className="text-[15px] font-[700] text-violet-600 leading-none">{(c.tasks ?? 0).toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Tasks</p>
+                  </div>
+                  <div className="py-2.5 px-1">
+                    <p className="text-[15px] font-[700] text-violet-600 leading-none">{c.convRate}%</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Conv.</p>
                   </div>
                 </div>
 
-                {/* ── Channel Activity ── */}
-                <div className="space-y-2.5 mb-4">
+                {/* ── Channel pills ── */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {channels.map((ch) => (
+                    <span key={ch.key} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-slate-50 text-[11px] font-[600] text-slate-600">
+                      {ch.icon}
+                      {ch.label}
+                    </span>
+                  ))}
+                </div>
+
+                {/* ── Progress rows ── */}
+                <div className="space-y-2 mb-4">
                   {channels.map((ch) => {
-                    const rawCount = countByKey[ch.key] ?? 0;
-                    const count = (c.status === "COMPLETED" && rawCount === 0) ? c.totalLeads : rawCount;
-                    const pct   = Math.min((count / total) * 100, 100);
-                    const st    = stepStatus[ch.key];
-                    const badge = chStepLabel(st);
+                    const sent = countByKey[ch.key] ?? 0;
+                    const max = Math.max(c.totalLeads, 1);
+                    const pct = Math.min(100, Math.round((sent / max) * 100));
                     return (
-                      <div key={ch.label} className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-50 shrink-0" style={{ color: ch.fill }}>
-                          {ch.icon}
+                      <div key={ch.key}>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                          <span className="flex items-center gap-1">{ch.icon}{ch.label}</span>
+                          <span className="font-[600] text-slate-600">{sent}/{c.totalLeads}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-[600] text-gray-600">{ch.label}</span>
-                            <div className="flex items-center gap-2">
-                              {badge && (
-                                <span className={`text-[9px] font-[700] px-1.5 py-0.5 rounded-full border ${badge.cls}`}>
-                                  {badge.text}
-                                </span>
-                              )}
-                              <span className="text-[11px] font-[700] text-gray-500 tabular-nums">
-                                {count}<span className="text-gray-300">/{c.totalLeads}</span>
-                              </span>
-                            </div>
-                          </div>
-                          <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-700"
-                              style={{
-                                width: c.status === "COMPLETED" ? "100%" : (pct === 0 ? "4%" : `${pct}%`),
-                                background: `linear-gradient(90deg, ${ch.fill}, ${ch.fill}dd)`,
-                                opacity: c.status === "COMPLETED" ? 1 : (pct === 0 ? 0.25 : 1),
-                              }}
-                            />
-                          </div>
+                        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%`, backgroundColor: ch.fill }}
+                          />
                         </div>
                       </div>
                     );
@@ -7178,8 +7207,8 @@ export default function CampaignPage() {
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                  <div className="flex items-center gap-1.5 text-[12px] text-gray-400">
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5 text-[12px] text-slate-400">
                     <Calendar className="h-3.5 w-3.5" />
                     {formatDate(c.startDate)}
                   </div>
@@ -7200,7 +7229,7 @@ export default function CampaignPage() {
                                   dispatch(pauseCampaign(c.id, () => setTogglingId(null)));
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : "Pause"}
@@ -7213,7 +7242,7 @@ export default function CampaignPage() {
                                   dispatch(resumeCampaign(c.id, () => setTogglingId(null)));
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : "Resume"}
@@ -7226,7 +7255,7 @@ export default function CampaignPage() {
                                   dispatch(toggleActivateCampaign(c.id, c.status, () => setTogglingId(null)));
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : "Activate"}
@@ -7237,7 +7266,7 @@ export default function CampaignPage() {
                                 e.stopPropagation();
                                 openCampaignDetails(c, null);
                               }}
-                              className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
+                              className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-slate-800 shadow-sm transition"
                             >
                               <Eye className="h-3.5 w-3.5" />
                               View Activity
@@ -7266,7 +7295,7 @@ export default function CampaignPage() {
                                   );
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : "Pause"}
@@ -7280,7 +7309,7 @@ export default function CampaignPage() {
                                   }
                                   openCampaignPreview(c.id, previewChannel);
                                 }}
-                                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[12px] font-[600] text-white shadow-sm transition ${
+                                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-[600] text-white shadow-sm transition ${
                                   hasCompletedPreview
                                     ? "bg-gray-900 hover:bg-gray-800"
                                     : "bg-blue-600 hover:bg-blue-700"
@@ -7311,7 +7340,7 @@ export default function CampaignPage() {
                                   }
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-600 hover:bg-green-100"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : c.status === "PAUSED" ? "Resume" : "Activate"}
@@ -7321,7 +7350,7 @@ export default function CampaignPage() {
                                   e.stopPropagation();
                                   openCampaignDetails(c, null);
                                 }}
-                                className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
+                                className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-slate-800 shadow-sm transition"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 View Details
@@ -7333,7 +7362,7 @@ export default function CampaignPage() {
                                 e.stopPropagation();
                                 openCampaignDetails(c, null);
                               }}
-                              className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-gray-800 shadow-sm transition"
+                              className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-slate-800 shadow-sm transition"
                             >
                               <Eye className="h-3.5 w-3.5" />
                               View Details
@@ -7353,8 +7382,8 @@ export default function CampaignPage() {
 
       {/* Footer: count + pagination */}
       {!loading && !error && (campaigns ?? []).length > 0 && (
-        <div className="mt-5 flex items-center justify-between flex-wrap gap-3">
-          <p className="text-[12px] text-gray-400">
+        <div className="mt-5 flex items-center justify-between flex-wrap gap-3 px-1">
+          <p className="text-[12px] text-slate-500">
             Page {page} of {totalPages || 1} ·{" "}
             {campaignTotal ?? (campaigns ?? []).length} total campaigns
           </p>
@@ -7363,7 +7392,7 @@ export default function CampaignPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-gray-200 bg-white text-[12px] font-[600] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+                className="flex items-center gap-1 px-3 py-2 rounded-full border border-slate-200 bg-white text-[12px] font-[600] text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> Prev
               </button>
@@ -7373,10 +7402,10 @@ export default function CampaignPage() {
                   <button
                     key={p}
                     onClick={() => setPage(p)}
-                    className={`w-9 h-9 rounded-xl text-[12px] font-[700] transition border shadow-sm ${
+                    className={`w-9 h-9 rounded-full text-[12px] font-[700] transition border shadow-sm ${
                       page === p
-                        ? "bg-[#7c3aed] text-white border-violet-400"
-                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
                   >
                     {p}
@@ -7386,7 +7415,7 @@ export default function CampaignPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-gray-200 bg-white text-[12px] font-[600] text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+                className="flex items-center gap-1 px-3 py-2 rounded-full border border-slate-200 bg-white text-[12px] font-[600] text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
               >
                 Next <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -7394,6 +7423,7 @@ export default function CampaignPage() {
           )}
         </div>
       )}
+      </div>
 
       {/* ── Campaign Detail Modal (unused — replaced by inline view above) ── */}
       {false && (

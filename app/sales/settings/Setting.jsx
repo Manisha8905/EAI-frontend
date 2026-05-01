@@ -9584,6 +9584,7 @@ function GlobalIntegrationsPage({
   canAccess,
   smtpProviderList = [],
   smtpProvider = "",
+  smtpProviderLoading = false,
 }) {
   const [forms, setForms] = useState({
     twilio: {
@@ -9704,6 +9705,19 @@ function GlobalIntegrationsPage({
       },
     }));
   };
+
+  // Sync the globally active SMTP provider into this form whenever the prop arrives
+  useEffect(() => {
+    if (!smtpProvider) return;
+    setForms((prev) => ({
+      ...prev,
+      campaign_email_settings: {
+        ...prev.campaign_email_settings,
+        smtp_provider_name:
+          prev.campaign_email_settings.smtp_provider_name || smtpProvider,
+      },
+    }));
+  }, [smtpProvider]);
 
   // const fetchWhatsappMetrics = useCallback(async () => {
   //   setMetricsLoading(true);
@@ -10731,6 +10745,7 @@ function GlobalIntegrationsPage({
                     value={
                       forms.campaign_email_settings.smtp_provider_name ||
                       smtpProvider ||
+                      smtpProviderList.find((p) => p.is_selected)?.name ||
                       ""
                     }
                     onChange={(e) =>
@@ -10742,19 +10757,23 @@ function GlobalIntegrationsPage({
                         },
                       }))
                     }
-                    className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer"
+                    disabled={smtpProviderLoading}
+                    className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-50"
                   >
                     <option value="" disabled>
-                      — Select SMTP Provider —
+                      {smtpProviderLoading ? "Loading providers…" : "— Select SMTP Provider —"}
                     </option>
-                    {smtpProviderList.map((p) => (
-                      <option key={p.name} value={p.name}>
-                        {p.name}
+                    {[...smtpProviderList].sort((a, b) => (b.is_selected ? 1 : 0) - (a.is_selected ? 1 : 0)).map((p) => (
+                      <option key={p.id ?? p.name} value={p.name}>
+                        {p.label || p.name}{p.is_selected ? " ✓ (Global Active)" : ""}
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 </div>
+                {smtpProviderList.length === 0 && !smtpProviderLoading && (
+                  <p className="text-[11px] text-gray-400 mt-1">No saved SMTP providers found. Add one in Global Integrations.</p>
+                )}
               </div>
               {/* <Field
                 label="Credential"
@@ -11261,25 +11280,22 @@ export default function Setting() {
         const raw = d?.providers ?? (Array.isArray(d) ? d : []);
 
         const providers = raw.map((p) => ({
+          id: p.id,
           name: p.provider ?? p.name ?? String(p),
+          label: p.label ?? null,
           description: p.description ?? "",
           ready: p.ready ?? true,
+          is_selected: p.is_selected === true || p.is_active === true || p.is_current === true || p.selected === true,
+          verified: p.verified ?? false,
         }));
 
         setSmtpProviderList(providers);
 
-        const activeProvider = raw.find(
-          (p) =>
-            p.is_selected === true ||
-            p.is_active === true ||
-            p.is_current === true ||
-            p.selected === true,
-        );
+        const activeProvider = providers.find((p) => p.is_selected);
+        const defaultName = activeProvider?.name ?? (providers.length > 0 ? providers[0].name : "");
 
-        if (activeProvider) {
-          setSMTP(activeProvider.provider ?? activeProvider.name);
-        } else if (providers.length > 0) {
-          setSMTP(providers[0].name);
+        if (defaultName) {
+          setSMTP(defaultName);
         }
       } catch (err) {
         console.error("Failed to fetch SMTP providers:", err);
@@ -11365,6 +11381,7 @@ export default function Setting() {
           canAccess={userCanAccessGlobalSettings}
           smtpProviderList={smtpProviderList}
           smtpProvider={smtpProvider}
+          smtpProviderLoading={smtpProviderLoading}
         />
       </div>
     );

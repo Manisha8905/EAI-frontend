@@ -7,7 +7,7 @@ const defaultHeaders = {
 };
 
 const axiosInstance = axios.create({
-  baseURL: "/backend",
+  baseURL: "/api/proxy",
   headers: defaultHeaders,
   withCredentials: true, // ✅ support cookies
 });
