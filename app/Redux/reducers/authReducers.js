@@ -18,6 +18,7 @@ const authReducer = (state = initialState, action) => {
       return {
         ...state,
         loading: true,
+        error: null,
       };
 
     case LOGIN_SUCCESS:

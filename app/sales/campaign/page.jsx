@@ -140,6 +140,69 @@ const Field = ({ label, required, children }) => (
   </div>
 );
 
+/* ── Time helpers: convert between 24h API format and 12h display ── */
+function to12h(time24) {
+  const [hStr, mStr] = (time24 || "00:00:00").split(":");
+  let h = parseInt(hStr, 10) || 0;
+  const m = (mStr || "00").substring(0, 2).padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return { hh: String(h).padStart(2, "0"), mm: m, ampm };
+}
+function to24h(hh, mm, ampm) {
+  let h = parseInt(hh, 10);
+  if (ampm === "AM" && h === 12) h = 0;
+  if (ampm === "PM" && h !== 12) h += 12;
+  return `${String(h).padStart(2, "0")}:${mm}:00`;
+}
+/* Convert 24h time string to total minutes for comparison */
+function timeToMins(time24) {
+  const [h, m] = (time24 || "00:00:00").split(":").map(Number);
+  return h * 60 + m;
+}
+
+/* ── AM/PM time picker ── */
+function SalesTimePickerField({ value, onChange, hasError }) {
+  const { hh, mm, ampm } = to12h(value);
+  const hours   = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+  const border  = hasError ? "border-red-400 focus-within:ring-red-300/40" : "border-gray-200 focus-within:ring-indigo-300/30";
+  return (
+    <div className={`flex items-center gap-1.5 rounded-lg border ${border} bg-white px-2.5 py-1.5 focus-within:ring-2 transition`}>
+      <select
+        value={hh}
+        onChange={(e) => onChange(to24h(e.target.value, mm, ampm))}
+        className="appearance-none bg-transparent text-[13px] font-[600] text-gray-700 focus:outline-none cursor-pointer w-8 text-center"
+      >
+        {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span className="text-gray-300 font-bold text-[13px] select-none">:</span>
+      <select
+        value={mm}
+        onChange={(e) => onChange(to24h(hh, e.target.value, ampm))}
+        className="appearance-none bg-transparent text-[13px] font-[600] text-gray-700 focus:outline-none cursor-pointer w-8 text-center"
+      >
+        {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <div className="ml-1 flex rounded-md overflow-hidden border border-gray-200 shrink-0">
+        {["AM", "PM"].map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onChange(to24h(hh, mm, p))}
+            className={`px-2 py-0.5 text-[11px] font-[700] transition-colors ${
+              ampm === p ? "bg-indigo-600 text-white" : "bg-white text-gray-400 hover:bg-gray-50"
+            } ${p === "AM" ? "border-r border-gray-200" : ""}`}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const CAMPAIGN_ACTIVITY_TABS = new Set(["ALL", "CALL", "EMAIL", "LINKEDIN", "WHATSAPP"]);
 
 const normalizeActivityTab = (tabValue) => {
@@ -307,8 +370,22 @@ export default function CampaignPage() {
   };
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(blankForm);
+  const [timeError, setTimeError] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingCampaignId, setEditingCampaignId] = useState(null); // null = create, string = edit
+
+  /* Live time validation */
+  useEffect(() => {
+    if (form.start_time && form.end_time) {
+      setTimeError(
+        timeToMins(form.end_time) <= timeToMins(form.start_time)
+          ? "End time must be after start time"
+          : ""
+      );
+    } else {
+      setTimeError("");
+    }
+  }, [form.start_time, form.end_time]);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // { id, name }
   const [deleting, setDeleting] = useState(false);
@@ -688,6 +765,10 @@ export default function CampaignPage() {
     }
     if (!form.start_time || !form.end_time) {
       toast.error("Start time and end time are required.");
+      return;
+    }
+    if (timeToMins(form.end_time) <= timeToMins(form.start_time)) {
+      toast.error("End time must be after start time.");
       return;
     }
     if (!form.start_date) {
@@ -2064,25 +2145,22 @@ export default function CampaignPage() {
                 </div>
               </Field> */}
               <Field label="Start Time">
-                <input
-                  type="time"
-                  step="1"
-                  name="start_time"
+                <SalesTimePickerField
                   value={form.start_time}
-                  onChange={handleFormChange}
-                  className={inputCls}
+                  onChange={(v) => setForm((f) => ({ ...f, start_time: v }))}
                 />
               </Field>
-              <Field label="End Time">
-                <input
-                  type="time"
-                  step="1"
-                  name="end_time"
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-[600] text-[#1e293b]">End Time</label>
+                <SalesTimePickerField
                   value={form.end_time}
-                  onChange={handleFormChange}
-                  className={inputCls}
+                  onChange={(v) => setForm((f) => ({ ...f, end_time: v }))}
+                  hasError={!!timeError}
                 />
-              </Field>
+                {timeError && (
+                  <p className="text-[11px] text-red-500 font-[500] mt-0.5">{timeError}</p>
+                )}
+              </div>
               <Field label="Re-engage Days">
                 <input
                   type="number"

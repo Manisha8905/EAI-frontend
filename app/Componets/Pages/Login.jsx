@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import { useDispatch, useSelector } from "react-redux";
@@ -11,8 +11,14 @@ const Login = () => {
   const dispatch = useDispatch();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [errorDismissed, setErrorDismissed] = useState(false);
 
   const { loading, error } = useSelector((state) => state.auth);
+
+  // Show error again whenever a new error arrives from Redux
+  useEffect(() => {
+    if (error) setErrorDismissed(false);
+  }, [error]);
 
   const formik = useFormik({
     initialValues: {
@@ -90,7 +96,7 @@ const Login = () => {
                     type="email"
                     name="email"
                     placeholder="you@company.com"
-                    onChange={formik.handleChange}
+                    onChange={(e) => { formik.handleChange(e); setErrorDismissed(true); }}
                     onBlur={formik.handleBlur}
                     value={formik.values.email}
                     className={`w-full pl-9 pr-3 py-2.5 bg-gray-50 text-[13px] text-[#0a0a0a] rounded-lg border outline-none transition focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 focus:bg-white ${
@@ -132,7 +138,7 @@ const Login = () => {
                     type={showPassword ? "text" : "password"}
                     name="password"
                     placeholder="••••••••"
-                    onChange={formik.handleChange}
+                    onChange={(e) => { formik.handleChange(e); setErrorDismissed(true); }}
                     onBlur={formik.handleBlur}
                     value={formik.values.password}
                     className={`w-full pl-9 pr-10 py-2.5 bg-gray-50 text-[13px] text-[#0a0a0a] rounded-lg border outline-none transition focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 focus:bg-white ${
@@ -169,7 +175,7 @@ const Login = () => {
               </div>
 
               {/* API Error */}
-              {error && (
+              {error && !errorDismissed && (
                 <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5">
                   <svg className="shrink-0 text-red-500" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />

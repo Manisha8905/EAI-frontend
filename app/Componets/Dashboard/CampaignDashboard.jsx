@@ -1563,6 +1563,77 @@ function LinkedInHistoryView({ campaign, onBack }) {
 /* ══════════════════════════════════════════════════════════════
    CREATE CAMPAIGN MODAL
 ══════════════════════════════════════════════════════════════ */
+
+/* ─── Custom AM/PM Time Picker ───────────────────────────────── */
+function TimePickerField({ value, ampm, onTimeChange, onAmPmChange, hasError }) {
+  const [hh, mm] = (value || "12:00").split(":");
+
+  const hours   = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+
+  const ring = hasError ? "ring-2 ring-red-300" : "";
+
+  return (
+    <div
+      className={`flex items-stretch rounded-xl border ${
+        hasError ? "border-red-400 bg-red-50" : "border-gray-200 bg-white"
+      } shadow-sm overflow-hidden ${ring} transition`}
+    >
+      {/* Hour segment */}
+      <div className="relative flex-1 border-r border-gray-200">
+        <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none">
+          <span className="text-[10px] font-[700] uppercase tracking-widest text-gray-400">HH</span>
+        </div>
+        <select
+          value={String(hh).padStart(2, "0")}
+          onChange={(e) => onTimeChange(`${e.target.value}:${mm || "00"}`)}
+          className="w-full appearance-none bg-transparent pl-8 pr-6 py-2.5 text-[15px] font-[700] text-gray-800 focus:outline-none cursor-pointer"
+        >
+          {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+      </div>
+
+      {/* Colon divider */}
+      <div className="flex items-center justify-center px-1 bg-gray-50 select-none">
+        <span className="text-[17px] font-black text-gray-300 leading-none">:</span>
+      </div>
+
+      {/* Minute segment */}
+      <div className="relative flex-1 border-l border-gray-200">
+        <div className="absolute inset-y-0 left-2.5 flex items-center pointer-events-none">
+          <span className="text-[10px] font-[700] uppercase tracking-widest text-gray-400">MM</span>
+        </div>
+        <select
+          value={String(mm).padStart(2, "0")}
+          onChange={(e) => onTimeChange(`${hh || "12"}:${e.target.value}`)}
+          className="w-full appearance-none bg-transparent pl-8 pr-6 py-2.5 text-[15px] font-[700] text-gray-800 focus:outline-none cursor-pointer"
+        >
+          {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+      </div>
+
+      {/* AM / PM toggle */}
+      <div className="flex items-stretch border-l border-gray-200 shrink-0">
+        {["AM", "PM"].map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onAmPmChange(p)}
+            className={`px-3 text-[12px] font-[800] tracking-wide transition-all ${
+              ampm === p
+                ? "bg-indigo-600 text-white shadow-inner"
+                : "bg-white text-gray-400 hover:bg-indigo-50 hover:text-indigo-600"
+            } ${p === "AM" ? "border-r border-gray-200" : ""}`}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 const EMPTY_FORM = {
   name: "",
   description: "",
@@ -1574,7 +1645,9 @@ const EMPTY_FORM = {
   // new fields matching reference UI
   communicationType: "Call",
   startTime: "10:20",
+  startAmPm: "AM",
   endTime: "10:20",
+  endAmPm: "AM",
   reengageDays: "7",
   maxAttempts: "3",
   channelOrder: [],          // ordered array: ["CALL","EMAIL","LINKEDIN"]
@@ -1606,6 +1679,14 @@ const EMPTY_FORM = {
   whatsappMaxAttempts: "3",
 };
 
+/* Convert a 12-hour time string + AM/PM to minutes since midnight */
+const to24Min = (time, ampm) => {
+  let [h, m] = (time || "12:00").split(":").map(Number);
+  if (ampm === "AM" && h === 12) h = 0;
+  if (ampm === "PM" && h !== 12) h += 12;
+  return h * 60 + m;
+};
+
 function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, channel: defaultChannel });
   const [errors, setErrors] = useState({});
@@ -1617,10 +1698,22 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
     setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
+  /* Live end-time validation — runs whenever any of the 4 time fields change */
+  useEffect(() => {
+    if (form.startTime && form.endTime) {
+      const isInvalid = to24Min(form.endTime, form.endAmPm) <= to24Min(form.startTime, form.startAmPm);
+      setErrors((e) => ({ ...e, endTime: isInvalid ? "End time must be after start time" : undefined }));
+    }
+  }, [form.startTime, form.startAmPm, form.endTime, form.endAmPm]);
+
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = "Campaign name is required";
     if (!form.startDate)   e.startDate = "Start date is required";
+    if (form.startTime && form.endTime) {
+      if (to24Min(form.endTime, form.endAmPm) <= to24Min(form.startTime, form.startAmPm))
+        e.endTime = "End time must be after start time";
+    }
     return e;
   };
 
@@ -1761,10 +1854,21 @@ function CreateCampaignModal({ defaultChannel, onClose, onCreate }) {
           {/* Row 2: Start Time + End Time */}
           <div className="grid grid-cols-2 gap-4">
             <Field label="Start Time">
-              <input type="time" value={form.startTime} onChange={(e) => set("startTime", e.target.value)} className={inputCls()} />
+              <TimePickerField
+                value={form.startTime}
+                ampm={form.startAmPm}
+                onTimeChange={(v) => set("startTime", v)}
+                onAmPmChange={(v) => set("startAmPm", v)}
+              />
             </Field>
-            <Field label="End Time">
-              <input type="time" value={form.endTime} onChange={(e) => set("endTime", e.target.value)} className={inputCls()} />
+            <Field label="End Time" error={errors.endTime}>
+              <TimePickerField
+                value={form.endTime}
+                ampm={form.endAmPm}
+                onTimeChange={(v) => set("endTime", v)}
+                onAmPmChange={(v) => set("endAmPm", v)}
+                hasError={!!errors.endTime}
+              />
             </Field>
           </div>
 
