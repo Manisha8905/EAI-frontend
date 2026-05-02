@@ -8,7 +8,7 @@ import {
 export const fetchInvoiceMetrics = () => async (dispatch) => {
   dispatch({ type: INVOICE_METRICS_REQUEST });
   try {
-    const res = await axiosInstance.get("/invoice-processing/metrics");
+    const res = await axiosInstance.get("/api/invoice-processing/metrics");
     dispatch({ type: INVOICE_METRICS_SUCCESS, payload: res.data.data });
   } catch (err) {
     dispatch({

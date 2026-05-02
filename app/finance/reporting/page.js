@@ -128,9 +128,27 @@ const statusBadge = (status) => {
         <AlertCircle className="w-3.5 h-3.5" /> Partial
       </span>
     );
+  if (status === "Processing" || status === "Running")
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500 text-white px-3 py-1 text-[12px] font-[600]">
+        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Processing
+      </span>
+    );
+  if (status === "Pending")
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-400 text-white px-3 py-1 text-[12px] font-[600]">
+        <AlertCircle className="w-3.5 h-3.5" /> Pending
+      </span>
+    );
+  if (status === "Failed" || !status)
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500 text-white px-3 py-1 text-[12px] font-[600]">
+        <XCircle className="w-3.5 h-3.5" /> Failed
+      </span>
+    );
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500 text-white px-3 py-1 text-[12px] font-[600]">
-      <XCircle className="w-3.5 h-3.5" /> Failed
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-200 text-gray-700 px-3 py-1 text-[12px] font-[600]">
+      {status}
     </span>
   );
 };
@@ -357,9 +375,16 @@ function InvoicesTable({ rows, loading, error, onRetry, title, subtitle, icon: I
             ) : rows.map((inv) => (
               <tr key={inv.id} className={`${rowHover} transition-colors`}>
                 <Td>
-                  <span className="flex items-center justify-center">
-                    <Paperclip className="h-4 w-4 text-indigo-500" />
-                  </span>
+                  <button
+                    onClick={() => handleDownload(inv)}
+                    disabled={downloading === inv.id}
+                    title="Download attachment"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-[600] text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {downloading === inv.id
+                      ? <RefreshCw className="h-4 w-4 animate-spin" />
+                      : <Download className="h-4 w-4" />}
+                  </button>
                 </Td>
                 <Td><span className="font-[600] text-gray-800">{inv.vendor}</span></Td>
                 <Td><span className="text-xs font-bold text-slate-900">{inv.invoiceNumber}</span></Td>
@@ -472,9 +497,16 @@ function TradeInvoicesTable({ rows, loading, error, onRetry }) {
               <tr key={inv.id} className="hover:bg-purple-50/20 transition-colors">
                 {/* Attachment */}
                 <Td>
-                  <span className="flex items-center justify-center">
-                    <Paperclip className="h-4 w-4 text-indigo-500" />
-                  </span>
+                  <button
+                    onClick={() => handleDownload(inv)}
+                    disabled={downloading === inv.id}
+                    title="Download attachment"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-[600] text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {downloading === inv.id
+                      ? <RefreshCw className="h-4 w-4 animate-spin" />
+                      : <Download className="h-4 w-4" />}
+                  </button>
                 </Td>
                 {/* PO Number */}
                 <Td><span className="text-xs font-bold text-slate-900">{inv.poNumber}</span></Td>
@@ -530,64 +562,32 @@ function TradeInvoicesTable({ rows, loading, error, onRetry }) {
   );
 }
 
-/* ─── Reprocess placeholder ──────────────────────────────────── */
-const REPROCESS_HISTORY = [
-  {
-    id: 1,
-    fileName: "invoices_march_2026.xlsx",
-    uploadTime: "Mar 29, 2026, 2:45 PM",
-    records: 45,
-    status: "Success",
-    details: [
-      { invoiceNo: "INV-001", vendor: "UPS",   type: "Freight", amount: "$1,250.00", status: "Success", errorLog: null },
-      { invoiceNo: "INV-002", vendor: "FedEx", type: "Freight", amount: "$890.50",   status: "Success", errorLog: null },
-      { invoiceNo: "INV-003", vendor: "FAP",   type: "Trade",   amount: "$25,600.00",status: "Success", errorLog: null },
-      { invoiceNo: "INV-004", vendor: "REFIN", type: "Trade",   amount: "$18,750.50",status: "Success", errorLog: null },
-      { invoiceNo: "INV-005", vendor: "DHL",   type: "Freight", amount: "$2,100.00", status: "Success", errorLog: null },
-    ],
-  },
-  {
-    id: 2,
-    fileName: "freight_reprocess.xlsx",
-    uploadTime: "Mar 28, 2026, 10:30 AM",
-    records: 32,
-    status: "Partial",
-    details: [
-      { invoiceNo: "FRT-101", vendor: "SAIA",  type: "Freight", amount: "$2,340.75", status: "Failed",  errorLog: "Missing invoice date field" },
-      { invoiceNo: "FRT-102", vendor: "UPS",   type: "Freight", amount: "$675.25",   status: "Success", errorLog: null },
-      { invoiceNo: "FRT-103", vendor: "R+L",   type: "Freight", amount: "$1,580.00", status: "Failed",  errorLog: "Database connection timeout" },
-      { invoiceNo: "FRT-104", vendor: "XPO",   type: "Freight", amount: "$980.00",   status: "Success", errorLog: null },
-      { invoiceNo: "FRT-105", vendor: "FedEx", type: "Freight", amount: "$430.00",   status: "Success", errorLog: null },
-    ],
-  },
-  {
-    id: 3,
-    fileName: "trade_invoices_feb.xlsx",
-    uploadTime: "Mar 27, 2026, 4:15 PM",
-    records: 28,
-    status: "Success",
-    details: [
-      { invoiceNo: "TRD-201", vendor: "FAP",     type: "Trade", amount: "$14,890.75", status: "Success", errorLog: null },
-      { invoiceNo: "TRD-202", vendor: "DECOCER", type: "Trade", amount: "$22,500.00", status: "Success", errorLog: null },
-      { invoiceNo: "TRD-203", vendor: "Domos",   type: "Trade", amount: "$32,100.00", status: "Success", errorLog: null },
-      { invoiceNo: "TRD-204", vendor: "REFIN",   type: "Trade", amount: "$17,282.50", status: "Success", errorLog: null },
-      { invoiceNo: "TRD-205", vendor: "FAP",     type: "Trade", amount: "$23,610.00", status: "Success", errorLog: null },
-    ],
-  },
-];
+/* ─── Reprocess View Modal (live job details) ────────────────── */
+function ReprocessViewModal({ jobId, onClose }) {
+  const [details, setDetails] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
 
-/* ─── Reprocess View Modal ───────────────────────────────────── */
-function ReprocessViewModal({ entry, onClose }) {
-  if (!entry) return null;
+  useEffect(() => {
+    if (!jobId) return;
+    setLoading(true);
+    setError(null);
+    axiosInstance
+      .get(`/api/invoice-processing/reprocess/${jobId}/details`)
+      .then((res) => setDetails(res.data))
+      .catch((err) => setError(err?.response?.data?.detail ?? err?.message ?? "Failed to load details."))
+      .finally(() => setLoading(false));
+  }, [jobId]);
+
+  if (!jobId) return null;
+
+  const rows = details?.processing_details ?? [];
+  const normSt = (s) => normaliseStatus(s ?? "");
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      {/* Modal */}
-      <div className="relative z-10 w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -595,9 +595,18 @@ function ReprocessViewModal({ entry, onClose }) {
               <FileSpreadsheet className="h-5 w-5 text-indigo-600" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-900">{entry.fileName}</p>
-              <p className="text-[12px] text-gray-400 mt-0.5">
-                Uploaded {entry.uploadTime} &middot; {entry.records} records &middot; {statusBadge(entry.status)}
+              <p className="text-xs font-bold text-slate-900">
+                {details?.filename ?? `Job #${jobId}`}
+              </p>
+              <p className="text-[12px] text-gray-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                {details?.vendor_name && <span>{details.vendor_name}</span>}
+                {details?.invoice_type && typeBadge(normaliseType(details.invoice_type))}
+                {details?.created_at && (
+                  <span className="text-gray-300">·</span>
+                )}
+                {details?.created_at && (
+                  <span>{formatCreatedAt(details.created_at)}</span>
+                )}
               </p>
             </div>
           </div>
@@ -610,48 +619,107 @@ function ReprocessViewModal({ entry, onClose }) {
         </div>
 
         {/* Summary pills */}
-        <div className="flex gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
-          {[
-            { label: "Total",   value: entry.details.length,                                          color: "bg-blue-100 text-blue-700"   },
-            { label: "Success", value: entry.details.filter((d) => d.status === "Success").length,    color: "bg-green-100 text-green-700" },
-            { label: "Failed",  value: entry.details.filter((d) => d.status === "Failed").length,     color: "bg-red-100 text-red-700"     },
-          ].map(({ label, value, color }) => (
-            <span key={label} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-[700] ${color}`}>
-              {label}: {value}
-            </span>
-          ))}
-        </div>
+        {details && (
+          <div className="flex flex-wrap gap-3 px-6 py-4 bg-gray-50 border-b border-gray-100">
+            {[
+              { label: "Total",      value: details.total_records ?? 0,      color: "bg-blue-100 text-blue-700"   },
+              { label: "Successful", value: details.successful_records ?? 0,  color: "bg-green-100 text-green-700" },
+              { label: "Failed",     value: details.failed_records ?? 0,      color: "bg-red-100 text-red-700"     },
+              { label: "Status",     value: normSt(details.status),           color: details.status?.toUpperCase() === "FAILED" ? "bg-red-100 text-red-700" : "bg-indigo-100 text-indigo-700" },
+            ].map(({ label, value, color }) => (
+              <span key={label} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-[700] ${color}`}>
+                {label}: {value}
+              </span>
+            ))}
+            {details.uploaded_by_email && (
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-[700] bg-gray-100 text-gray-600 ml-auto">
+                By: {details.uploaded_by_email}
+              </span>
+            )}
+          </div>
+        )}
 
-        {/* Table */}
-        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-          <table className="w-full">
-            <thead className="sticky top-0 z-10 bg-white">
-              <tr className="border-b border-gray-100">
-                {["Invoice No", "Vendor", "Type", "Amount", "Status", "Error Log"].map((h) => (
-                  <th key={h} className="px-5 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-400 bg-gray-50/80">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {entry.details.map((row) => (
-                <tr key={row.invoiceNo} className="hover:bg-indigo-50/20 transition-colors">
-                  <td className="px-5 py-3.5 text-[13px] font-[700] text-indigo-600">{row.invoiceNo}</td>
-                  <td className="px-5 py-3.5 text-xs font-bold text-slate-900">{row.vendor}</td>
-                  <td className="px-5 py-3.5">{typeBadge(row.type)}</td>
-                  <td className="px-5 py-3.5 text-xs font-bold text-slate-900">{row.amount}</td>
-                  <td className="px-5 py-3.5">{statusBadge(row.status)}</td>
-                  <td className="px-5 py-3.5">
-                    {row.errorLog
-                      ? <span className="text-[12px] text-red-500 font-[500]">{row.errorLog}</span>
-                      : <span className="text-[12px] text-green-600 font-[500]">None</span>
-                    }
-                  </td>
+        {/* Top-level error banner — shown whenever error_message present */}
+        {details?.error_message && (
+          <div className="mx-6 mt-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[12px] font-[700] text-red-700">Processing Error</p>
+              <p className="text-[13px] text-red-600 mt-0.5">{details.error_message}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+          {loading ? (
+            <div className="py-16 text-center text-[13px] text-gray-400">
+              <RefreshCw className="inline h-5 w-5 animate-spin mr-2 text-indigo-400" />
+              Loading details…
+            </div>
+          ) : error ? (
+            <div className="py-16 text-center text-[13px] text-red-400">{error}</div>
+          ) : rows.length === 0 && details?.error_message ? (
+            /* File-level validation failure — no row details available */
+            <div className="px-6 py-6">
+              <div className="rounded-2xl border border-dashed border-red-200 bg-red-50/40 px-6 py-8 flex flex-col items-center gap-3 text-center">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
+                  <FileSpreadsheet className="h-6 w-6 text-red-500" />
+                </div>
+                <div>
+                  <p className="text-[14px] font-[700] text-red-700">File Rejected at Validation</p>
+                  <p className="text-[13px] text-gray-500 mt-1 max-w-md">
+                    The file was rejected before any rows were processed.
+                    {details.total_records > 0 && (
+                      <> It contained <span className="font-[700] text-slate-700">{details.total_records} record{details.total_records !== 1 ? "s" : ""}</span> that could not be imported.</>
+                    )}
+                  </p>
+                </div>
+                <div className="mt-1 rounded-xl bg-white border border-red-100 px-4 py-2.5 text-[12px] text-red-600 font-[500] max-w-sm">
+                  Fix: ensure the file includes all required columns and re-upload.
+                </div>
+              </div>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="py-12 text-center text-[13px] text-gray-400">
+              No processing details available.
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b border-gray-100">
+                  {["PO/SO Number", "Invoice No", "Vendor", "Invoice Date", "Freight Amount", "Tracking ID", "Status", "Error"].map((h) => (
+                    <th key={h} className="px-5 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-400 bg-gray-50/80 whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rows.map((row, i) => (
+                  <tr key={i} className="hover:bg-indigo-50/20 transition-colors">
+                    <td className="px-5 py-3.5 text-[13px] font-[600] text-indigo-600">{row.po_so_number ?? "—"}</td>
+                    <td className="px-5 py-3.5 text-[13px] text-gray-700 whitespace-nowrap">{row.invoice_number ?? "—"}</td>
+                    <td className="px-5 py-3.5 text-xs font-bold text-slate-900">{row.vendor_name ?? "—"}</td>
+                    <td className="px-5 py-3.5 text-[13px] text-gray-500 whitespace-nowrap">{row.invoice_date ?? "—"}</td>
+                    <td className="px-5 py-3.5 text-[13px] font-[600] text-slate-900">
+                      {row.freight_amount != null
+                        ? `$${parseFloat(row.freight_amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : "—"}
+                    </td>
+                    <td className="px-5 py-3.5 text-[12px] text-gray-500 font-mono">{row.tracking_id || "—"}</td>
+                    <td className="px-5 py-3.5">{statusBadge(normSt(row.status))}</td>
+                    <td className="px-5 py-3.5">
+                      {row.error
+                        ? <span className="text-[12px] text-red-500 font-[500] max-w-[200px] block">{row.error}</span>
+                        : <span className="text-[12px] text-green-600 font-[500]">None</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Footer */}
@@ -669,30 +737,81 @@ function ReprocessViewModal({ entry, onClose }) {
 }
 
 function ReprocessPanel() {
-  const [file, setFile] = useState(null);
-  const [dragging, setDragging] = useState(false);
-  const [viewEntry, setViewEntry] = useState(null);
-  const [lastViewedId, setLastViewedId] = useState(null);
+  const [file,        setFile]        = useState(null);
+  const [dragging,    setDragging]    = useState(false);
+  const [invoiceType, setInvoiceType] = useState("trade");
+  const [vendorName,  setVendorName]  = useState("");
+  const [uploading,   setUploading]   = useState(false);
+
+  // History state
+  const [history,      setHistory]      = useState([]);
+  const [histLoading,  setHistLoading]  = useState(false);
+  const [histError,    setHistError]    = useState(null);
+  const [viewJobId,    setViewJobId]    = useState(null);
+
+  const fetchHistory = useCallback(async () => {
+    setHistLoading(true);
+    setHistError(null);
+    try {
+      const res = await axiosInstance.get("/api/invoice-processing/reprocess/history", {
+        params: { page: 1, limit: 50 },
+      });
+      setHistory(res.data?.items ?? []);
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to load history.";
+      setHistError(msg);
+    } finally {
+      setHistLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handleFileChange = (e) => {
     const selected = e.target.files?.[0];
     if (selected) setFile(selected);
   };
-
   const handleDrop = (e) => {
     e.preventDefault();
     setDragging(false);
     const dropped = e.dataTransfer.files?.[0];
     if (dropped) setFile(dropped);
   };
-
-  const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
+  const handleDragOver  = (e) => { e.preventDefault(); setDragging(true); };
   const handleDragLeave = () => setDragging(false);
+
+  const handleUpload = async () => {
+    if (!file || !vendorName.trim()) {
+      toast.error("Please select a file and enter a vendor name.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("invoice_type", invoiceType);
+      formData.append("vendor_name",  vendorName.trim());
+      formData.append("file",         file);
+      const res = await axiosInstance.post(
+        "/api/invoice-processing/reprocess/upload",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      const msg = res.data?.message ?? "File uploaded and queued for processing.";
+      toast.success(msg);
+      setFile(null);
+      setVendorName("");
+      fetchHistory();
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Upload failed.";
+      toast.error(msg);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <>
-      {/* ── View Modal ── */}
-      <ReprocessViewModal entry={viewEntry} onClose={() => setViewEntry(null)} />
+      <ReprocessViewModal jobId={viewJobId} onClose={() => setViewJobId(null)} />
 
       <div className="space-y-5">
 
@@ -704,18 +823,46 @@ function ReprocessPanel() {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-900">Reprocess Invoices</p>
-              <p className="text-[12px] text-gray-400 mt-0.5">Upload an Excel file to reprocess invoices</p>
+              <p className="text-[12px] text-gray-400 mt-0.5">Upload an Excel or CSV file to reprocess invoices</p>
             </div>
           </div>
 
-          <div className="px-6 pb-6">
+          <div className="px-6 pb-6 space-y-4">
+            {/* Invoice type + vendor row */}
+            <div className="flex flex-wrap gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-[600] text-gray-600">Invoice Type <span className="text-red-500">*</span></label>
+                <div className="relative">
+                  <select
+                    value={invoiceType}
+                    onChange={(e) => setInvoiceType(e.target.value)}
+                    className="appearance-none rounded-xl border border-gray-200 bg-white pl-3.5 pr-9 py-2.5 text-[13px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm min-w-[140px] cursor-pointer"
+                  >
+                    <option value="trade">Trade</option>
+                    <option value="freight">Freight</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+                <label className="text-[12px] font-[600] text-gray-600">Vendor / Carrier Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  placeholder='e.g. "FedEx" or "FAP"'
+                  value={vendorName}
+                  onChange={(e) => setVendorName(e.target.value)}
+                  className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm"
+                />
+              </div>
+            </div>
+
             {/* Dropzone */}
             <label
               htmlFor="reprocess-file-input"
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
-              className={`flex flex-col items-center justify-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed py-16 transition-colors ${
+              className={`flex flex-col items-center justify-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed py-14 transition-colors ${
                 dragging
                   ? "border-indigo-500 bg-indigo-50/70"
                   : file
@@ -733,31 +880,34 @@ function ReprocessPanel() {
                 </>
               ) : (
                 <>
-                  <p className="text-[15px] font-[700] text-gray-800">Click to upload Excel file</p>
-                  <p className="text-[13px] text-gray-400">Supports .xlsx and .xls formats</p>
+                  <p className="text-[15px] font-[700] text-gray-800">Click to upload file</p>
+                  <p className="text-[13px] text-gray-400">Supports .xlsx, .xls and .csv formats</p>
                 </>
               )}
             </label>
             <input
               id="reprocess-file-input"
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.csv"
               className="hidden"
               onChange={handleFileChange}
             />
 
             {/* Process button */}
-            <div className="flex justify-end mt-5">
+            <div className="flex justify-end">
               <button
-                disabled={!file}
+                onClick={handleUpload}
+                disabled={!file || !vendorName.trim() || uploading}
                 className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-[600] shadow-sm transition-all ${
-                  file
+                  file && vendorName.trim() && !uploading
                     ? "bg-violet-500 text-white hover:bg-violet-600 active:bg-violet-700"
                     : "bg-violet-300 text-white cursor-not-allowed"
                 }`}
               >
-                <UploadCloud className="h-4 w-4" />
-                Process File
+                {uploading
+                  ? <><RefreshCw className="h-4 w-4 animate-spin" /> Uploading…</>
+                  : <><UploadCloud className="h-4 w-4" /> Process File</>
+                }
               </button>
             </div>
           </div>
@@ -771,7 +921,7 @@ function ReprocessPanel() {
           </div>
           <ul className="space-y-1.5 pl-1">
             {[
-              "Excel file must be in .xlsx or .xls format",
+              "File must be in .xlsx, .xls, or .csv format",
               "File should contain invoice data with proper headers",
               "Supported invoice types: Freight and Trade",
               "Maximum file size: 10 MB",
@@ -784,51 +934,63 @@ function ReprocessPanel() {
           </ul>
         </div>
 
-        {/* ── Recent Reprocessing History ── */}
+        {/* ── Reprocessing History ── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-6 pt-6 pb-4 flex items-center gap-3">
-            <Clock className="h-5 w-5 text-gray-500" />
-            <p className="text-xs font-bold text-slate-900">Recent Reprocessing History</p>
+          <div className="px-6 pt-6 pb-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Clock className="h-5 w-5 text-gray-500" />
+              <p className="text-xs font-bold text-slate-900">Recent Reprocessing History</p>
+            </div>
+            <button
+              onClick={fetchHistory}
+              disabled={histLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[12px] font-[600] text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors disabled:opacity-40"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${histLoading ? "animate-spin" : ""}`} />
+              {histLoading ? "Loading…" : "Refresh"}
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-t border-gray-100">
-                  {["File Name", "Upload Time", "Records", "Status", "Actions"].map((h) => (
-                    <th key={h} className="px-6 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-400 bg-gray-50/60">{h}</th>
+                  {["File Name", "Vendor", "Type", "Uploaded By", "Upload Time", "Total", "Success", "Failed", "Status", "Actions"].map((h) => (
+                    <th key={h} className="px-6 py-3 text-left text-[11px] font-[700] uppercase tracking-wider text-gray-400 bg-gray-50/60 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {REPROCESS_HISTORY.map((row, idx) => (
+                {histLoading ? (
+                  <tr><td colSpan={10} className="py-12 text-center text-[13px] text-gray-400">
+                    <RefreshCw className="inline h-5 w-5 animate-spin mr-2 text-indigo-400" />Loading…
+                  </td></tr>
+                ) : histError ? (
+                  <tr><td colSpan={10} className="py-12 text-center text-[13px] text-red-400">{histError}</td></tr>
+                ) : history.length === 0 ? (
+                  <tr><td colSpan={10} className="py-12 text-center text-[13px] text-gray-400">No reprocess history found.</td></tr>
+                ) : history.map((row) => (
                   <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <FileSpreadsheet className="h-4 w-4 text-indigo-400 shrink-0" />
-                        <span className="text-xs font-bold text-slate-900">{row.fileName}</span>
+                        <span className="text-xs font-bold text-slate-900 whitespace-nowrap">{row.filename}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-[13px] text-gray-500">{row.uploadTime}</td>
-                    <td className="px-6 py-4 text-xs font-bold text-slate-900">{row.records}</td>
-                    <td className="px-6 py-4">{statusBadge(row.status)}</td>
+                    <td className="px-6 py-4 text-[13px] text-gray-700 whitespace-nowrap">{row.vendor_name ?? "—"}</td>
+                    <td className="px-6 py-4">{row.invoice_type ? typeBadge(normaliseType(row.invoice_type)) : "—"}</td>
+                    <td className="px-6 py-4 text-[13px] text-gray-500 whitespace-nowrap">{row.uploaded_by_email ?? "—"}</td>
+                    <td className="px-6 py-4 text-[13px] text-gray-500 whitespace-nowrap">{formatCreatedAt(row.created_at)}</td>
+                    <td className="px-6 py-4 text-xs font-bold text-slate-900 text-center">{row.total_records ?? "—"}</td>
+                    <td className="px-6 py-4 text-center"><span className="text-green-600 font-[700] text-[13px]">{row.successful_records ?? "—"}</span></td>
+                    <td className="px-6 py-4 text-center"><span className="text-red-500 font-[700] text-[13px]">{row.failed_records ?? "—"}</span></td>
+                    <td className="px-6 py-4">{statusBadge(normaliseStatus(row.status))}</td>
                     <td className="px-6 py-4">
-                      {lastViewedId === row.id ? (
-                        /* Already-viewed: grey bordered pill */
-                        <button
-                          onClick={() => { setLastViewedId(row.id); setViewEntry(row); }}
-                          className="inline-flex items-center gap-1.5 rounded-lg  text-[13px] font-[600] text-violet-600 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                        >
-                          <Eye className="h-4 w-4" /> View
-                        </button>
-                      ) : (
-                        /* Default: violet text link — grey bg on hover */
-                        <button
-                          onClick={() => { setLastViewedId(row.id); setViewEntry(row); }}
-                          className="inline-flex items-center gap-1.5 rounded-lg  text-[13px] font-[600] text-violet-600 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                        >
-                          <Eye className="h-4 w-4" /> View
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setViewJobId(row.id)}
+                        className="inline-flex items-center gap-1.5 rounded-lg text-[13px] font-[600] text-violet-600 hover:bg-gray-100 hover:text-gray-700 transition-colors px-2 py-1"
+                      >
+                        <Eye className="h-4 w-4" /> View
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -858,7 +1020,7 @@ function formatCreatedAt(iso) {
 /* ─── Helper: normalise API status → title-case ─────────── */
 function normaliseStatus(s) {
   if (!s) return "";
-  const m = { SUCCESS: "Success", PARTIAL: "Partial", FAILED: "Failed" };
+  const m = { SUCCESS: "Success", PARTIAL: "Partial", FAILED: "Failed", RUNNING: "Running", PENDING: "Pending", PROCESSING: "Processing" };
   return m[s.toUpperCase()] ?? (s.charAt(0).toUpperCase() + s.slice(1).toLowerCase());
 }
 
@@ -867,6 +1029,42 @@ function normaliseType(t) {
   if (!t) return "";
   const m = { FREIGHT: "Freight", TRADE: "Trade" };
   return m[t.toUpperCase()] ?? t;
+}
+
+/* ─── Download attachment via API ──────────────────── */
+async function downloadAttachment(attachmentId) {
+  if (!attachmentId) { toast.error("No attachment ID available."); return; }
+  try {
+    const res = await axiosInstance.get(
+      `/api/invoice-processing/attachments/${attachmentId}/download`,
+      { responseType: "blob" }
+    );
+    const contentDisposition = res.headers["content-disposition"] ?? "";
+    const match = contentDisposition.match(/filename[^;=\n]*=(["']?)([^\n"']+)\1/);
+    const filename = match?.[2] ?? `attachment_${attachmentId}`;
+    const url = URL.createObjectURL(new Blob([res.data]));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to download attachment.";
+    toast.error(msg);
+  }
+}
+
+/* ─── Helper: convert UI date-filter label → API date_from/date_to ── */
+function getDateRange(label) {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = fmt(now);
+  if (label === "Last 7 Days")  { const f = new Date(now); f.setDate(f.getDate() - 7);  return { date_from: fmt(f), date_to: today }; }
+  if (label === "Last 30 Days") { const f = new Date(now); f.setDate(f.getDate() - 30); return { date_from: fmt(f), date_to: today }; }
+  if (label === "Last 90 Days") { const f = new Date(now); f.setDate(f.getDate() - 90); return { date_from: fmt(f), date_to: today }; }
+  if (label === "This Year")    { return { date_from: `${now.getFullYear()}-01-01`, date_to: today }; }
+  return { date_from: null, date_to: null };
 }
 
 export default function FinanceReportingPage() {
@@ -897,9 +1095,16 @@ export default function FinanceReportingPage() {
     setJobsLoading(true);
     setJobsError(null);
     try {
-      const res = await axiosInstance.get("/invoice-processing/reporting/jobs");
-      const data = res.data?.data ?? {};
-      const mapped = (data.jobs ?? []).map((j) => ({
+      const { date_from, date_to } = getDateRange(dateFilter);
+      const params = { page: 1, page_size: 100 };
+      if (search.trim())               params.search    = search.trim();
+      if (statusFilter !== "All Status") params.status  = statusFilter.toLowerCase();
+      if (date_from)                   params.date_from = date_from;
+      if (date_to)                     params.date_to   = date_to;
+
+      const res = await axiosInstance.get("/api/invoice-processing/jobs", { params });
+      const results = res.data?.results ?? [];
+      const mapped = results.map((j) => ({
         id:          j.id,
         subject:     j.email_subject,
         sender:      j.email_sender,
@@ -911,7 +1116,22 @@ export default function FinanceReportingPage() {
         createdAt:   formatCreatedAt(j.created_at),
       }));
       setApiJobs(mapped);
-      setJobsSummary(data.summary ?? null);
+      // Use API summary directly; fall back to counting results if absent
+      const apiSummary = res.data?.summary;
+      setJobsSummary(apiSummary
+        ? {
+            total:      apiSummary.total_jobs  ?? res.data?.total ?? results.length,
+            successful: apiSummary.successful  ?? 0,
+            partial:    apiSummary.partial     ?? 0,
+            failed:     apiSummary.failed      ?? 0,
+          }
+        : {
+            total:      res.data?.total ?? results.length,
+            successful: results.filter((j) => j.status?.toLowerCase() === "success").length,
+            partial:    results.filter((j) => j.status?.toLowerCase() === "partial").length,
+            failed:     results.filter((j) => j.status?.toLowerCase() === "failed").length,
+          }
+      );
     } catch (err) {
       const msg = err?.response?.data?.detail ?? err?.detail ?? "Failed to load jobs.";
       toast.error(msg, { toastId: "finance-reporting-api-error" });
@@ -919,16 +1139,24 @@ export default function FinanceReportingPage() {
     } finally {
       setJobsLoading(false);
     }
-  }, []);
+  }, [search, statusFilter, dateFilter]);
 
   const fetchFreight = useCallback(async () => {
     setFreightLoading(true);
     setFreightError(null);
     try {
-      const res = await axiosInstance.get("/invoice-processing/reporting/freight-invoices");
-      const data = res.data?.data ?? {};
-      const mapped = (data.invoices ?? []).map((inv) => ({
+      const { date_from, date_to } = getDateRange(dateFilter);
+      const params = { page: 1, page_size: 100 };
+      if (search.trim())               params.search    = search.trim();
+      if (statusFilter !== "All Status") params.status  = statusFilter.toLowerCase();
+      if (date_from)                   params.date_from = date_from;
+      if (date_to)                     params.date_to   = date_to;
+
+      const res = await axiosInstance.get("/api/invoice-processing/freight-invoices", { params });
+      const results = res.data?.results ?? [];
+      const mapped = results.map((inv) => ({
         id:               inv.id,
+        attachmentId:     inv.attachment_id ?? inv.id,
         vendor:           inv.vendor_name,
         invoiceNumber:    inv.invoice_number,
         invoiceDate:      inv.invoice_date,
@@ -936,12 +1164,19 @@ export default function FinanceReportingPage() {
         posoNumber:       Array.isArray(inv.po_so_number) ? inv.po_so_number.join(", ") : (inv.po_so_number ?? ""),
         description:      inv.description,
         amount:           inv.freight_amount != null ? `$${parseFloat(inv.freight_amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—",
-        status:           normaliseStatus(inv.status),
-        errorLog:         inv.error_log,
+        status:           normaliseStatus(inv.sf_automation_status ?? inv.status),
+        errorLog:         inv.sf_automation_error ?? inv.error_log,
         resolutionStatus: inv.resolution_status,
       }));
       setApiFreight(mapped);
-      setFreightSummary(data.summary ?? null);
+      // Use API summary directly; fall back to computing from results if absent
+      const freightApiSummary = res.data?.summary;
+      setFreightSummary(freightApiSummary ?? {
+        total_freight_invoices: res.data?.total ?? results.length,
+        sf_synced: results.filter((i) => (i.sf_automation_status ?? i.status)?.toLowerCase() === "success").length,
+        sf_failed: results.filter((i) => (i.sf_automation_status ?? i.status)?.toLowerCase() === "failed").length,
+        total_amount: null,
+      });
     } catch (err) {
       const msg = err?.response?.data?.detail ?? err?.detail ?? "Failed to load freight invoices.";
       toast.error(msg, { toastId: "finance-reporting-api-error" });
@@ -949,44 +1184,62 @@ export default function FinanceReportingPage() {
     } finally {
       setFreightLoading(false);
     }
-  }, []);
+  }, [search, statusFilter, dateFilter]);
 
   const fetchTrade = useCallback(async () => {
     setTradeLoading(true);
     setTradeError(null);
     try {
-      const res = await axiosInstance.get("/invoice-processing/reporting/trade-invoices");
-      const data = res.data?.data ?? {};
+      const { date_from, date_to } = getDateRange(dateFilter);
+      const params = { page: 1, page_size: 100 };
+      if (search.trim())               params.search    = search.trim();
+      if (statusFilter !== "All Status") params.status  = statusFilter.toLowerCase();
+      if (date_from)                   params.date_from = date_from;
+      if (date_to)                     params.date_to   = date_to;
+
+      const res = await axiosInstance.get("/api/invoice-processing/trade-invoices", { params });
+      const results = res.data?.results ?? [];
+      const total   = res.data?.total   ?? results.length;
       const fmt = (val) => val != null
         ? `$${parseFloat(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : "—";
-      const mapped = (data.items ?? []).map((inv) => ({
-        id:               inv.item_id,
-        poNumber:         inv.po_number,
-        invoiceNo:        inv.invoice_number,
-        invoiceDate:      inv.invoice_date,
-        freightCharge:    fmt(inv.freight_charge),
-        salesTax:         fmt(inv.sales_tax),
-        totalAmount:      fmt(inv.total_amount),
-        palletCharge:     fmt(inv.pallet_charge),
-        packingCharge:    fmt(inv.packing_charge),
-        surCharge:        fmt(inv.sur_charge),
-        vendorName:       inv.vendor_name,
-        discount:         fmt(inv.discount),
-        itemCode:         inv.item_code,
-        description:      inv.description,
-        quantity:         Array.isArray(inv.quantity) && inv.quantity.length > 0
-                            ? inv.quantity[0].value
-                            : (inv.quantity ?? "—"),
-        amount:           fmt(inv.amount),
-        sfQuantity:       inv.salesforce_quantity ?? "—",
-        sfAmount:         inv.salesforce_amount != null ? fmt(inv.salesforce_amount) : "—",
-        status:           normaliseStatus(inv.status),
-        errorLog:         inv.error_log,
-        resolutionStatus: inv.resolution_status,
-      }));
+      // Flatten: one table row per line-item within each invoice
+      const mapped = results.flatMap((inv) => {
+        const items = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [null];
+        return items.map((item) => ({
+          id:               item ? `${inv.id}_${item.id}` : inv.id,
+          attachmentId:     inv.attachment_id ?? inv.id,
+          poNumber:         inv.po_number,
+          invoiceNo:        inv.invoice_number,
+          invoiceDate:      inv.invoice_date,
+          freightCharge:    fmt(inv.freight_charge),
+          salesTax:         fmt(inv.sales_tax),
+          totalAmount:      fmt(inv.total_amount),
+          palletCharge:     fmt(inv.pallet_charge),
+          packingCharge:    fmt(inv.packing_charge),
+          surCharge:        fmt(inv.sur_charge),
+          vendorName:       inv.vendor_name,
+          discount:         fmt(inv.discount),
+          itemCode:         item?.item_code ?? "—",
+          description:      item?.description ?? "—",
+          quantity:         item?.quantity ?? "—",
+          amount:           fmt(item?.amount),
+          sfQuantity:       item?.salesforce_quantity ?? "—",
+          sfAmount:         item?.salesforce_amount != null ? fmt(item.salesforce_amount) : "—",
+          status:           normaliseStatus(inv.sf_automation_status ?? inv.status),
+          errorLog:         inv.sf_automation_error ?? inv.error_log,
+          resolutionStatus: inv.resolution_status,
+        }));
+      });
       setApiTrade(mapped);
-      setTradeSummary(data.summary ?? null);
+      // Prefer the API summary object directly for accurate KPI card values
+      const apiSummary = res.data?.summary;
+      setTradeSummary(apiSummary ?? {
+        total_trade_invoices: total,
+        sf_synced: results.filter((i) => (i.sf_automation_status ?? i.status)?.toLowerCase() === "success").length,
+        sf_failed: results.filter((i) => (i.sf_automation_status ?? i.status)?.toLowerCase() === "failed").length,
+        total_amount: null,
+      });
     } catch (err) {
       const msg = err?.response?.data?.detail ?? err?.detail ?? "Failed to load trade invoices.";
       toast.error(msg, { toastId: "finance-reporting-api-error" });
@@ -994,11 +1247,11 @@ export default function FinanceReportingPage() {
     } finally {
       setTradeLoading(false);
     }
-  }, []);
+  }, [search, statusFilter, dateFilter]);
 
-  /* ── Call the right API whenever the active tab changes ── */
+  /* ── Re-fetch when tab OR any filter changes ── */
   useEffect(() => {
-    if (activeTab === "Jobs")            fetchJobs();
+    if (activeTab === "Jobs")                 fetchJobs();
     else if (activeTab === "FreightInvoices") fetchFreight();
     else if (activeTab === "TradeInvoices")   fetchTrade();
   }, [activeTab, fetchJobs, fetchFreight, fetchTrade]);
@@ -1088,7 +1341,13 @@ export default function FinanceReportingPage() {
 
   // ── Card values from local mock row stats ──
   const cardValue = (key) => {
-    if (key === "amount") return stats.totalAmt !== null ? `$${(stats.totalAmt / 1000).toFixed(1)}k` : "—";
+    if (key === "amount") {
+      if (stats.totalAmt === null || stats.totalAmt === undefined) return "—";
+      const amt = Number(stats.totalAmt);
+      if (amt >= 1_000_000) return `$${(amt / 1_000_000).toFixed(2)}M`;
+      if (amt >= 1_000)     return `$${(amt / 1_000).toFixed(1)}K`;
+      return `$${amt.toFixed(2)}`;
+    }
     return stats[key];
   };
 

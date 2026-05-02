@@ -7176,10 +7176,15 @@ export default function CampaignPage() {
                 {/* ── Channel pills ── */}
                 <div className="flex flex-wrap gap-2 mb-3">
                   {channels.map((ch) => (
-                    <span key={ch.key} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-slate-50 text-[11px] font-[600] text-slate-600">
+                    <button
+                      key={ch.key}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openCampaignDetails(c, ch.key); }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-slate-50 text-[11px] font-[600] text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer"
+                    >
                       {ch.icon}
                       {ch.label}
-                    </span>
+                    </button>
                   ))}
                 </div>
 

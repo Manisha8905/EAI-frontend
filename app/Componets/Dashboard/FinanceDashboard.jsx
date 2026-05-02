@@ -53,8 +53,8 @@ const FILTER_OPTIONS = [
   { label: "Today", value: "today" },
   { label: "This Week", value: "this_week" },
   { label: "This Month", value: "this_month" },
-  { label: "This Quarter", value: "this_quarter" },
-  { label: "This Year", value: "this_year" },
+  { label: "Last 30 Days", value: "last_30_days" },
+  { label: "Custom", value: "custom" },
 ];
 
 const KPI_DATA = {
@@ -82,17 +82,17 @@ const KPI_DATA = {
     amount: { value: "$1.65M", note: "This month" },
     failed: { value: 18, system: 8, data: 6, backend: 4 },
   },
-  this_quarter: {
-    jobs: { value: 421, trend: 14, freight: 240, trade: 181 },
-    invoices: { value: 1840, trend: 16, freight: 998, trade: 842 },
-    amount: { value: "$4.9M", note: "This quarter" },
-    failed: { value: 47, system: 20, data: 15, backend: 12 },
+  last_30_days: {
+    jobs: { value: 156, trend: 12, freight: 89, trade: 67 },
+    invoices: { value: 629, trend: 18, freight: 342, trade: 287 },
+    amount: { value: "$1.65M", note: "Last 30 days" },
+    failed: { value: 18, system: 8, data: 6, backend: 4 },
   },
-  this_year: {
-    jobs: { value: 1624, trend: 22, freight: 930, trade: 694 },
-    invoices: { value: 7210, trend: 19, freight: 3910, trade: 3300 },
-    amount: { value: "$19.3M", note: "This year" },
-    failed: { value: 183, system: 78, data: 61, backend: 44 },
+  custom: {
+    jobs: { value: 0, trend: 0, freight: 0, trade: 0 },
+    invoices: { value: 0, trend: 0, freight: 0, trade: 0 },
+    amount: { value: "—", note: "Custom range" },
+    failed: { value: 0, system: 0, data: 0, backend: 0 },
   },
 };
 
@@ -300,7 +300,8 @@ function FailureRateChart({ data }) {
           <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
           <YAxis
             tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-            domain={[0, 3]} tickCount={5}
+            domain={[0, "auto"]}
+            tickFormatter={(v) => `${v}%`}
             label={{ value: "Failure Rate (%)", angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#9ca3af" }, dx: 14, dy: 55 }}
           />
           <Tooltip content={<FailureTooltip />} />
@@ -327,6 +328,8 @@ export default function FinanceDashboard() {
     typeof window !== "undefined" ? isAllowedRole(localStorage.getItem("userRole") || "") : null
   );
   const [filter, setFilter]           = useState("all");
+  const [dateFrom, setDateFrom]         = useState("");
+  const [dateTo,   setDateTo]           = useState("");
   const [reportingTab, setReportingTab] = useState("trade");
 
   // ── Live metrics from API ──────────────────────────────────────
@@ -354,12 +357,16 @@ export default function FinanceDashboard() {
   const jobDateRangeRef = useRef("last_30_days");
   const jobPageRef      = useRef(1);
 
-  const loadMetrics = useCallback(async (period) => {
+  const loadMetrics = useCallback(async (period, from, to) => {
+    if (period === "custom" && (!from || !to)) return;
     setMetricsLoading(true);
     try {
-      const res = await axiosInstance.get("/invoice-processing/metrics", {
-        params: { period },
-      });
+      const params = { period };
+      if (period === "custom") {
+        params.date_from = from;
+        params.date_to   = to;
+      }
+      const res = await axiosInstance.get("/api/invoice-processing/dashboard", { params });
       const payload = res.data?.data ?? res.data;
       setApiMetrics(payload);
     } catch (err) {
@@ -371,7 +378,9 @@ export default function FinanceDashboard() {
   }, []);
 
   useEffect(() => {
-    loadMetrics(filter);
+    if (filter !== "custom") {
+      loadMetrics(filter);
+    }
   }, [filter, loadMetrics]);
 
   // ── Jobs Reporting loader — reads from refs, always fresh ────────
@@ -393,7 +402,7 @@ export default function FinanceDashboard() {
         ...(type   ? { type }   : {}),
         ...(status ? { status } : {}),
       };
-      const res = await axiosInstance.get("/invoice-processing/reporting/jobs", { params });
+      const res = await axiosInstance.get("/api/invoice-processing/reporting/jobs", { params });
       const payload = res.data?.data ?? res.data;
       const items =
         payload?.items   ??
@@ -513,7 +522,7 @@ export default function FinanceDashboard() {
         ...(search ? { search } : {}),
         ...(status ? { status } : {}),
       };
-      const res = await axiosInstance.get("/invoice-processing/reporting/freight-invoices", { params });
+      const res = await axiosInstance.get("/api/invoice-processing/reporting/freight-invoices", { params });
       const payload = res.data?.data ?? res.data;
       const items =
         payload?.items    ??
@@ -559,7 +568,7 @@ export default function FinanceDashboard() {
         page_size: TRADE_PAGE_SIZE,
         ...(search ? { search } : {}),
       };
-      const res = await axiosInstance.get("/invoice-processing/reporting/trade-invoices", { params });
+      const res = await axiosInstance.get("/api/invoice-processing/reporting/trade-invoices", { params });
       const payload = res.data?.data ?? res.data;
       const items =
         payload?.items    ??
@@ -633,38 +642,69 @@ export default function FinanceDashboard() {
   };
 
   // ── Derive KPI values: live API first, then static fallback ───
-  const sc  = apiMetrics?.summary_cards;
-  const sd  = apiMetrics?.status_distribution ?? [];
-  const ptApi = apiMetrics?.processing_trend  ?? [];
-  const frApi = apiMetrics?.failure_rate       ?? [];
+  const filterLabel = FILTER_OPTIONS.find((f) => f.value === filter)?.label ?? "All";
+  const kpis = apiMetrics?.kpis;
+  const jbs  = apiMetrics?.jobs_by_status;       // { success, partial, failed }
+  const ptApi = apiMetrics?.processing_trend ?? [];
+  const frApi = apiMetrics?.failure_rate     ?? [];
 
-  const staticKpi  = KPI_DATA[filter] ?? KPI_DATA["all"];
-  const kpi = sc
+  const staticKpi = KPI_DATA[filter] ?? KPI_DATA["all"];
+
+  // Format amount: value=0 → "$0", else "$1.65M" style from API numeric
+  // API returns currency as "USD" string — always render with "$" symbol
+  const formatAmount = (val) => {
+    if (val === null || val === undefined) return "—";
+    if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(2)}M`;
+    if (val >= 1_000)     return `$${(val / 1_000).toFixed(2)}K`;
+    return `$${Number(val).toFixed(2)}`;
+  };
+
+  const kpi = kpis
     ? {
-        jobs:     { value: sc.total_jobs.count,             trend: sc.total_jobs.change_pct,     freight: sc.total_jobs.freight,     trade: sc.total_jobs.trade     },
-        invoices: { value: sc.total_invoices.count,         trend: sc.total_invoices.change_pct, freight: sc.total_invoices.freight, trade: sc.total_invoices.trade },
-        amount:   { value: sc.total_amount_processed.formatted, note: sc.total_amount_processed.period_label },
-        failed:   { value: sc.failed_invoices.count, system: sc.failed_invoices.system, data: sc.failed_invoices.data, backend: sc.failed_invoices.backend },
+        jobs:     {
+          value:   kpis.total_jobs.value,
+          trend:   kpis.total_jobs.change_pct,
+          freight: kpis.total_jobs.freight,
+          trade:   kpis.total_jobs.trade,
+        },
+        invoices: {
+          value:   kpis.total_invoices.value,
+          trend:   kpis.total_invoices.change_pct,
+          freight: kpis.total_invoices.freight,
+          trade:   kpis.total_invoices.trade,
+        },
+        amount: {
+          value: formatAmount(kpis.total_amount_processed.value),
+          note:  kpis.total_amount_processed.period_label ?? filterLabel,
+        },
+        failed: {
+          value:   kpis.failed_invoices.value,
+          system:  kpis.failed_invoices.breakdown?.system  ?? 0,
+          data:    kpis.failed_invoices.breakdown?.data    ?? 0,
+          backend: kpis.failed_invoices.breakdown?.backend ?? 0,
+        },
       }
     : staticKpi;
 
   // ── Job status pie — live if available ────────────────────────
-  const STATUS_COLOR = { SUCCESS: "#22c55e", FAILED: "#ef4444", PARTIAL: "#f97316" };
-  const jobStatusData = sd.length
-    ? sd.map((d) => ({ name: d.status.charAt(0) + d.status.slice(1).toLowerCase(), value: d.pct, fill: STATUS_COLOR[d.status] ?? "#6366f1" }))
+  const STATUS_COLOR = { success: "#22c55e", failed: "#ef4444", partial: "#f97316" };
+  const jobStatusData = jbs
+    ? Object.entries(jbs).map(([key, val]) => {
+        const total = (jbs.success ?? 0) + (jbs.partial ?? 0) + (jbs.failed ?? 0);
+        const pct   = total > 0 ? Math.round((val / total) * 100) : 0;
+        return { name: key.charAt(0).toUpperCase() + key.slice(1), value: pct, fill: STATUS_COLOR[key] ?? "#6366f1" };
+      })
     : JOB_STATUS_DATA;
 
   // ── Processing trend — live if available ─────────────────────
   const processingTrend = ptApi.length
-    ? ptApi.map((d) => ({ period: d.bucket, jobs: d.jobs, freight: d.freight_invoices, trade: d.trade_invoices }))
+    ? ptApi.map((d) => ({ period: d.period, jobs: d.jobs, freight: d.freight_invoices, trade: d.trade_invoices }))
     : PROCESSING_TREND;
 
   // ── Failure rate — live if available ─────────────────────────
   const failureRateData = frApi.length
-    ? frApi.map((d) => ({ date: d.bucket, rate: d.rate_pct }))
+    ? frApi.map((d) => ({ date: d.date, rate: d.rate }))
     : FAILURE_RATE_DATA;
-
-  const filterLabel = FILTER_OPTIONS.find((f) => f.value === filter)?.label ?? "All";
 
   if (allowed === null || metricsLoading) {
     return (
@@ -700,23 +740,53 @@ export default function FinanceDashboard() {
   return (
     <div className="p-6 space-y-5 bg-[#f4f5f7] min-h-screen">
 
-      {/* ── Filter bar — label left, select+chevron right ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 flex items-center justify-between">
+      {/* ── Filter bar — label left, controls right ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-4 flex flex-wrap items-center gap-3 justify-between">
         <div>
           <p className="text-[15px] font-[700] text-gray-900">Filter Data</p>
           <p className="text-[12px] text-gray-400 mt-0.5">Select time period for metrics</p>
         </div>
-        <div className="relative">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-[13px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer shadow-sm min-w-[120px]"
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative">
+            <select
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setApiMetrics(null);
+              }}
+              className="appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-[13px] text-gray-700 font-[500] focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer shadow-sm min-w-[140px]"
+            >
+              {FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          </div>
+
+          {filter === "custom" && (
+            <>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
+              />
+              <span className="text-[12px] text-gray-400">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-sm"
+              />
+              <button
+                onClick={() => loadMetrics("custom", dateFrom, dateTo)}
+                disabled={!dateFrom || !dateTo}
+                className="rounded-xl bg-blue-600 px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-blue-700 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+              >
+                Apply
+              </button>
+            </>
+          )}
         </div>
       </div>
 

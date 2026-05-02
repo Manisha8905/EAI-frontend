@@ -10,6 +10,11 @@
 
 // ── Tenant map ────────────────────────────────────────────────────────────────
 const HOST_BACKEND_MAP = {
+  // ── Local development ────────────────────────────────────────────────────
+  // Point to whichever backend has your Finance / invoice-processing API.
+  // Change this URL to match your local or staging backend.
+  "localhost": "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com",
+
   "campaign-management-1.technologymindz.com":
     "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com",
   "campaign-management-2.technologymindz.com":
@@ -47,6 +52,12 @@ async function proxyRequest(request, { params }) {
   const query = searchParams.toString();
   const targetUrl = `${backendBase}${upstreamPath}${query ? `?${query}` : ""}`;
 
+  // ── DEBUG — remove once confirmed working ────────────────────────────────
+  console.log("[proxy] host      :", host);
+  console.log("[proxy] backend   :", backendBase);
+  console.log("[proxy] targetUrl :", targetUrl);
+  // ─────────────────────────────────────────────────────────────────────────
+
   // Forward Authorization from incoming request (set by axiosInstance interceptor)
   const authorization = request.headers.get("authorization") || "";
 
@@ -71,6 +82,8 @@ async function proxyRequest(request, { params }) {
     });
 
     const text = await res.text();
+
+    console.log("[proxy] upstream status:", res.status, "url:", targetUrl);
 
     // Propagate the exact status so the client sees 401, 403, 404, etc.
     return new Response(text, {
