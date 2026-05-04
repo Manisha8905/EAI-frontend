@@ -2937,11 +2937,16 @@ export default function CampaignPage() {
     outerRadius,
     percent,
   }) => {
-    if (!Number.isFinite(percent) || percent < 0.08) return null;
+    if (!Number.isFinite(percent) || percent < 0.05) return null;
     const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    // For near-100% slices the midpoint sits inside the donut hole; use a
+    // safe radius that stays within the filled arc.
+    const safeInner = innerRadius + 2;
+    const safeOuter = outerRadius - 2;
+    const radius = safeInner + (safeOuter - safeInner) * 0.5;
+    // For 100% single-slice, always center the label to avoid clipping
+    const x = Math.round(percent * 100) === 100 ? cx : cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = Math.round(percent * 100) === 100 ? cy : cy + radius * Math.sin(-midAngle * RADIAN);
     return (
       <text
         x={x}
@@ -4818,15 +4823,15 @@ export default function CampaignPage() {
         ? rootTotalTasks
         : (Number(emailStats?.total_tasks ?? emailStats?.tasks_count ?? 0) || derivedTotalTasks);
       const funnelData = [
-        { stage: "Total Leads",   value: cardTotalLeads, fill: "#6366f1" },
-        { stage: "Delivered",     value: cardSent,       fill: "#1d4ed8" },
+        { stage: "Email Enabled",   value: cardTotalLeads, fill: "#6366f1" },
+        { stage: "Sent",     value: cardSent,       fill: "#1d4ed8" },
         { stage: "Skipped",       value: cardSkipped,    fill: "#93c5fd" },
         { stage: "Failed",        value: cardFailed,     fill: "#3b82f6" },
         { stage: "Leads Engaged", value: cardReplies,    fill: "#16a34a" },
       ];
       const statusDonut = [
-        { name: "Total Leads",   value: cardTotalLeads, color: "#6366f1" },
-        { name: "Delivered",     value: cardSent,       color: "#1d4ed8" },
+        { name: "Email Enabled",   value: cardTotalLeads, color: "#6366f1" },
+        { name: "Sent",     value: cardSent,       color: "#1d4ed8" },
         { name: "Skipped",       value: cardSkipped,    color: "#93c5fd" },
         { name: "Failed",        value: cardFailed,     color: "#3b82f6" },
         { name: "Leads Engaged", value: cardReplies,    color: "#16a34a" },
@@ -5808,9 +5813,9 @@ export default function CampaignPage() {
         { metric: "No Reply", value: noReply, fill: "#93c5fd" },
       ];
       const outcomeDonut = [
-        { name: "Accepted", value: accepted, color: "#1d4ed8" },
-        { name: "Replied", value: replied, color: "#2563eb" },
-        { name: "No Reply", value: noReply, color: "#bfdbfe" },
+        { name: "Accepted", value: accepted, color: "#1e40af" },
+        { name: "Replied",  value: replied,  color: "#0e7490" },
+        { name: "No Reply", value: noReply,  color: "#6366f1" },
       ].filter((s) => s.value > 0);
       return (
         <main className="min-h-screen bg-[#f4f5f7] p-4">
@@ -5987,60 +5992,72 @@ export default function CampaignPage() {
               </div>
               {outcomeDonut.length > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col">
-                  <h3 className="text-[14px] font-[700] text-gray-900 mb-1">
-                    Outcome Split
-                  </h3>
-                  <p className="text-[12px] text-gray-400 mb-2">
-                    Accepted, replied, no reply
-                  </p>
-                  <div className="flex-1 flex flex-col items-center justify-center gap-3">
-                    <ResponsiveContainer width={140} height={140}>
+                  <div className="mb-3">
+                    <h3 className="text-[14px] font-[700] text-gray-900">Outcome Split</h3>
+                    <p className="text-[12px] text-gray-400 mt-0.5">Accepted · Replied · No Reply</p>
+                  </div>
+
+                  {/* Donut with center total */}
+                  <div className="flex items-center justify-center relative mb-4">
+                    <ResponsiveContainer width={160} height={160}>
                       <PieChart>
                         <Pie
                           data={outcomeDonut}
                           cx="50%"
                           cy="50%"
-                          innerRadius={42}
-                          outerRadius={65}
+                          innerRadius={50}
+                          outerRadius={72}
                           dataKey="value"
-                          paddingAngle={0}
+                          paddingAngle={3}
                           labelLine={false}
                           label={renderPieLabel}
+                          strokeWidth={0}
                         >
                           {outcomeDonut.map((s, i) => (
-                            <Cell key={i} fill={s.color} stroke="none" strokeWidth={0} />
+                            <Cell key={i} fill={s.color} stroke="none" />
                           ))}
                         </Pie>
                         <Tooltip
-                          contentStyle={{
-                            borderRadius: 10,
-                            border: "none",
-                            fontSize: 12,
-                          }}
+                          contentStyle={{ borderRadius: 8, border: "none", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                          formatter={(val, name) => [`${val} leads`, name]}
                         />
                       </PieChart>
                     </ResponsiveContainer>
-                    <div className="space-y-1.5 w-full">
-                      {outcomeDonut.map((s) => (
-                        <div
-                          key={s.name}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-2.5 h-2.5 rounded-sm shrink-0"
-                              style={{ background: s.color }}
-                            />
-                            <span className="text-[11px] text-gray-600">
-                              {s.name}
-                            </span>
-                          </div>
-                          <span className="text-[12px] font-[700] text-gray-800">
-                            {s.value}
-                          </span>
-                        </div>
-                      ))}
+                    {/* Center label */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-[22px] font-[800] text-gray-800 leading-none">
+                        {outcomeDonut.reduce((s, d) => s + d.value, 0)}
+                      </span>
+                      <span className="text-[9px] font-[600] uppercase tracking-widest text-gray-400 mt-0.5">Total</span>
                     </div>
+                  </div>
+
+                  {/* Legend with percentage bars */}
+                  <div className="space-y-2">
+                    {outcomeDonut.map((s) => {
+                      const total = outcomeDonut.reduce((sum, d) => sum + d.value, 0);
+                      const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
+                      return (
+                        <div key={s.name} className="flex flex-col gap-0.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: s.color }} />
+                              <span className="text-[11px] font-[500] text-gray-700">{s.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-[700] text-gray-800">{s.value}</span>
+                              <span className="text-[10px] font-[600] px-1.5 py-0.5 rounded-full" style={{ background: `${s.color}22`, color: s.color }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%`, background: s.color }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
