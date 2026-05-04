@@ -588,19 +588,10 @@ export default function SupportChatbotReporting() {
         c.lead.toLowerCase().includes(q) ||
         c.email.toLowerCase().includes(q) ||
         c.preview.toLowerCase().includes(q);
-      // feedback filter — based on conv-level feedback field
-      const matchesFeedback = (() => {
-        if (feedbackFilter === "all") return true;
-        const raw = String(c.feedback ?? "").toLowerCase();
-        const isPos = ["positive","good","thumbs_up","1","true","like","satisfied"].includes(raw);
-        const isNeg = ["negative","bad","thumbs_down","0","false","dislike","unsatisfied"].includes(raw);
-        if (feedbackFilter === "positive") return isPos;
-        if (feedbackFilter === "negative") return isNeg;
-        return true;
-      })();
-      return inTab && matchesSearch && matchesFeedback;
+      // Feedback filter is now handled by the API, not client-side
+      return inTab && matchesSearch;
     });
-  }, [conversations, activeConversationTab, search, feedbackFilter]);
+  }, [conversations, activeConversationTab, search]);
 
   const selectedConversationCard = useMemo(() => {
     return (
@@ -630,6 +621,9 @@ export default function SupportChatbotReporting() {
         }),
         ...(filters.startDate && { start_date: filters.startDate }),
         ...(filters.endDate && { end_date: filters.endDate }),
+        ...(feedbackFilter && feedbackFilter !== "all" && {
+          feedback_filter: feedbackFilter,
+        }),
         ...params,
       };
       const response = await axiosInstance.get("/api/chatbot/conversations", {
@@ -888,7 +882,7 @@ export default function SupportChatbotReporting() {
       fetchAgents();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, canAccess]);
+  }, [filters, feedbackFilter, canAccess]);
 
   // When pagination.offset changes (for infinite scroll)
   useEffect(() => {
