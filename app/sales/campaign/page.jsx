@@ -4126,7 +4126,7 @@ export default function CampaignPage() {
               <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
                 {[
                   {
-                    label: "Total Calls",
+                    label: "Call Enabled",
                     value: totalCalls || c.total_calls || 0,
                     sub: "all calls",
                     color: "text-blue-600",
@@ -4866,7 +4866,7 @@ export default function CampaignPage() {
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
               {
-                label: "Total Leads",
+                label: "Email Enabled",
                 value: emailHistoryLoading ? "…" : cardTotalLeads,
                 icon: Users,
                 color: "text-blue-600",
@@ -4883,7 +4883,7 @@ export default function CampaignPage() {
                 border: "border-blue-100",
               },
               {
-                label: "Delivered",
+                label: "Sent",
                 value: (emailHistoryLoading || emailCardAnalyticsLoading) ? "…" : cardSent,
                 icon: Mail,
                 color: "text-blue-600",
@@ -5847,7 +5847,7 @@ export default function CampaignPage() {
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
             {[
               {
-                label: "Total Outreach",
+                label: "Linkedin Enabled",
                 value: totalOutreach,
                 sub: "all activity",
                 color: "text-blue-600",
@@ -6527,7 +6527,7 @@ export default function CampaignPage() {
           {/* ── Analytics KPI Cards ── */}
           <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
-              { label: "Total Sent",    value: totalSent,      sub: "messages",              color: "text-indigo-600", ring: "ring-indigo-200",  filter: "sent" },
+              { label: "Whatsapp Enabled",    value: totalSent,      sub: "messages",              color: "text-indigo-600", ring: "ring-indigo-200",  filter: "sent" },
               { label: "Delivered",     value: delivered,      sub: "reached",               color: "text-blue-600",   ring: "ring-blue-200",    filter: "delivered" },
               { label: "Read",          value: readCount,      sub: `${readRatePct}% rate`,  color: "text-blue-700",   ring: "ring-blue-300",    filter: "read" },
               { label: "Replied",       value: repliedCount,   sub: `${replyRatePct}% rate`, color: "text-violet-600", ring: "ring-violet-200",  filter: "replied" },

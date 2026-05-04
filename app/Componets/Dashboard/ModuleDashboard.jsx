@@ -1595,12 +1595,12 @@ export default function ModuleDashboard({
           trend={calls.trend}
           title={
             activeTab === "email"
-              ? "Total Leads"
+              ? "Email Enabled"
               : activeTab === "linkedin"
-                ? "Connections Sent"
+                ? "Linkedin Enabled"
                 : activeTab === "whatsapp"
-                  ? "Messages Sent"
-                  : "Calls Processed"
+                  ? "Whatsapp Enabled"
+                  : "Call Enabled"
           }
           today={isLoading ? "…" : calls.today}
           week={isLoading ? "…" : calls.week}
