@@ -1675,24 +1675,12 @@ export default function CampaignPage() {
     },
   ];
 
-  const statusBadge = (status) => {
-    const map = {
-      ACTIVE: "bg-green-100 text-green-700 border-green-200",
-      PAUSED: "bg-amber-100 text-amber-700 border-amber-200",
-      COMPLETED: "bg-blue-100 text-blue-700 border-blue-200",
-      RUNNING: "bg-violet-100 text-violet-700 border-violet-200",
-    };
-    return map[status] ?? "bg-gray-100 text-gray-600 border-gray-200";
+  const statusBadge = () => {
+    return "bg-gray-100 text-gray-600 border-gray-200";
   };
 
-  const statusDot = (status) => {
-    const map = {
-      ACTIVE: "bg-green-500",
-      PAUSED: "bg-amber-400",
-      COMPLETED: "bg-blue-500",
-      RUNNING: "bg-violet-500 animate-pulse",
-    };
-    return map[status] ?? "bg-gray-400";
+  const statusDot = () => {
+    return "bg-gray-400";
   };
 
   const formatDate = (d) => {
@@ -7137,7 +7125,7 @@ export default function CampaignPage() {
                   setPage(1);
                 }}
                 placeholder="Search by name..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200 bg-white text-[13px] text-slate-700 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/15 placeholder-slate-400 shadow-sm"
+                className="w-full pl-10 pr-4 py-2.5 rounded-full  bg-white text-[13px] text-slate-700 outline-none  placeholder-slate-400"
               />
             </div>
 
@@ -7260,119 +7248,95 @@ export default function CampaignPage() {
             return (
             <div
               key={c.id}
-              className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+              className="rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
             >
-              {/* ── Top accent bar ── */}
-              <div className={`h-1.5 w-full ${
-                c.status === "ACTIVE" ? "bg-gradient-to-r from-emerald-400 to-green-500"
-                : c.status === "PAUSED" ? "bg-gradient-to-r from-amber-400 to-orange-400"
-                : c.status === "COMPLETED" ? "bg-gradient-to-r from-blue-400 to-indigo-500"
-                : c.status === "RUNNING" ? "bg-gradient-to-r from-violet-400 to-purple-500"
-                : "bg-slate-200"
-              }`} />
-
               <div className="p-5">
                 {/* ── Header: badges + edit/delete icons ── */}
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-[700] uppercase tracking-wide border ${statusBadge(c.status)}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${statusDot(c.status)}`} />
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-[500] uppercase tracking-wider border border-slate-100 bg-slate-50 text-slate-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                       {c.status}
                     </span>
-                    {c.communicationType && (
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-[600] text-slate-600 uppercase tracking-wide">
-                        {c.communicationType}
-                      </span>
-                    )}
+                    {/* {c.communicationType && (() => {
+                      const ctBorder = {
+                        EMAIL:    "border-sky-400 text-sky-600",
+                        CALL:     "border-indigo-400 text-indigo-600",
+                        LINKEDIN: "border-blue-400 text-blue-600",
+                        WHATSAPP: "border-emerald-400 text-emerald-600",
+                      }[c.communicationType] || "border-slate-200 text-slate-400";
+                      return (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full bg-white border text-[10px] font-[500] uppercase tracking-wider ${ctBorder}`}>
+                          {c.communicationType}
+                        </span>
+                      );
+                    })()} */}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-0.5 shrink-0">
                     <button
                       type="button"
                       disabled={loadingEdit}
                       onClick={(e) => { e.stopPropagation(); handleEdit(c.id); }}
                       title="Edit campaign"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
+                      className="p-1.5 rounded-lg text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition disabled:opacity-50"
                     >
-                      {loadingEdit ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                      {loadingEdit ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
                     </button>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm({ id: c.id, name: c.name }); }}
                       title="Delete campaign"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition"
+                      className="p-1.5 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-rose-50 transition"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 </div>
+
+                {/* ── Channel history shortcuts ── */}
+                {channels.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {channels.map((ch) => {
+                      const chColors = {
+                        EMAIL:    "border-sky-400",
+                        CALL:     "border-indigo-400",
+                        LINKEDIN: "border-blue-400",
+                        WHATSAPP: "border-emerald-400",
+                      };
+                      const colorCls = (chColors[ch.key] || "border-slate-200") + " bg-white text-slate-600 hover:bg-slate-50";
+                      return (
+                        <button
+                          key={ch.key}
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openCampaignDetails(c, ch.key); }}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-[500] transition-colors cursor-pointer ${colorCls}`}
+                        >
+                          {ch.icon}
+                          {ch.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* ── Name + Agent ── */}
-                <h3 className="text-[17px] font-[700] text-slate-900 leading-snug truncate mb-0.5">{c.name}</h3>
-                <p className="text-[12px] text-slate-500 mb-4 truncate">
-                  Agent: <span className="font-[600] text-slate-700">{c.agentName}</span>
-                  {c.agentEmail ? <> · <span className="text-indigo-500">{c.agentEmail}</span></> : null}
+                <h3 className="text-[18px] font-[700] text-slate-900 leading-snug truncate mb-0.5">{c.name}</h3>
+                <p className="text-[12px] text-slate-400 mb-4">
+                  Agent <span className="font-[600] text-slate-600">{c.agentName}</span>
                 </p>
 
-                {/* ── Stats row ── */}
-                <div className="grid grid-cols-5 divide-x divide-slate-100 border border-slate-100 rounded-xl mb-4 text-center">
-                  <div className="py-2.5 px-1">
-                    <p className="text-[15px] font-[700] text-slate-900 leading-none">{c.totalLeads.toLocaleString()}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Leads</p>
-                  </div>
-                  <div className="py-2.5 px-1">
-                    <p className="text-[15px] font-[700] text-emerald-600 leading-none">{c.completed.toLocaleString()}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Completed</p>
-                  </div>
-                  <div className="py-2.5 px-1">
-                    <p className="text-[15px] font-[700] text-sky-600 leading-none">{c.meetings.toLocaleString()}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Meetings</p>
-                  </div>
-                  <div className="py-2.5 px-1">
-                    <p className="text-[15px] font-[700] text-violet-600 leading-none">{(c.tasks ?? 0).toLocaleString()}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Tasks</p>
-                  </div>
-                  <div className="py-2.5 px-1">
-                    <p className="text-[15px] font-[700] text-violet-600 leading-none">{c.convRate}%</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Conv.</p>
-                  </div>
-                </div>
-
-                {/* ── Channel pills ── */}
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {channels.map((ch) => (
-                    <button
-                      key={ch.key}
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); openCampaignDetails(c, ch.key); }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 bg-slate-50 text-[11px] font-[600] text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer"
-                    >
-                      {ch.icon}
-                      {ch.label}
-                    </button>
+                {/* ── Stats inline row ── */}
+                <div className="flex items-center gap-4 mb-5 flex-wrap">
+                  {[
+                    { label: "Leads", value: c.totalLeads.toLocaleString() },
+                    { label: "Done",  value: c.completed.toLocaleString() },
+                    { label: "Meetings", value: c.meetings.toLocaleString() },
+                    { label: "Rate", value: `${c.convRate}%` },
+                  ].map((s) => (
+                    <span key={s.label} className="text-[13px] text-slate-400">
+                      {s.label} <span className="font-[600] text-slate-700">{s.value}</span>
+                    </span>
                   ))}
-                </div>
-
-                {/* ── Progress rows ── */}
-                <div className="space-y-2 mb-4">
-                  {channels.map((ch) => {
-                    const sent = countByKey[ch.key] ?? 0;
-                    const max = Math.max(c.totalLeads, 1);
-                    const pct = Math.min(100, Math.round((sent / max) * 100));
-                    return (
-                      <div key={ch.key}>
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                          <span className="flex items-center gap-1">{ch.icon}{ch.label}</span>
-                          <span className="font-[600] text-slate-600">{sent}/{c.totalLeads}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{ width: `${pct}%`, backgroundColor: ch.fill }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
 
                 {/* ── Footer ── */}
@@ -7398,7 +7362,7 @@ export default function CampaignPage() {
                                   dispatch(pauseCampaign(c.id, () => setTogglingId(null)));
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : "Pause"}
@@ -7411,7 +7375,7 @@ export default function CampaignPage() {
                                   dispatch(resumeCampaign(c.id, () => setTogglingId(null)));
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : "Resume"}
@@ -7435,10 +7399,11 @@ export default function CampaignPage() {
                                 e.stopPropagation();
                                 openCampaignDetails(c, null);
                               }}
-                              className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-slate-800 shadow-sm transition"
+                              className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-[600] shadow-sm transition hover:bg-gray-50"
+                              style={{ background: "#fff", border: "2px solid #111", color: "#111" }}
                             >
                               <Eye className="h-3.5 w-3.5" />
-                              View Activity
+                              View Details
                             </button>
                           </>
                         );
@@ -7464,7 +7429,7 @@ export default function CampaignPage() {
                                   );
                                 }}
                                 disabled={togglingId === c.id}
-                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-[600] border transition disabled:opacity-60 disabled:cursor-not-allowed bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                               >
                                 {togglingId === c.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />}
                                 {togglingId === c.id ? "..." : "Pause"}
@@ -7478,11 +7443,8 @@ export default function CampaignPage() {
                                   }
                                   openCampaignPreview(c.id, previewChannel);
                                 }}
-                                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-[600] text-white shadow-sm transition ${
-                                  hasCompletedPreview
-                                    ? "bg-gray-900 hover:bg-gray-800"
-                                    : "bg-blue-600 hover:bg-blue-700"
-                                }`}
+                                style={hasCompletedPreview ? { background: "#fff", border: "1.5px solid #111", color: "#111" } : {}}
+                                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-[600] shadow-sm transition ${hasCompletedPreview ? "hover:bg-gray-50" : "bg-sky-500 hover:bg-sky-600 text-white"}`}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 {hasCompletedPreview ? "View Details" : "Preview"}
@@ -7519,7 +7481,8 @@ export default function CampaignPage() {
                                   e.stopPropagation();
                                   openCampaignDetails(c, null);
                                 }}
-                                className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-slate-800 shadow-sm transition"
+                                className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-[600] shadow-sm transition hover:bg-gray-50"
+                                style={{ background: "#fff", border: "2px solid #111", color: "#111" }}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 View Details
@@ -7531,7 +7494,8 @@ export default function CampaignPage() {
                                 e.stopPropagation();
                                 openCampaignDetails(c, null);
                               }}
-                              className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-[12px] font-[600] text-white hover:bg-slate-800 shadow-sm transition"
+                              className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-[600] shadow-sm transition hover:bg-gray-50"
+                              style={{ background: "#fff", border: "2px solid #111", color: "#111" }}
                             >
                               <Eye className="h-3.5 w-3.5" />
                               View Details
@@ -7841,3 +7805,6 @@ export default function CampaignPage() {
     </main>
   );
 }
+
+
+

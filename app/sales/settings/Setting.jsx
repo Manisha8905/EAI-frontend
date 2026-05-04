@@ -9586,6 +9586,10 @@ function GlobalIntegrationsPage({
   smtpProvider: smtpProviderProp = "",
   smtpProviderLoading: smtpProviderLoadingProp = false,
 }) {
+  // Derive access locally so the fetch isn't blocked by prop-timing issues
+  const effectiveCanAccess = canAccess || (
+    typeof window !== "undefined" && isAdminRole(localStorage.getItem("userRole") || "")
+  );
   // Local SMTP provider state (fetched directly from /api/smtp/saved-providers)
   const [smtpProviderList, setSmtpProviderList] = useState(smtpProviderListProp);
   const [smtpProvider, setSMTPLocal] = useState(smtpProviderProp);
@@ -9781,7 +9785,7 @@ function GlobalIntegrationsPage({
   // }, []);
 
   useEffect(() => {
-    if (!canAccess) {
+    if (!effectiveCanAccess) {
       setLoading(false);
       return;
     }
@@ -10083,7 +10087,7 @@ function GlobalIntegrationsPage({
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, refreshTrigger]);
+  }, [effectiveCanAccess, refreshTrigger]);
 
   // useEffect(() => {
   //   fetchWhatsappMetrics();
@@ -10396,7 +10400,7 @@ function GlobalIntegrationsPage({
         }
       />
 
-      {!canAccess ? (
+      {!effectiveCanAccess ? (
         <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-8">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
@@ -11223,26 +11227,24 @@ export default function Setting() {
   const [emailPlatformOptions, setEmailPlatformOptions] = useState([]);
   const [emailPlatformLoading, setEmailPlatformLoading] = useState(true);
   // Fetch email sending services/platforms
-  useEffect(() => {
-    const fetchEmailPlatforms = async () => {
-      setEmailPlatformLoading(true);
-      try {
-        const res = await axiosInstance.get("/api/email-sending/services");
-        const d = res.data;
-        setEmailPlatformOptions(Array.isArray(d?.services) ? d.services : []);
-        setEP(d?.selected_service || "");
-      } catch {
-        setEmailPlatformOptions([
-          { service: "SMTP", label: "SMTP" },
-          { service: "CRM", label: "CRM" },
-        ]);
-        setEP("SMTP");
-      } finally {
-        setEmailPlatformLoading(false);
-      }
-    };
-    fetchEmailPlatforms();
-  }, []);
+  const fetchEmailPlatforms = async () => {
+    setEmailPlatformLoading(true);
+    try {
+      const res = await axiosInstance.get("/api/email-sending/services");
+      const d = res.data;
+      setEmailPlatformOptions(Array.isArray(d?.services) ? d.services : []);
+      setEP(d?.selected_service || "");
+    } catch {
+      setEmailPlatformOptions([
+        { service: "SMTP", label: "SMTP" },
+        { service: "CRM", label: "CRM" },
+      ]);
+      setEP("SMTP");
+    } finally {
+      setEmailPlatformLoading(false);
+    }
+  };
+  useEffect(() => { fetchEmailPlatforms(); }, []);
   const [emailPlatformSaving, setEmailPlatformSaving] = useState(false);
   const [smtpProvider, setSMTP] = useState("");
   const [smtpProviderList, setSmtpProviderList] = useState([]); // [{name, description, ready}]
@@ -11264,29 +11266,23 @@ export default function Setting() {
   }, []);
 
   // Fetch CRM OAuth status on mount — show toast if connected, silently mark disconnected
-  useEffect(() => {
-    const fetchCrmStatus = async () => {
-      setCrmStatusLoading(true);
-      try {
-        const res = await axiosInstance.get("/oauth/status");
-        const d = res.data;
-        // Connected only when BOTH credentials and tokens are present and not expired
-        const isConn =
-          d?.has_credentials === true &&
-          d?.has_tokens === true &&
-          d?.token_expired !== true;
-        setCRM(isConn);
-        if (isConn) {
-          toast.success("CRM is connected and active.", { id: "crm-status" });
-        }
-      } catch {
-        setCRM(false);
-      } finally {
-        setCrmStatusLoading(false);
-      }
-    };
-    fetchCrmStatus();
-  }, []);
+  const fetchCrmStatus = async () => {
+    setCrmStatusLoading(true);
+    try {
+      const res = await axiosInstance.get("/oauth/status");
+      const d = res.data;
+      const isConn =
+        d?.has_credentials === true &&
+        d?.has_tokens === true &&
+        d?.token_expired !== true;
+      setCRM(isConn);
+    } catch {
+      setCRM(false);
+    } finally {
+      setCrmStatusLoading(false);
+    }
+  };
+  useEffect(() => { fetchCrmStatus(); }, []);
 
   const handleCrmDisconnect = async () => {
     setCrmDisconnecting(true);
@@ -11316,8 +11312,7 @@ export default function Setting() {
   };
 
   // Fetch available SMTP providers + currently selected provider on mount
-  useEffect(() => {
-    const fetchSmtpProviders = async () => {
+  const fetchSmtpProviders = async () => {
       setSmtpProviderLoading(true);
       try {
         const res = await axiosInstance.get("/api/smtp/saved-providers");
@@ -11353,10 +11348,9 @@ export default function Setting() {
         console.error("Failed to fetch SMTP providers:", err);
       } finally {
         setSmtpProviderLoading(false);
-      }
-    };
-    fetchSmtpProviders();
-  }, [emailPlatform]);
+    }
+  };
+  useEffect(() => { fetchSmtpProviders(); }, [emailPlatform]);
 
   const handleSelectEmailPlatform = async (platform) => {
     setEP(platform);
@@ -11547,9 +11541,14 @@ export default function Setting() {
           )}
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               setRefreshing(true);
-              setTimeout(() => setRefreshing(false), 700);
+              await Promise.allSettled([
+                fetchEmailPlatforms(),
+                fetchSmtpProviders(),
+                fetchCrmStatus(),
+              ]);
+              setRefreshing(false);
             }}
             title="Refresh"
             className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
