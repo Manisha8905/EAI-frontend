@@ -9582,10 +9582,17 @@ function MappingsPage({ onBack }) {
 function GlobalIntegrationsPage({
   onBack,
   canAccess,
-  smtpProviderList = [],
-  smtpProvider = "",
-  smtpProviderLoading = false,
+  smtpProviderList: smtpProviderListProp = [],
+  smtpProvider: smtpProviderProp = "",
+  smtpProviderLoading: smtpProviderLoadingProp = false,
 }) {
+  // Local SMTP provider state (fetched directly from /api/smtp/saved-providers)
+  const [smtpProviderList, setSmtpProviderList] = useState(smtpProviderListProp);
+  const [smtpProvider, setSMTPLocal] = useState(smtpProviderProp);
+  const [smtpProviderLoading, setSmtpProviderLoading] = useState(false);
+  // keep a ref so campaign-email-settings fetch can always read the latest value
+  const currentSelectedProviderRef = useRef("");
+
   const [forms, setForms] = useState({
     twilio: {
       twilio_auth_token: "",
@@ -9661,7 +9668,7 @@ function GlobalIntegrationsPage({
       webhook_secret: "",
     },
     campaign_email_settings: {
-      email: "",
+      from_email: "",
       reply_to_email: "",
       from_name: "",
       template_id: "",
@@ -9678,6 +9685,55 @@ function GlobalIntegrationsPage({
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Fetch SMTP saved providers — re-runs on every refresh
+  useEffect(() => {
+    const fetchSavedProviders = async () => {
+      setSmtpProviderLoading(true);
+      try {
+        const res = await axiosInstance.get("/api/smtp/saved-providers");
+        const d = res.data;
+        const raw = d?.providers ?? (Array.isArray(d) ? d : []);
+        const currentSelected = d?.current_selected_provider ?? null;
+
+        const providers = raw.map((p) => ({
+          id: p.id,
+          name: p.provider ?? p.name ?? String(p),
+          label: p.label ?? null,
+          is_selected: currentSelected
+            ? (p.provider ?? p.name) === currentSelected
+            : p.is_selected === true,
+          verified: p.verified ?? false,
+        }));
+
+        setSmtpProviderList(providers);
+
+        const defaultName =
+          currentSelected ||
+          providers.find((p) => p.is_selected)?.name ||
+          "";
+
+        currentSelectedProviderRef.current = defaultName;
+
+        if (defaultName) {
+          setSMTPLocal(defaultName);
+          setForms((prev) => ({
+            ...prev,
+            campaign_email_settings: {
+              ...prev.campaign_email_settings,
+              smtp_provider_name: defaultName,
+            },
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch SMTP providers:", err);
+      } finally {
+        setSmtpProviderLoading(false);
+      }
+    };
+    fetchSavedProviders();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTrigger]);
   const [whatsappMetrics, setWhatsappMetrics] = useState({
     delivery_status_distribution: [],
     intent_distribution: [],
@@ -9705,19 +9761,6 @@ function GlobalIntegrationsPage({
       },
     }));
   };
-
-  // Sync the globally active SMTP provider into this form whenever the prop arrives
-  useEffect(() => {
-    if (!smtpProvider) return;
-    setForms((prev) => ({
-      ...prev,
-      campaign_email_settings: {
-        ...prev.campaign_email_settings,
-        smtp_provider_name:
-          prev.campaign_email_settings.smtp_provider_name || smtpProvider,
-      },
-    }));
-  }, [smtpProvider]);
 
   // const fetchWhatsappMetrics = useCallback(async () => {
   //   setMetricsLoading(true);
@@ -10011,13 +10054,15 @@ function GlobalIntegrationsPage({
           const d = campaignEmailSettingsRes.value?.data ?? {};
           next.campaign_email_settings = {
             ...prev.campaign_email_settings,
-            email:
-              d.email ?? d.from_email ?? prev.campaign_email_settings.email,
+            from_email:
+              d.from_email ?? d.email ?? prev.campaign_email_settings.from_email,
             reply_to_email:
               d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
             from_name: d.from_name ?? prev.campaign_email_settings.from_name,
             smtp_provider_name:
-              d.smtp_provider_name ??
+              currentSelectedProviderRef.current ||
+              d.smtp_provider_name ||
+              smtpProvider ||
               prev.campaign_email_settings.smtp_provider_name,
             credential: d.credential ?? prev.campaign_email_settings.credential,
             meeting_schedule:
@@ -10669,8 +10714,8 @@ function GlobalIntegrationsPage({
               <Field
                 label="From Email"
                 type="email"
-                value={forms.campaign_email_settings.email}
-                onChange={setField("campaign_email_settings", "email")}
+                value={forms.campaign_email_settings.from_email}
+                onChange={setField("campaign_email_settings", "from_email")}
                 placeholder="noreply@company.com"
               />
               <Field
@@ -10702,7 +10747,7 @@ function GlobalIntegrationsPage({
                         campaign_email_settings: {
                           ...prev.campaign_email_settings,
                           template_id: e.target.value,
-                          ...(selected?.email && { email: selected.email }),
+                          ...(selected?.from_email && { from_email: selected.from_email }),
                           ...(selected?.reply_to_email && {
                             reply_to_email: selected.reply_to_email,
                           }),
@@ -11279,20 +11324,27 @@ export default function Setting() {
         const d = res.data;
         const raw = d?.providers ?? (Array.isArray(d) ? d : []);
 
+        const currentSelected = d?.current_selected_provider ?? null;
+
         const providers = raw.map((p) => ({
           id: p.id,
           name: p.provider ?? p.name ?? String(p),
           label: p.label ?? null,
           description: p.description ?? "",
           ready: p.ready ?? true,
-          is_selected: p.is_selected === true || p.is_active === true || p.is_current === true || p.selected === true,
+          is_selected:
+            currentSelected
+              ? (p.provider ?? p.name) === currentSelected
+              : (p.is_selected === true || p.is_active === true || p.is_current === true || p.selected === true),
           verified: p.verified ?? false,
         }));
 
         setSmtpProviderList(providers);
 
-        const activeProvider = providers.find((p) => p.is_selected);
-        const defaultName = activeProvider?.name ?? (providers.length > 0 ? providers[0].name : "");
+        const defaultName =
+          currentSelected ||
+          providers.find((p) => p.is_selected)?.name ||
+          (providers.length > 0 ? providers[0].name : "");
 
         if (defaultName) {
           setSMTP(defaultName);
