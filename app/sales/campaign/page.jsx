@@ -493,12 +493,17 @@ export default function CampaignPage() {
       setShowEmailConfig(true);
       setEmailConfigLoading(true);
       try {
-        const res = await axiosInstance.get("/campaign-email-settings");
-        const d = res?.data ?? {};
+        // Fetch both email config settings and SMTP providers in parallel
+        const [emailConfigRes, smtpProvidersRes] = await Promise.all([
+          axiosInstance.get("/campaign-email-settings"),
+          axiosInstance.get("/api/smtp/saved-providers"),
+        ]);
+
+        const d = emailConfigRes?.data ?? {};
         setForm((prev) => ({
           ...prev,
           logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
-          smtp_provider_name: d.smtp_provider_name ?? prev.smtp_provider_name ?? "",
+          // smtp_provider_name is NOT from /campaign-email-settings - it comes only from /api/smtp/saved-providers
           template_id: d.template_id ?? prev.template_id ?? "",
           from_name: d.from_name ?? prev.from_name ?? "",
           from_email: d.from_email ?? prev.from_email ?? "",
@@ -507,6 +512,24 @@ export default function CampaignPage() {
           campaign_prompt: d.campaign_prompt ?? prev.campaign_prompt ?? "",
           delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
         }));
+
+        // Process SMTP providers from /api/smtp/saved-providers
+        const smtpData = smtpProvidersRes?.data ?? {};
+        const providers = Array.isArray(smtpData.providers) ? smtpData.providers : [];
+        const normalizedProviders = providers.map((p) => ({
+          name: p.provider ?? p.name ?? "",
+          is_current: !!p.is_selected,
+        }));
+        setSmtpProvidersList(normalizedProviders);
+
+        // Auto-select the active provider (is_selected: true) if form field is empty
+        const activeProvider = normalizedProviders.find((p) => p.is_current);
+        if (activeProvider) {
+          setForm((prev) => ({
+            ...prev,
+            smtp_provider_name: prev.smtp_provider_name || activeProvider.name,
+          }));
+        }
       } catch (err) {
         console.error("Failed to fetch email config settings:", err);
       } finally {
@@ -1080,7 +1103,7 @@ export default function CampaignPage() {
                 : Array.isArray(d?.data)
                   ? d.data
                   : [];
-        setSmtpProvidersList(raw.map((p) => ({
+        const normalizedProviders = raw.map((p) => ({
           name:
             p.name ??
             p.provider_name ??
@@ -1088,6 +1111,7 @@ export default function CampaignPage() {
             p.provider ??
             String(p),
           is_current: !!(
+            p.is_selected ??
             p.is_current ??
             p.is_active ??
             p.selected ??
@@ -1095,7 +1119,22 @@ export default function CampaignPage() {
             p.default ??
             false
           ),
-        })));
+        }));
+        setSmtpProvidersList(normalizedProviders);
+
+        // Auto-select the active provider (is_selected: true) as default when creating a new campaign
+        if (!editingCampaignId) {
+          const selectedProvider =
+            normalizedProviders.find((p) => p.is_current)?.name ??
+            (d?.current_selected_provider
+              ? normalizedProviders.find(
+                  (p) => p.name.toLowerCase() === String(d.current_selected_provider).toLowerCase(),
+                )?.name
+              : null);
+          if (selectedProvider) {
+            setForm((prev) => ({ ...prev, smtp_provider_name: selectedProvider }));
+          }
+        }
       })
       .catch(() => {});
     axiosInstance
@@ -1105,7 +1144,7 @@ export default function CampaignPage() {
         setForm((prev) => ({
           ...prev,
           logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
-          smtp_provider_name: d.smtp_provider_name ?? prev.smtp_provider_name ?? "",
+          // smtp_provider_name is NOT from this API - it comes only from /api/smtp/saved-providers
           template_id: d.template_id ?? prev.template_id ?? "",
           from_name: d.from_name ?? prev.from_name ?? "",
           from_email: d.from_email ?? prev.from_email ?? "",
@@ -2635,11 +2674,20 @@ export default function CampaignPage() {
                               <>
                                 {(() => {
                                   const p = smtpProvidersList.find((x) => x.name === form.smtp_provider_name);
+                                  // Show green dot in the field if this provider is the active (is_selected) one
                                   return p?.is_current ? (
                                     <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
-                                  ) : null;
+                                  ) : (
+                                    <span className="shrink-0 w-2 h-2 rounded-full bg-gray-300" />
+                                  );
                                 })()}
                                 <span className="truncate">{form.smtp_provider_name}</span>
+                                {(() => {
+                                  const p = smtpProvidersList.find((x) => x.name === form.smtp_provider_name);
+                                  return p?.is_current ? (
+                                    <span className="ml-1 text-[10px] font-[600] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200 shrink-0">Active</span>
+                                  ) : null;
+                                })()}
                               </>
                             ) : (
                               <span className="text-gray-400">— Select Provider —</span>
@@ -2658,23 +2706,44 @@ export default function CampaignPage() {
                             {smtpProvidersList.length === 0 ? (
                               <div className="px-3 py-2 text-[12px] text-gray-400 italic">No providers found</div>
                             ) : (
-                              smtpProvidersList.map((p) => (
-                                <div
-                                  key={p.name}
-                                  className={`flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-gray-50 ${form.smtp_provider_name === p.name ? "bg-indigo-50 text-indigo-700 font-[600]" : "text-gray-700"}`}
-                                  onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: p.name })); }}
-                                >
-                                  {p.is_current ? (
-                                    <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
-                                  ) : (
-                                    <span className="shrink-0 w-2 h-2 rounded-full bg-gray-200" />
-                                  )}
-                                  <span className="truncate">{p.name}</span>
-                                  {p.is_current && (
-                                    <span className="ml-auto text-[10px] font-[600] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200 shrink-0">Available</span>
-                                  )}
-                                </div>
-                              ))
+                              smtpProvidersList
+                                // Sort: currently selected provider first, then by is_current (active), then alphabetically
+                                .sort((a, b) => {
+                                  const aIsSelected = a.name === form.smtp_provider_name;
+                                  const bIsSelected = b.name === form.smtp_provider_name;
+                                  if (aIsSelected && !bIsSelected) return -1;
+                                  if (!aIsSelected && bIsSelected) return 1;
+                                  if (a.is_current && !b.is_current) return -1;
+                                  if (!a.is_current && b.is_current) return 1;
+                                  return a.name.localeCompare(b.name);
+                                })
+                                .map((p, idx) => {
+                                  const isCurrentlySelected = p.name === form.smtp_provider_name;
+                                  return (
+                                    <div
+                                      key={p.name}
+                                      className={`flex items-center gap-2.5 px-3 py-2 text-[13px] cursor-pointer hover:bg-gray-50 ${
+                                        isCurrentlySelected
+                                          ? "bg-indigo-50 text-indigo-700 font-[600]"
+                                          : "text-gray-700"
+                                      } ${idx === 0 && isCurrentlySelected ? "border-b border-gray-200" : ""}`}
+                                      onClick={() => { setSmtpProvidersOpen(false); setForm((f) => ({ ...f, smtp_provider_name: p.name })); }}
+                                    >
+                                      {p.is_current ? (
+                                        <span className="shrink-0 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_4px_#22c55e]" />
+                                      ) : (
+                                        <span className="shrink-0 w-2 h-2 rounded-full bg-gray-200" />
+                                      )}
+                                      <span className="truncate">{p.name}</span>
+                                      {isCurrentlySelected && (
+                                        <span className="ml-auto text-[10px] font-[600] text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full border border-indigo-200 shrink-0">Selected</span>
+                                      )}
+                                      {!isCurrentlySelected && p.is_current && (
+                                        <span className="ml-auto text-[10px] font-[600] text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full border border-green-200 shrink-0">Active</span>
+                                      )}
+                                    </div>
+                                  );
+                                })
                             )}
                           </div>
                         )}

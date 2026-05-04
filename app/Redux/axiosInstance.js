@@ -43,6 +43,21 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// ✅ Clear all session data and redirect to login
+function clearSessionAndRedirect() {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("session_token");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("userRoleDisplay");
+    document.cookie =
+      "session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; samesite=none; secure";
+    console.warn("🚪 Session expired — redirecting to login");
+    window.location.replace("/login");
+  }
+}
+
 // ✅ RESPONSE INTERCEPTOR
 axiosInstance.interceptors.response.use(
   (response) => response,
@@ -50,23 +65,26 @@ axiosInstance.interceptors.response.use(
     const originalRequest = error.config;
     const data = error?.response?.data;
 
-    // 🔁 AUTO RETRY ON 401
-    if (
-      error?.response?.status === 401 &&
-      !originalRequest?._retry
-    ) {
-      originalRequest._retry = true;
+    // 🔁 AUTO RETRY ON 401, then clear session if retry also fails
+    if (error?.response?.status === 401) {
+      if (!originalRequest?._retry) {
+        originalRequest._retry = true;
 
-      const session_token = localStorage.getItem("session_token");
+        const session_token = localStorage.getItem("session_token");
 
-      if (session_token) {
-        originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers.Authorization = `Bearer ${session_token}`;
+        if (session_token) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${session_token}`;
 
-        console.warn("🔁 Retrying request with token:", originalRequest.url);
+          console.warn("🔁 Retrying request with token:", originalRequest.url);
 
-        return axiosInstance(originalRequest);
+          return axiosInstance(originalRequest);
+        }
       }
+
+      // Retry already attempted or no token — session is invalid/expired
+      clearSessionAndRedirect();
+      return Promise.reject(error);
     }
 
     // ✅ NORMALIZE ERROR RESPONSE (your existing logic improved)

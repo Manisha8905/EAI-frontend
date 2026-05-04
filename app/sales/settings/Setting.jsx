@@ -5647,7 +5647,7 @@ function SMTPProvidersPage({ onBack }) {
         credentials: { ...form.credentials },
       };
       const res = await axiosInstance.post(
-        "/api/smtp/validate-and-save-credentials",
+        "/api/email-sending/smtp-credentials",
         payload,
       );
       const msg = res?.data?.message || "SMTP credentials validated and saved.";
