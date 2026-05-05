@@ -58,37 +58,62 @@ async function proxyRequest(request, { params }) {
   console.log("[proxy] targetUrl :", targetUrl);
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Forward Authorization from incoming request (set by axiosInstance interceptor)
-  const authorization = request.headers.get("authorization") || "";
+  // Build upstream headers by forwarding most incoming headers.
+  const upstreamHeaders = new Headers();
+  request.headers.forEach((value, key) => {
+    const lower = key.toLowerCase();
+    if (
+      lower === "host" ||
+      lower === "content-length" ||
+      lower === "connection" ||
+      lower === "accept-encoding"
+    ) {
+      return;
+    }
+    upstreamHeaders.set(key, value);
+  });
 
-  // Forward Content-Type for POST/PATCH/PUT
-  const contentType = request.headers.get("content-type") || "application/json";
+  if (!upstreamHeaders.has("accept")) {
+    upstreamHeaders.set("Accept", "*/*");
+  }
 
   let body = undefined;
   if (!["GET", "HEAD"].includes(request.method)) {
-    body = await request.text();
+    body = await request.arrayBuffer();
   }
 
   try {
     const res = await fetch(targetUrl, {
       method: request.method,
-      headers: {
-        "Content-Type": contentType,
-        Accept: "application/json",
-        ...(authorization && { Authorization: authorization }),
-      },
+      headers: upstreamHeaders,
       body: body || undefined,
       redirect: "follow", // Node.js follows http→https redirects without CORS
     });
 
-    const text = await res.text();
+    const payload = await res.arrayBuffer();
 
     console.log("[proxy] upstream status:", res.status, "url:", targetUrl);
 
-    // Propagate the exact status so the client sees 401, 403, 404, etc.
-    return new Response(text, {
+    // Propagate response status and key headers so binary downloads remain intact.
+    const responseHeaders = new Headers();
+    const passThroughHeaders = [
+      "content-type",
+      "content-disposition",
+      "cache-control",
+      "expires",
+      "pragma",
+      "last-modified",
+      "etag",
+    ];
+
+    passThroughHeaders.forEach((name) => {
+      const value = res.headers.get(name);
+      if (value) responseHeaders.set(name, value);
+    });
+
+    return new Response(payload, {
       status: res.status,
-      headers: { "Content-Type": "application/json" },
+      headers: responseHeaders,
     });
   } catch (err) {
     console.error("[proxy] upstream error:", err);

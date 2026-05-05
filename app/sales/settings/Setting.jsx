@@ -130,6 +130,7 @@ function formatApolloFiltersForApi(filters) {
   return out;
 }
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import axiosInstance from "../../Redux/axiosInstance";
 import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
 import { toast } from "react-toastify";
@@ -9800,6 +9801,42 @@ function GlobalIntegrationsPage({
     }));
   };
 
+  const handleCampaignSmtpProviderChange = async (providerName) => {
+    if (!providerName) return;
+
+    // Optimistic UI update for immediate visual sync.
+    currentSelectedProviderRef.current = providerName;
+    setSMTPLocal(providerName);
+    setSmtpProviderList((prev) =>
+      prev.map((p) => ({
+        ...p,
+        is_selected: p.name === providerName,
+      })),
+    );
+    setForms((prev) => ({
+      ...prev,
+      campaign_email_settings: {
+        ...prev.campaign_email_settings,
+        smtp_provider_name: providerName,
+      },
+    }));
+
+    try {
+      await axiosInstance.post("/api/smtp/select-provider", {
+        provider_name: providerName,
+      });
+      toast.success(`SMTP provider set to ${providerName}`);
+    } catch (err) {
+      toast.error(
+        getApiError(err) ||
+          err?.response?.data?.detail ||
+          "Failed to set SMTP provider.",
+      );
+      // Re-sync from backend after failure.
+      setRefreshTrigger((t) => t + 1);
+    }
+  };
+
   // const fetchWhatsappMetrics = useCallback(async () => {
   //   setMetricsLoading(true);
   //   try {
@@ -10836,13 +10873,7 @@ function GlobalIntegrationsPage({
                       ""
                     }
                     onChange={(e) =>
-                      setForms((prev) => ({
-                        ...prev,
-                        campaign_email_settings: {
-                          ...prev.campaign_email_settings,
-                          smtp_provider_name: e.target.value,
-                        },
-                      }))
+                      handleCampaignSmtpProviderChange(e.target.value)
                     }
                     disabled={smtpProviderLoading}
                     className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-50"
@@ -11261,6 +11292,30 @@ function GlobalIntegrationsPage({
 
 export default function Setting() {
   const [activePage, setActivePage] = useState(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const navigateToPage = useCallback(
+    (page, forceRefresh = false) => {
+      setActivePage(page);
+      if (page) {
+        router.push(`/setting?page=${encodeURIComponent(page)}`);
+      } else {
+        router.replace("/setting");
+        if (forceRefresh) {
+          router.refresh();
+        }
+      }
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    const pageFromQuery = searchParams.get("page");
+    const normalizedPage = pageFromQuery || null;
+    setActivePage((prev) => (prev === normalizedPage ? prev : normalizedPage));
+  }, [searchParams]);
+
   const [emailPlatform, setEP] = useState("");
   const [emailPlatformOptions, setEmailPlatformOptions] = useState([]);
   const [emailPlatformLoading, setEmailPlatformLoading] = useState(true);
@@ -11430,11 +11485,26 @@ export default function Setting() {
     }
   };
 
+  const refreshSettingsData = async () => {
+    setRefreshing(true);
+    await Promise.allSettled([
+      fetchEmailPlatforms(),
+      fetchSmtpProviders(),
+      fetchCrmStatus(),
+    ]);
+    setRefreshing(false);
+  };
+
+  const handleGlobalIntegrationsBack = async () => {
+    await refreshSettingsData();
+    navigateToPage(null, true);
+  };
+
   if (activePage === "crm")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
         <CRMPage
-          onBack={() => setActivePage(null)}
+          onBack={() => navigateToPage(null)}
           onConnectionChange={setCRM}
         />
       </div>
@@ -11442,26 +11512,26 @@ export default function Setting() {
   if (activePage === "agents")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <AgentsPage onBack={() => setActivePage(null)} />
+        <AgentsPage onBack={() => navigateToPage(null)} />
       </div>
     );
   if (activePage === "email-templates")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <EmailTemplatesPage onBack={() => setActivePage(null)} />
+        <EmailTemplatesPage onBack={() => navigateToPage(null)} />
       </div>
     );
   if (activePage === "graph-config")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <GraphConfigPage onBack={() => setActivePage(null)} />
+        <GraphConfigPage onBack={() => navigateToPage(null)} />
       </div>
     );
   if (activePage === "global-integrations")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
         <GlobalIntegrationsPage
-          onBack={() => setActivePage(null)}
+          onBack={handleGlobalIntegrationsBack}
           canAccess={userCanAccessGlobalSettings}
           smtpProviderList={smtpProviderList}
           smtpProvider={smtpProvider}
@@ -11472,26 +11542,26 @@ export default function Setting() {
   if (activePage === "smtp-providers")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <SMTPProvidersPage onBack={() => setActivePage(null)} />
+        <SMTPProvidersPage onBack={() => navigateToPage(null)} />
       </div>
     );
   if (activePage === "leads")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <LeadsPage onBack={() => setActivePage(null)} />
+        <LeadsPage onBack={() => navigateToPage(null)} />
       </div>
     );
   if (activePage === "mappings")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <MappingsPage onBack={() => setActivePage(null)} />
+        <MappingsPage onBack={() => navigateToPage(null)} />
       </div>
     );
   if (activePage === "users")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
         <UsersPage
-          onBack={() => setActivePage(null)}
+          onBack={() => navigateToPage(null)}
           isSuperAdmin={userIsSuperAdmin}
         />
       </div>
@@ -11499,13 +11569,13 @@ export default function Setting() {
   if (activePage === "superadmin-metrics")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <SuperAdminMetricsPage onBack={() => setActivePage(null)} />
+        <SuperAdminMetricsPage onBack={() => navigateToPage(null)} />
       </div>
     );
   if (activePage === "business-rules")
     return (
       <div className="p-6 bg-[#f4f5f7] min-h-[calc(100vh-60px)]">
-        <BusinessRulesPage onBack={() => setActivePage(null)} />
+        <BusinessRulesPage onBack={() => navigateToPage(null)} />
       </div>
     );
 
@@ -11540,7 +11610,7 @@ export default function Setting() {
   const GearBtn = ({ page }) => (
     <button
       type="button"
-      onClick={() => setActivePage(page)}
+      onClick={() => navigateToPage(page)}
       className="flex items-center gap-1.5 w-full justify-center rounded-xl border border-gray-200 bg-gray-50
                  py-2 text-[12px] font-[500] text-gray-600 hover:bg-white hover:border-violet-300 hover:text-violet-700
                  transition group"
@@ -11570,7 +11640,7 @@ export default function Setting() {
           {userCanAccessGlobalSettings && (
             <button
               type="button"
-              onClick={() => setActivePage("global-integrations")}
+              onClick={() => navigateToPage("global-integrations")}
               title="Open Global Integrations"
               className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-violet-700 hover:bg-violet-50 transition shadow-sm"
             >
@@ -11580,13 +11650,7 @@ export default function Setting() {
           <button
             type="button"
             onClick={async () => {
-              setRefreshing(true);
-              await Promise.allSettled([
-                fetchEmailPlatforms(),
-                fetchSmtpProviders(),
-                fetchCrmStatus(),
-              ]);
-              setRefreshing(false);
+              await refreshSettingsData();
             }}
             title="Refresh"
             className="rounded-xl border border-gray-200 bg-white p-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition shadow-sm"
@@ -11630,7 +11694,7 @@ export default function Setting() {
                     CRM Connected
                   </div>
                   <button
-                    onClick={() => setActivePage("crm")}
+                    onClick={() => navigateToPage("crm")}
                     className="flex items-center justify-center gap-1.5 w-full rounded-xl border border-gray-200 bg-gray-50 py-2 text-[12px] font-[500] text-gray-600 hover:bg-white hover:border-violet-300 hover:text-violet-700 transition"
                   >
                     <Settings className="h-3.5 w-3.5" />
@@ -11652,7 +11716,7 @@ export default function Setting() {
               ) : (
                 <>
                   <button
-                    onClick={() => setActivePage("crm")}
+                    onClick={() => navigateToPage("crm")}
                     className="flex items-center justify-center gap-1.5 w-full rounded-xl bg-[#0a0a0a] py-2 text-[12px] font-[600] text-white hover:bg-gray-800 transition"
                   >
                     <Link2 className="h-3.5 w-3.5" />+ Connect CRM
