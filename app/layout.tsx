@@ -29,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${jakarta.variable} antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${jakarta.variable} antialiased h-screen overflow-hidden`} suppressHydrationWarning>
         <Providers>
           <LayoutWrapper>{children}</LayoutWrapper>
           <Toaster />

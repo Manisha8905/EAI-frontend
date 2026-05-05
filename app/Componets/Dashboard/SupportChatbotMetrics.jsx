@@ -284,77 +284,61 @@ const mapStatsResponse = (payload, fallback) => {
   };
 };
 
-/* ─── Gradient KPI Card ───────────────────────────────────────── */
-function StatCard({ icon: Icon, title, value, sub, gradient, badge, glowColor, accentBar }) {
+/* ─── Gradient KPI Card (matches Sales KpiCard style) ────────── */
+function StatCard({ icon: Icon, title, value, sub, gradient, shadow, badge }) {
   return (
-    <article
-      className={`relative flex flex-col justify-between rounded-2xl p-4 text-white shadow-xl overflow-hidden ${gradient}`}
-      style={{ minHeight: 116 }}
-    >
-      {/* Subtle radial glow in corner */}
-      <div
-        className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full opacity-30 blur-2xl"
-        style={{ background: glowColor }}
-      />
-      {/* Top row */}
-      <div className="flex items-center justify-between relative z-10">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 shadow-inner">
-          <Icon className="h-4 w-4" />
-        </span>
+    <article className={`rounded-2xl ${gradient} ${shadow ?? ""} p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between min-h-[150px]`}>
+      <div className="flex items-center justify-between mb-3 xl:mb-4">
+        <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
+          <Icon className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
+        </div>
         {badge && (
-          <span className="rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-[700] backdrop-blur-sm">
+          <span className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold shrink-0">
             {badge}
           </span>
         )}
       </div>
-      {/* Bottom */}
-      <div className="relative z-10 mt-2">
-        <p className="text-[22px] font-[900] leading-none tracking-tight">{value}</p>
-        <p className="mt-1 text-[12px] font-[700] leading-tight opacity-95">{title}</p>
-        <p className="mt-0.5 text-[10px] text-white/70">{sub}</p>
+      <p className="text-[12px] lg:text-[11px] xl:text-[12px] font-semibold uppercase tracking-widest text-white/70 mb-3 truncate">
+        {title}
+      </p>
+      <div>
+        <p className="text-[32px] lg:text-[22px] xl:text-[32px] font-bold leading-none truncate">{value}</p>
+        <p className="text-[11px] text-white/60 mt-1.5 truncate">{sub}</p>
       </div>
-      {/* Bottom accent line */}
-      {accentBar && (
-        <div className="absolute bottom-0 left-0 right-0 h-[3px] rounded-b-2xl opacity-60" style={{ background: accentBar }} />
-      )}
     </article>
   );
 }
 
-/* ─── Feedback Card ───────────────────────────────────────────── */
-function FeedbackStatCard({ thumbsUp, thumbsDown, gradient }) {
+/* ─── Feedback Card (matches Sales KpiCard style) ─────────────── */
+function FeedbackStatCard({ thumbsUp, thumbsDown }) {
   const total = thumbsUp + thumbsDown;
   const upPct = total > 0 ? Math.round((thumbsUp / total) * 100) : 0;
   return (
-    <article
-      className={`relative flex flex-col justify-between overflow-hidden rounded-2xl p-4 text-white shadow-xl ${gradient}`}
-      style={{ minHeight: 116 }}
-    >
-      <div className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 rounded-full opacity-25 blur-2xl bg-white" />
-      <div className="relative z-10 flex items-center justify-between">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 shadow-inner">
-          <MessageSquare className="h-4 w-4" />
-        </span>
-        <span className="rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-[11px] font-[700]">
+    <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between min-h-[150px]">
+      <div className="flex items-center justify-between mb-3 xl:mb-4">
+        <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
+          <MessageSquare className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
+        </div>
+        <span className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold shrink-0">
           {upPct}% positive
         </span>
       </div>
-      <div className="relative z-10 mt-2">
-        <p className="text-[12px] font-[700] mb-1.5 opacity-90">User Feedback</p>
-        <div className="flex gap-1.5">
-          <div className="flex flex-1 items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-2 py-1.5">
-            <ThumbsUp className="h-3 w-3 shrink-0" />
-            <div>
-              <p className="text-[14px] font-[900] leading-none">{thumbsUp.toLocaleString()}</p>
-              <p className="text-[10px] text-white/70 mt-0.5">Positive</p>
-            </div>
+      <p className="text-[12px] lg:text-[11px] xl:text-[12px] font-semibold uppercase tracking-widest text-white/70 mb-3 truncate">
+        User Feedback
+      </p>
+      <div className="flex gap-2">
+        <div className="flex flex-1 items-center gap-2 rounded-xl bg-white/15 border border-white/20 px-3 py-2">
+          <ThumbsUp className="h-4 w-4 shrink-0" />
+          <div>
+            <p className="text-[18px] lg:text-[14px] xl:text-[18px] font-bold leading-none">{thumbsUp.toLocaleString()}</p>
+            <p className="text-[10px] text-white/60 mt-1">Positive</p>
           </div>
-          <div className="flex flex-1 items-center gap-1.5 rounded-xl bg-white/15 border border-white/20 px-2 py-1.5">
-            <ThumbsDown className="h-3 w-3 shrink-0" />
-            <div>
-              <p className="text-[14px] font-[900] leading-none">{thumbsDown.toLocaleString()}</p>
-              <p className="text-[10px] text-white/70 mt-0.5">Negative</p>
-            </div>
+        </div>
+        <div className="flex flex-1 items-center gap-2 rounded-xl bg-white/15 border border-white/20 px-3 py-2">
+          <ThumbsDown className="h-4 w-4 shrink-0" />
+          <div>
+            <p className="text-[18px] lg:text-[14px] xl:text-[18px] font-bold leading-none">{thumbsDown.toLocaleString()}</p>
+            <p className="text-[10px] text-white/60 mt-1">Negative</p>
           </div>
         </div>
       </div>
@@ -363,17 +347,23 @@ function FeedbackStatCard({ thumbsUp, thumbsDown, gradient }) {
 }
 
 /* ─── Chart Card wrapper ──────────────────────────────────────── */
-function ChartCard({ title, subtitle, accentColor, children, extra }) {
+function ChartCard({ title, subtitle, badge, children, extra }) {
   return (
-    <article className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-      <div className="h-[3px]" style={{ background: accentColor }} />
-      <div className="p-3 sm:p-4">
-        <div className="flex items-start justify-between mb-1">
+    <article className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="p-5 lg:p-3 xl:p-5">
+        <div className="flex items-center justify-between mb-1">
           <div>
-            <h3 className="text-[13px] font-[700] text-gray-900">{title}</h3>
-            <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>
+            <h3 className="text-[13px] font-semibold text-gray-800">{title}</h3>
+            {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
           </div>
-          {extra}
+          <div className="flex items-center gap-2">
+            {badge && (
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-600">
+                {badge}
+              </span>
+            )}
+            {extra}
+          </div>
         </div>
         {children}
       </div>
@@ -496,16 +486,15 @@ export default function SupportChatbotMetrics() {
       </section>
 
       {/* ── KPI Cards ── */}
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <section className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={MessageSquare}
           title="Total Chats"
           value={data.cards.total.toLocaleString()}
           sub="Since launch"
           badge="All time"
-          gradient="bg-gradient-to-br from-[#6d28d9] via-[#7c3aed] to-[#4f46e5]"
-          glowColor="#a78bfa"
-          accentBar="linear-gradient(to right, #c4b5fd, #818cf8)"
+          gradient="border bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-lg"
+          shadow="shadow-lg shadow-indigo-400/25"
         />
         <StatCard
           icon={Clock3}
@@ -513,19 +502,8 @@ export default function SupportChatbotMetrics() {
           value={data.cards.open.toLocaleString()}
           sub="Active conversations"
           badge={data.cards.total > 0 ? `${((data.cards.open / data.cards.total) * 100).toFixed(1)}%` : "—"}
-          gradient="bg-gradient-to-br from-[#ea580c] via-[#f97316] to-[#fb923c]"
-          glowColor="#fed7aa"
-          accentBar="linear-gradient(to right, #fdba74, #fbbf24)"
-        />
-        <StatCard
-          icon={CheckCircle2}
-          title="Closed Chats"
-          value={data.cards.closed.toLocaleString()}
-          sub="Resolved conversations"
-          badge={data.cards.total > 0 ? `${((data.cards.closed / data.cards.total) * 100).toFixed(1)}%` : "—"}
-          gradient="bg-gradient-to-br from-[#047857] via-[#059669] to-[#10b981]"
-          glowColor="#6ee7b7"
-          accentBar="linear-gradient(to right, #6ee7b7, #34d399)"
+          gradient="border bg-gradient-to-br from-green-500 to-green-600 text-white border-none shadow-lg"
+          shadow="shadow-lg shadow-teal-400/25"
         />
         <StatCard
           icon={BarChart3}
@@ -533,39 +511,35 @@ export default function SupportChatbotMetrics() {
           value={data.cards.avgMessages.toFixed(1)}
           sub="Average engagement depth"
           badge="Avg"
-          gradient="bg-gradient-to-br from-[#0369a1] via-[#0ea5e9] to-[#38bdf8]"
-          glowColor="#bae6fd"
-          accentBar="linear-gradient(to right, #7dd3fc, #818cf8)"
+          gradient="border bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none shadow-lg"
+          shadow="shadow-lg shadow-purple-400/25"
         />
-        <div className="col-span-2 sm:col-span-1">
-          <FeedbackStatCard
-            thumbsUp={data.feedback.thumbsUp}
-            thumbsDown={data.feedback.thumbsDown}
-            gradient="bg-gradient-to-br from-[#be185d] via-[#ec4899] to-[#f472b6]"
-          />
-        </div>
+        <FeedbackStatCard
+          thumbsUp={data.feedback.thumbsUp}
+          thumbsDown={data.feedback.thumbsDown}
+        />
       </section>
 
       {/* ── Charts Row 1 ── */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 
         {/* Open vs Closed */}
         <ChartCard
           title="Open vs Closed"
           subtitle="Current workload distribution"
-          accentColor="linear-gradient(to right, #10b981, #6366f1)"
+          badge={`${data.cards.total.toLocaleString()} total`}
         >
           <div className="mt-3 h-[140px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.openClosed} barSize={44}>
                 <defs>
                   <linearGradient id="barOpen" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f97316" />
-                    <stop offset="100%" stopColor="#ea580c" />
+                    <stop offset="0%" stopColor="#22c55e" />
+                    <stop offset="100%" stopColor="#16a34a" />
                   </linearGradient>
                   <linearGradient id="barClosed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" />
-                    <stop offset="100%" stopColor="#4f46e5" />
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#2563eb" />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -584,9 +558,9 @@ export default function SupportChatbotMetrics() {
           {/* Mini summary */}
           <div className="mt-3 grid grid-cols-2 gap-2">
             {data.openClosed.map((item, i) => (
-              <div key={item.name} className={`rounded-xl px-3 py-2 ${i === 0 ? "bg-orange-50 border border-orange-100" : "bg-indigo-50 border border-indigo-100"}`}>
-                <p className={`text-[18px] font-[800] ${i === 0 ? "text-orange-600" : "text-indigo-600"}`}>{item.value.toLocaleString()}</p>
-                <p className="text-[11px] text-gray-500 font-medium">{item.name}</p>
+              <div key={item.name} className={`rounded-xl px-3 py-2 ${i === 0 ? "bg-green-50 border border-green-100" : "bg-blue-50 border border-blue-100"}`}>
+                <p className={`text-[20px] font-bold leading-none ${i === 0 ? "text-green-600" : "text-blue-600"}`}>{item.value.toLocaleString()}</p>
+                <p className="text-[11px] text-gray-500 mt-1">{item.name}</p>
               </div>
             ))}
           </div>
@@ -596,7 +570,7 @@ export default function SupportChatbotMetrics() {
         <ChartCard
           title="Assigned vs Unassigned"
           subtitle="Agent ownership split"
-          accentColor="linear-gradient(to right, #7c3aed, #93c5fd)"
+          badge={`${data.cards.total.toLocaleString()} total`}
         >
           <div className="mt-2 flex items-center justify-center">
             <div className="relative" style={{ width: 140, height: 140 }}>
@@ -604,8 +578,8 @@ export default function SupportChatbotMetrics() {
                 <PieChart>
                   <defs>
                     <linearGradient id="pieAssigned" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#7c3aed" />
-                      <stop offset="100%" stopColor="#6366f1" />
+                      <stop offset="0%" stopColor="#a855f7" />
+                      <stop offset="100%" stopColor="#9333ea" />
                     </linearGradient>
                   </defs>
                   <Pie
@@ -618,14 +592,14 @@ export default function SupportChatbotMetrics() {
                     strokeWidth={0}
                   >
                     <Cell fill="url(#pieAssigned)" stroke="none" />
-                    <Cell fill="#bfdbfe" stroke="none" />
+                    <Cell fill="#99f6e4" stroke="none" />
                   </Pie>
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 10, border: "1px solid #e5e7eb" }} />
                 </PieChart>
               </ResponsiveContainer>
               {/* Center label */}
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-[15px] font-[900] text-violet-700 leading-none">
+                <span className="text-[15px] font-[900] text-purple-600 leading-none">
                   {data.assignedSplit[0]?.value?.toLocaleString() ?? 0}
                 </span>
                 <span className="text-[9px] font-semibold text-gray-400 mt-0.5 uppercase tracking-widest">Assigned</span>
@@ -634,7 +608,7 @@ export default function SupportChatbotMetrics() {
           </div>
           <div className="mt-3 space-y-2">
             {data.assignedSplit.map((item, idx) => {
-              const color = idx === 0 ? "#7c3aed" : "#93c5fd";
+              const color = idx === 0 ? "#a855f7" : "#14b8a6";
               const total = data.assignedSplit.reduce((s, d) => s + d.value, 0);
               const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
               return (
@@ -662,7 +636,7 @@ export default function SupportChatbotMetrics() {
         <ChartCard
           title="Escalated vs Non-escalated"
           subtitle="Trend over recent months"
-          accentColor="linear-gradient(to right, #7c3aed, #10b981)"
+          badge={`${data.cards.escalated} escalated`}
         >
           <div className="mt-3 h-[140px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -678,32 +652,32 @@ export default function SupportChatbotMetrics() {
                   iconSize={8}
                   formatter={(v) => <span style={{ fontSize: 11, color: "#6b7280" }}>{v}</span>}
                 />
-                <Line type="monotone" dataKey="escalated" stroke="#7c3aed" strokeWidth={2.5} dot={{ r: 3.5, fill: "#7c3aed", strokeWidth: 0 }} name="Escalated" />
-                <Line type="monotone" dataKey="normal" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3.5, fill: "#10b981", strokeWidth: 0 }} name="Non-escalated" />
+                <Line type="monotone" dataKey="escalated" stroke="#a855f7" strokeWidth={2.5} dot={{ r: 3.5, fill: "#a855f7", strokeWidth: 0 }} name="Escalated" />
+                <Line type="monotone" dataKey="normal" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 3.5, fill: "#22c55e", strokeWidth: 0 }} name="Non-escalated" />
               </LineChart>
             </ResponsiveContainer>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-violet-50 border border-violet-100 px-3 py-2">
-              <p className="text-[16px] font-[800] text-violet-700">{data.cards.escalated.toLocaleString()}</p>
-              <p className="text-[11px] text-gray-500">Total Escalated</p>
+            <div className="rounded-xl bg-purple-50 border border-purple-100 px-3 py-2">
+              <p className="text-[20px] font-bold leading-none text-purple-600">{data.cards.escalated.toLocaleString()}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Escalated</p>
             </div>
-            <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
-              <p className="text-[16px] font-[800] text-emerald-700">{Math.max(data.cards.total - data.cards.escalated, 0).toLocaleString()}</p>
-              <p className="text-[11px] text-gray-500">Total Non Escalated</p>
+            <div className="rounded-xl bg-green-50 border border-green-100 px-3 py-2">
+              <p className="text-[20px] font-bold leading-none text-green-600">{Math.max(data.cards.total - data.cards.escalated, 0).toLocaleString()}</p>
+              <p className="text-[11px] text-gray-500 mt-1">Non-escalated</p>
             </div>
           </div>
         </ChartCard>
       </section>
 
       {/* ── Charts Row 2 ── */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2">
 
         {/* Conversation Status Mix */}
         <ChartCard
           title="Conversation Status Mix"
           subtitle="Resolution health breakdown"
-          accentColor="linear-gradient(to right, #0ea95a, #f59e0b, #7c3aed)"
+          badge={`${data.cards.total.toLocaleString()} total`}
         >
           <div className="mt-3 flex flex-col lg:flex-row items-center gap-3">
             <div className="relative shrink-0" style={{ width: 140, height: 140 }}>
@@ -769,7 +743,6 @@ export default function SupportChatbotMetrics() {
         <ChartCard
           title="Weekly Feedback Trend"
           subtitle="Positive vs Negative ratings over time"
-          accentColor="linear-gradient(to right, #22c55e, #ef4444)"
           extra={
             <div className="flex items-center gap-2 mt-0.5">
               <span className="flex items-center gap-1 text-[11px] font-[600] bg-green-50 text-green-700 px-2 py-0.5 rounded-full border border-green-100">

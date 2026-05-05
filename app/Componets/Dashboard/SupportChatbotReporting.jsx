@@ -225,27 +225,36 @@ function SkeletonMessage({ isBot }) {
   );
 }
 
-function SummaryCard({ title, value, icon: Icon, tone, formatter }) {
+function SummaryCard({ title, value, icon: Icon, tone, formatter, badge, sub }) {
   const tones = {
-    blue: "from-blue-500 to-blue-600",
-    red: "from-rose-500 to-red-600",
-    green: "from-emerald-500 to-green-600",
-    purple: "from-violet-500 to-fuchsia-600",
+    blue:   { gradient: "from-blue-500 to-blue-600",   shadow: "shadow-indigo-400/25" },
+    red:    { gradient: "from-rose-500 to-red-600",    shadow: "shadow-red-400/25" },
+    sky:    { gradient: "from-teal-500 to-teal-600",   shadow: "shadow-sky-400/25" },
+    green:  { gradient: "from-green-500 to-green-600", shadow: "shadow-teal-400/25" },
+    purple: { gradient: "from-purple-500 to-purple-600", shadow: "shadow-purple-400/25" },
   };
+  const { gradient, shadow } = tones[tone] ?? tones.blue;
+
   return (
-    <article
-      className={`rounded-2xl bg-gradient-to-br px-4 py-4 text-white shadow-md flex flex-col items-stretch min-h-[110px] h-full ${tones[tone]}`}
-    >
-      <div className="flex flex-1 items-center justify-between gap-2 min-h-[70px]">
-        <div className="flex flex-col justify-center flex-1">
-          <p className="text-[12px] font-[600] text-white/80 mb-0.5">{title}</p>
-          <p className="text-[24px] font-[900] leading-none tracking-tight text-white">
-            {formatter ? formatter(value) : value}
-          </p>
+    <article className={`rounded-2xl border border-none bg-gradient-to-br ${gradient} shadow-lg ${shadow} p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between min-h-[150px]`}>
+      <div className="flex items-center justify-between mb-3 xl:mb-4">
+        <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
+          <Icon className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
         </div>
-        <span className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white/20 p-2">
-          <Icon className="h-5 w-5" />
-        </span>
+        {badge && (
+          <span className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold shrink-0">
+            {badge}
+          </span>
+        )}
+      </div>
+      <p className="text-[12px] lg:text-[11px] xl:text-[12px] font-semibold uppercase tracking-widest text-white/70 mb-3 truncate">
+        {title}
+      </p>
+      <div>
+        <p className="text-[32px] lg:text-[22px] xl:text-[32px] font-bold leading-none truncate">
+          {formatter ? formatter(value) : value}
+        </p>
+        {sub && <p className="text-[11px] text-white/60 mt-1.5 truncate">{sub}</p>}
       </div>
     </article>
   );
@@ -1061,7 +1070,7 @@ export default function SupportChatbotReporting() {
   }, [conversationsLoading, hasMoreConversations]);
 
   return (
-    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-4">
+    <main className="h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-4 flex flex-col overflow-hidden">
       {/* Global Assign Toast — fixed so overflow-hidden never clips it */}
       {(isRightAssignToast || isAssignedToast) && (
         <div
@@ -1114,31 +1123,38 @@ export default function SupportChatbotReporting() {
               </div>
             )} */}
       {/* Summary Cards */}
-      <section className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+      <section className="mb-3 shrink-0 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
           title="Total Conversations"
           value={data.cards.total}
           icon={MessageCircle}
           tone="blue"
+          badge="All time"
+          sub="Since launch"
         />
         <SummaryCard
           title="Escalated Chats"
           value={data.cards.escalated}
           icon={AlertCircle}
-          tone="red"
+          tone="sky"
+          sub="Requires attention"
         />
         <SummaryCard
           title="Today's Chats"
           value={data.cards.today}
           icon={CalendarDays}
           tone="green"
+          badge="Today"
+          sub="Active today"
         />
         <SummaryCard
-          title="Avg Messages/Chat"
+          title="Avg Messages / Chat"
           value={data.cards.avgMessages}
           formatter={(v) => Number(v).toFixed(1)}
           icon={MessageCircle}
           tone="purple"
+          badge="Avg"
+          sub="Average engagement depth"
         />
       </section>
       {/* {cardError && (
@@ -1148,7 +1164,7 @@ export default function SupportChatbotReporting() {
       )} */}
 
       {/* Toolbar */}
-      <section className="mb-3 flex flex-wrap items-center gap-2">
+      <section className="mb-3 shrink-0 flex flex-wrap items-center gap-2">
         <div className="relative w-full min-w-0 flex-1 sm:min-w-[240px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
@@ -1320,10 +1336,10 @@ export default function SupportChatbotReporting() {
       </section>
 
       {/* Main grid */}
-      <section className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <section className="flex-1 min-h-0 flex gap-3">
         {/* Conversations Panel */}
-        <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-3 py-3 sm:px-4">
+        <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm flex flex-col flex-1 min-w-0">
+          <div className="border-b border-gray-100 px-3 py-3 sm:px-4 shrink-0">
             <div className="flex items-center justify-between">
               <h3 className="text-[14px] font-[800] text-[#061a43]">
                 Conversations
@@ -1366,7 +1382,7 @@ export default function SupportChatbotReporting() {
           </div>
 
           {/* Tabs */}
-          <div className="border-b border-gray-100">
+          <div className="border-b border-gray-100 shrink-0">
             <div className="flex items-center overflow-x-auto">
               {CONVERSATION_TABS.map((tab) => (
                 <button
@@ -1387,7 +1403,7 @@ export default function SupportChatbotReporting() {
 
           {/* Conversation list */}
           <div
-            className="flex-1 min-h-[200px] max-h-[calc(100vh-320px)] overflow-y-auto"
+            className="flex-1 min-h-0 overflow-y-auto"
             ref={convListRef}
           >
             {" "}
@@ -1530,8 +1546,8 @@ export default function SupportChatbotReporting() {
         </article>
 
         {/* Messages Panel */}
-        <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-3 sm:px-4">
+        <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm flex flex-col flex-1 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-3 py-3 sm:px-4 shrink-0">
             <h3 className="text-[14px] font-[800] text-[#061a43]">Messages</h3>
             <div className="flex items-center gap-2">
               {/* Three-dots status menu */}
@@ -1627,7 +1643,7 @@ export default function SupportChatbotReporting() {
             </div>
           </div>
 
-          <div>
+          <div className="flex-1 min-h-0 flex flex-col">
             {/* {selectedConversationCard && (
               <div className="border-b border-gray-100 bg-[#f8fbff] px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1647,7 +1663,7 @@ export default function SupportChatbotReporting() {
               </div>
             )} */}
 
-            <div className="overflow-y-auto" style={{ maxHeight: 320 }}>
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {chatHistoryLoading ? (
                 <div className="space-y-1 bg-white px-4 py-3">
                   {[...Array(4)].map((_, i) => (

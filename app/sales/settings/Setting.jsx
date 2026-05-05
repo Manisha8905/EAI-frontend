@@ -6154,6 +6154,33 @@ function LeadsPage({ onBack }) {
   };
 
   /* ── post /lead-lists/{list_id}/download ── */
+  const inferDownloadFilename = (headers, fallbackBaseName) => {
+    const contentDisposition = headers?.["content-disposition"] ?? "";
+    const match = contentDisposition.match(
+      /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/,
+    );
+    if (match?.[1]) {
+      return match[1].replace(/['"]/g, "");
+    }
+
+    const contentType = String(headers?.["content-type"] ?? "").toLowerCase();
+    if (
+      contentType.includes(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      )
+    ) {
+      return `${fallbackBaseName}.xlsx`;
+    }
+    if (contentType.includes("application/vnd.ms-excel")) {
+      return `${fallbackBaseName}.xls`;
+    }
+    if (contentType.includes("text/csv") || contentType.includes("application/csv")) {
+      return `${fallbackBaseName}.csv`;
+    }
+
+    return `${fallbackBaseName}.xlsx`;
+  };
+
   const handleApiDownload = async (listId, leadIds = [], selectAll = false) => {
     try {
       const res = await axiosInstance.post(
@@ -6161,14 +6188,13 @@ function LeadsPage({ onBack }) {
         { lead_ids: leadIds, select_all: selectAll },
         { responseType: "blob" },
       );
-      const blob = new Blob([res.data]);
+      const blob = new Blob([res.data], {
+        type: res.headers?.["content-type"] || "application/octet-stream",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const cd = res.headers?.["content-disposition"] ?? "";
-      const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      const filename =
-        match?.[1]?.replace(/['"]/g, "") ?? `leads_${listId}.csv`;
+      const filename = inferDownloadFilename(res.headers, `leads_${listId}`);
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
@@ -8218,13 +8244,16 @@ function LeadsPage({ onBack }) {
       const res = await axiosInstance.get("/lead-lists/download-template", {
         responseType: "blob",
       });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const blob = new Blob([res.data], {
+        type: res.headers?.["content-type"] || "application/octet-stream",
+      });
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const cd = res.headers?.["content-disposition"] ?? "";
-      const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      const filename =
-        match?.[1]?.replace(/['"]/g, "") ?? "lead-list-template.xlsx";
+      const filename = inferDownloadFilename(
+        res.headers,
+        "lead-list-template",
+      );
       a.download = filename;
       a.click();
       window.URL.revokeObjectURL(url);
@@ -8244,13 +8273,13 @@ function LeadsPage({ onBack }) {
         { lead_ids: [], select_all: true },
         { responseType: "blob" },
       );
-      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const blob = new Blob([res.data], {
+        type: res.headers?.["content-type"] || "application/octet-stream",
+      });
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const cd = res.headers?.["content-disposition"] ?? "";
-      const match = cd.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      const filename =
-        match?.[1]?.replace(/['"]/g, "") ?? `leads-${listId}.csv`;
+      const filename = inferDownloadFilename(res.headers, `leads-${listId}`);
       a.download = filename;
       a.click();
       window.URL.revokeObjectURL(url);
@@ -8280,19 +8309,6 @@ function LeadsPage({ onBack }) {
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
               />
             </button> */}
-            <button
-              onClick={handleDownloadTemplate}
-              disabled={downloadingTemplate}
-              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
-              title="Download template"
-            >
-              {downloadingTemplate ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileDown className="h-4 w-4" />
-              )}
-              Download Template
-            </button>
             <button
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-1.5 rounded-xl bg-[#0a0a0a] px-4 py-2.5 text-[13px] font-[600] text-white hover:bg-gray-800 transition shadow-sm"
@@ -8621,6 +8637,24 @@ function LeadsPage({ onBack }) {
                     </button>
                   ))}
                 </div>
+                {form.sourceType === "excel" && (
+                  <div className="mt-3">
+                    <button
+                      onClick={handleDownloadTemplate}
+                      disabled={downloadingTemplate}
+                      className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-[600] text-gray-700 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+                      title="Download template"
+                      type="button"
+                    >
+                      {downloadingTemplate ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileDown className="h-4 w-4" />
+                      )}
+                      Download Template
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
                 <button
@@ -10040,8 +10074,9 @@ function GlobalIntegrationsPage({
             : (raw.data ?? raw.templates ?? raw.results ?? []);
           setEmailTemplates(
             list.map((t) => ({
-              id: t.template_id ?? t.id ?? t._id ?? "",
+              id: String(t.template_id ?? t.id ?? t._id ?? ""),
               name: t.name ?? t.template_name ?? t.template_id ?? t.id ?? "",
+              from_email: t.from_email ?? t.email ?? "",
               email: t.from_email ?? t.email ?? "",
               reply_to_email: t.reply_to_email ?? "",
               from_name: t.from_name ?? "",
@@ -10077,7 +10112,10 @@ function GlobalIntegrationsPage({
               prev.campaign_email_settings.logged_in_user_email,
             campaign_prompt:
               d.campaign_prompt ?? prev.campaign_email_settings.campaign_prompt,
-            // template_id stays from the dropdown — do not overwrite
+            template_id:
+              d.template_id !== undefined && d.template_id !== null
+                ? String(d.template_id)
+                : prev.campaign_email_settings.template_id,
           };
         }
 
@@ -10321,7 +10359,7 @@ function GlobalIntegrationsPage({
       }
       if (section === "campaign_email_settings") {
         await axiosInstance.put("/campaign-email-settings", {
-          email: forms.campaign_email_settings.email,
+          from_email: forms.campaign_email_settings.from_email,
           reply_to_email: forms.campaign_email_settings.reply_to_email,
           from_name: forms.campaign_email_settings.from_name,
           template_id: forms.campaign_email_settings.template_id,

@@ -5,8 +5,6 @@ import { useState, useEffect } from "react";
 import Navbar from "./Componets/Pages/Navbar";
 import Sidebar from "./Componets/Pages/Sidebar";
 
-const ADMIN_ONLY_PATHS = ["/user-management"];
-
 const isAdminRole = (role: string) => {
   const r = (role || "").toUpperCase().replace(/[\s_-]/g, "");
   return r === "ADMIN" || r === "SUPERADMIN";
@@ -16,11 +14,6 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const router = useRouter();
   const [isAuthChecked, setIsAuthChecked] = useState(false);
-
-  // Scroll to top on every route change
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -77,7 +70,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     }
     // Admin-only path guard — only restrict non-admin from /user-management
     if (pathname.startsWith("/user-management") && !isAdminRole(role)) {
-      router.replace("/sales");
+      router.replace("/metrics");
     }
   }, [pathname, router]);
 
@@ -103,11 +96,11 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
       <div className="sticky top-0 z-50">
         <Navbar />
       </div>
-      <div className="flex" style={{ minHeight: "calc(100vh - 60px)" }}>
-        <div className="w-64 shrink-0 sticky top-[60px] h-[calc(100vh-60px)] overflow-hidden">
+      <div className="flex" style={{ height: "calc(100vh - 60px)", overflow: "hidden" }}>
+        <div className="w-64 shrink-0 h-full overflow-y-auto">
           <Sidebar />
         </div>
-        <div className="flex-1 min-w-0 overflow-x-auto bg-[#f4f5f7]">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-[#f4f5f7]">
           {children}
         </div>
       </div>

@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Hide all scrollbars globally (scroll still works) ── */
+*,
+*::before,
+*::after {
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* IE / Edge legacy */
+}
+*::-webkit-scrollbar {
+  display: none;               /* Chrome / Safari / Edge */
+}
+
 :root {
   --background: #ffffff;
   --foreground: #ffffff;
