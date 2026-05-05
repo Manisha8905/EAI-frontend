@@ -1,29 +1,5 @@
 import { NextResponse } from "next/server";
-
-// Keep in sync with next.config.ts rewrites
-const HOST_BACKEND_MAP = {
-  "campaign-management-1.technologymindz.com":
-    "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com",
-  "campaign-management-2.technologymindz.com":
-    "https://demo-api.technologymindz.net",
-  "demo.technologymindz.net": "https://demo-api.technologymindz.net",
-  "architessa.technologymindz.net": "https://architessa-api.technologymindz.net",
-  "channelbeacon.technologymindz.net":
-    "https://channelbeacon-api.technologymindz.net",
-  "digiconvo.technologymindz.net": "https://digiconvo-api.technologymindz.net",
-  "channelbeacon-11labs-agent1.technologymindz.com":
-    "https://channelbeacon-11labs-agent2.technologymindz.com",
-  "fms-aisdr-agent1.technologymindz.com":
-    "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com",
-};
-
-const DEFAULT_BACKEND =
-  "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com";
-
-function resolveBackend(host) {
-  const base = (host || "").replace(/:\d+$/, ""); // strip port
-  return HOST_BACKEND_MAP[base] ?? DEFAULT_BACKEND;
-}
+import { resolveBackend } from "../../../_lib/backendResolver";
 
 /**
  * GET /api/campaigns/:id/call-history/
@@ -57,9 +33,6 @@ export async function GET(request, { params }) {
       headers: { "Content-Type": "application/json" },
     });
   } catch {
-    return NextResponse.json(
-      { detail: "Upstream proxy error" },
-      { status: 502 }
-    );
+    return NextResponse.json({ detail: "Upstream proxy error" }, { status: 502 });
   }
 }

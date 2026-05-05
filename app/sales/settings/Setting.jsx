@@ -131,7 +131,12 @@ function formatApolloFiltersForApi(filters) {
 }
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useDispatch, useSelector } from "react-redux";
 import axiosInstance from "../../Redux/axiosInstance";
+import {
+  fetchBusinessRules,
+  deleteBusinessRule,
+} from "../../Redux/actions/businessRulesActions";
 import EmailDeliverabilitySettings from "../EmailDeliverabilitySettings";
 import { toast } from "react-toastify";
 import {
@@ -1852,9 +1857,13 @@ function AgentsPage({ onBack }) {
 
 /* ── Chatbot Business Rules ── */
 function BusinessRulesPage({ onBack }) {
-  const [rules, setRules] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const dispatch = useDispatch();
+  const {
+    list: rules,
+    loading,
+    error,
+    deletingById,
+  } = useSelector((state) => state.businessRules);
   const [newRuleText, setNewRuleText] = useState("");
   const [creating, setCreating] = useState(false);
   const [editRule, setEditRule] = useState(null);
@@ -1865,18 +1874,12 @@ function BusinessRulesPage({ onBack }) {
   const [deleting, setDeleting] = useState(false);
 
   const fetchRules = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
-      const res = await axiosInstance.get("/api/chatbot/business-rules/");
-      const data = res?.data?.data ?? res?.data ?? [];
-      setRules(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(getApiError(err) || "Failed to load business rules.");
-    } finally {
-      setLoading(false);
+      await dispatch(fetchBusinessRules());
+    } catch {
+      // Error is tracked in Redux state.
     }
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     fetchRules();
@@ -1912,7 +1915,7 @@ function BusinessRulesPage({ onBack }) {
     if (!editRuleText.trim()) return;
     setUpdating(true);
     try {
-      await axiosInstance.patch(`/api/chatbot/business-rules/${editRule.id}`, {
+      await axiosInstance.patch(`/api/chatbot/business-rules/${editRule.id}/`, {
         rule_text: editRuleText.trim(),
         is_active: editRuleActive,
       });
@@ -1927,12 +1930,18 @@ function BusinessRulesPage({ onBack }) {
   };
 
   const handleDeleteRule = async (ruleId) => {
+    if (!ruleId || deleting || deletingById?.[ruleId]) return;
+
     setDeleting(true);
+    setDeleteTarget(null);
+
     try {
-      await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}`);
-      setDeleteTarget(null);
-      fetchRules();
-      toast.success("Business rule deleted successfully.");
+      const result = await dispatch(deleteBusinessRule(ruleId));
+      if (result?.ok) {
+        toast.success("Business rule deleted successfully.");
+      } else if (!result?.duplicate) {
+        toast.error("Failed to delete rule.");
+      }
     } catch (err) {
       toast.error(getApiError(err) || "Failed to delete rule.");
     } finally {

@@ -211,6 +211,14 @@ const normalizeActivityTab = (tabValue) => {
 };
 
 const isPreviewEligibleCampaign = (campaign) => {
+  const previewModeEnabled = [true, 1, "1", "true", "TRUE", "True"].includes(
+    campaign?.preview_mode,
+  );
+
+  if (!previewModeEnabled) {
+    return false;
+  }
+
   const order = Array.isArray(campaign?.channelOrder)
     ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
     : [];

@@ -389,6 +389,7 @@ export default function SupportChatbotReporting() {
   const [businessRulesLoading, setBusinessRulesLoading] = useState(false);
   const [businessRulesError, setBusinessRulesError] = useState("");
   const [deleteConfirmRuleId, setDeleteConfirmRuleId] = useState(null);
+  const [deletingRuleId, setDeletingRuleId] = useState(null);
   const [selectedRuleIds, setSelectedRuleIds] = useState(new Set());
   const [togglingActiveId, setTogglingActiveId] = useState(null);
     const [editRuleId, setEditRuleId] = useState(null);
@@ -406,8 +407,8 @@ export default function SupportChatbotReporting() {
     setBusinessRulesError("");
     try {
       const res = await axiosInstance.get("/api/chatbot/business-rules/");
-      const data = res?.data?.data ?? res?.data ?? [];
-      setBusinessRules(data);
+      const raw = res?.data?.data ?? res?.data ?? [];
+      setBusinessRules([...(Array.isArray(raw) ? raw : [])].reverse());
     } catch (e) {
       setBusinessRulesError(e.message || "Error loading business rules");
     } finally {
@@ -444,7 +445,7 @@ export default function SupportChatbotReporting() {
     try {
       let res;
       if (selectedRuleId) {
-        res = await axiosInstance.patch(`/api/chatbot/business-rules/${selectedRuleId}`, {
+        res = await axiosInstance.patch(`/api/chatbot/business-rules/${selectedRuleId}/`, {
           rule_text: newRuleText.trim(),
           is_active: true, // Ensuring it stays active on update from this modal
         });
@@ -476,7 +477,7 @@ export default function SupportChatbotReporting() {
   const handleUpdateRule = async () => {
     if (!editRuleText.trim()) return;
     try {
-      const res = await axiosInstance.patch(`/api/chatbot/business-rules/${editRuleId}`, {
+      const res = await axiosInstance.patch(`/api/chatbot/business-rules/${editRuleId}/`, {
         rule_text: editRuleText.trim(),
         is_active: editRuleActive,
       });
@@ -495,19 +496,58 @@ export default function SupportChatbotReporting() {
 
   // Delete rule
   const handleDeleteRule = async (ruleId) => {
+    if (!ruleId || deletingRuleId === ruleId) return;
+    const previousRules = businessRules;
+    const previousSelectedRuleIds = selectedRuleIds;
+    setDeletingRuleId(ruleId);
+    setDeleteConfirmRuleId(null);
+    setBusinessRules((prev) => prev.filter((r) => String(r.id) !== String(ruleId)));
+    setSelectedRuleIds((prev) => {
+      const n = new Set(prev);
+      n.delete(ruleId);
+      return n;
+    });
+
     try {
-      const res = await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}`);
-      setDeleteConfirmRuleId(null);
-      setSelectedRuleIds((prev) => { const n = new Set(prev); n.delete(ruleId); return n; });
-      fetchBusinessRules();
+      let res;
+      try {
+        res = await axiosInstance.delete(`/api/chatbot/business-rules/${ruleId}/`, {
+          validateStatus: (status) => status === 200 || status === 204 || status === 404,
+        });
+      } catch {
+        // Fallback for tenants where chatbot routes are mounted without /api prefix.
+        res = await axiosInstance.delete(`/chatbot/business-rules/${ruleId}/`, {
+          validateStatus: (status) => status === 200 || status === 204 || status === 404,
+        });
+      }
+      await fetchBusinessRules();
       setAssignToastMessage(res.data?.message || res.data?.detail || "Rule deleted successfully");
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
     } catch (e) {
-      setDeleteConfirmRuleId(null);
-      setAssignToastMessage(e.response?.data?.message || e.response?.data?.detail || e.message || "Error deleting rule");
+      let isActuallyDeleted = false;
+      try {
+        const verifyRes = await axiosInstance.get("/api/chatbot/business-rules/");
+        const latest = verifyRes?.data?.data ?? verifyRes?.data ?? [];
+        const latestRules = Array.isArray(latest) ? latest : [];
+        setBusinessRules(latestRules);
+        isActuallyDeleted = !latestRules.some(
+          (r) => String(r?.id) === String(ruleId),
+        );
+      } catch {
+        setBusinessRules(previousRules);
+        setSelectedRuleIds(previousSelectedRuleIds);
+      }
+
+      if (isActuallyDeleted) {
+        setAssignToastMessage("Rule deleted successfully");
+      } else {
+        setAssignToastMessage(e.response?.data?.message || e.response?.data?.detail || e.message || "Error deleting rule");
+      }
       setIsAssignedToast(true);
       setTimeout(() => setIsAssignedToast(false), 3000);
+    } finally {
+      setDeletingRuleId(null);
     }
   };
 
@@ -520,7 +560,7 @@ export default function SupportChatbotReporting() {
     );
     setTogglingActiveId(rule.id);
     try {
-      const res = await axiosInstance.patch(`/api/chatbot/business-rules/${rule.id}`, {
+      const res = await axiosInstance.patch(`/api/chatbot/business-rules/${rule.id}/`, {
         rule_text: rule.rule_text,
         is_active: newActive,
       });
@@ -1933,9 +1973,10 @@ export default function SupportChatbotReporting() {
               <button
                 type="button"
                 onClick={() => handleDeleteRule(deleteConfirmRuleId)}
-                className="flex-1 rounded-xl bg-red-600 py-2.5 text-[13px] font-[700] text-white hover:bg-red-700 transition"
+                disabled={deletingRuleId === deleteConfirmRuleId}
+                className="flex-1 rounded-xl bg-red-600 py-2.5 text-[13px] font-[700] text-white hover:bg-red-700 transition disabled:opacity-60"
               >
-                Yes, Delete
+                {deletingRuleId === deleteConfirmRuleId ? "Deleting..." : "Yes, Delete"}
               </button>
             </div>
           </div>

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
-import "./globals.css";
 import Providers from "./providers";
 import Toaster from "../app/Componets/Toaster";
 import LayoutWrapper from "./LayoutWrapper";
+import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],

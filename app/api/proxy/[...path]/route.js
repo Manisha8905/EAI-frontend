@@ -7,42 +7,12 @@
  *
  * Tenant routing is defined ONLY here (and in next.config.ts for reference).
  */
-
-// ── Tenant map ────────────────────────────────────────────────────────────────
-const HOST_BACKEND_MAP = {
-  // ── Local development ────────────────────────────────────────────────────
-  // Point to whichever backend has your Finance / invoice-processing API.
-  // Change this URL to match your local or staging backend.
-  "localhost": "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com",
-
-  "campaign-management-1.technologymindz.com":
-    "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com",
-  "campaign-management-2.technologymindz.com":
-    "https://demo-api.technologymindz.net",
-  "demo.technologymindz.net": "https://demo-api.technologymindz.net",
-  "architessa.technologymindz.net":
-    "https://architessa-api.technologymindz.net",
-  "channelbeacon.technologymindz.net":
-    "https://channelbeacon-api.technologymindz.net",
-  "digiconvo.technologymindz.net": "https://digiconvo-api.technologymindz.net",
-  "channelbeacon-11labs-agent1.technologymindz.com":
-    "https://channelbeacon-11labs-agent2.technologymindz.com",
-  "fms-aisdr-agent1.technologymindz.com":
-    "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com",
-  "hr-tm.technologymindz.net": "https://hr-tm-api.technologymindz.net",
-};
-
-const DEFAULT_BACKEND =
-  "https://ai-sdr-campaign-management-elevenlabs-1.technologymindz.com";
-
-function resolveBackend(host) {
-  const base = (host || "").replace(/:\d+$/, ""); // strip port
-  return HOST_BACKEND_MAP[base] ?? DEFAULT_BACKEND;
-}
+import { resolveBackend } from "../../_lib/backendResolver";
 
 // ── Core proxy handler ────────────────────────────────────────────────────────
 async function proxyRequest(request, { params }) {
   const { path } = await params;
+  const method = (request.method || "GET").toUpperCase();
   const host = request.headers.get("host") || "";
   const backendBase = resolveBackend(host);
 
@@ -77,18 +47,43 @@ async function proxyRequest(request, { params }) {
     upstreamHeaders.set("Accept", "*/*");
   }
 
+  const rawContentLength = request.headers.get("content-length");
+  const hasTransferEncoding = !!request.headers.get("transfer-encoding");
+  const hasRequestBody =
+    !["GET", "HEAD"].includes(method) &&
+    ((rawContentLength && Number(rawContentLength) > 0) || hasTransferEncoding);
+
   let body = undefined;
-  if (!["GET", "HEAD"].includes(request.method)) {
+  if (hasRequestBody) {
     body = await request.arrayBuffer();
+  } else {
+    // Some upstreams fail DELETE requests if Content-Type is present with no body.
+    upstreamHeaders.delete("content-type");
   }
 
   try {
-    const res = await fetch(targetUrl, {
-      method: request.method,
-      headers: upstreamHeaders,
-      body: body || undefined,
-      redirect: "follow", // Node.js follows http→https redirects without CORS
-    });
+    let res;
+    try {
+      res = await fetch(targetUrl, {
+        method,
+        headers: upstreamHeaders,
+        body: body || undefined,
+        redirect: "follow", // Node.js follows http→https redirects without CORS
+      });
+    } catch (firstErr) {
+      // Retry DELETE once without body/content-type to avoid upstream gateway failures.
+      if (method === "DELETE") {
+        const retryHeaders = new Headers(upstreamHeaders);
+        retryHeaders.delete("content-type");
+        res = await fetch(targetUrl, {
+          method,
+          headers: retryHeaders,
+          redirect: "follow",
+        });
+      } else {
+        throw firstErr;
+      }
+    }
 
     const payload = await res.arrayBuffer();
 
@@ -117,10 +112,18 @@ async function proxyRequest(request, { params }) {
     });
   } catch (err) {
     console.error("[proxy] upstream error:", err);
-    return new Response(JSON.stringify({ detail: "Upstream proxy error" }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        detail: "Upstream proxy error",
+        method,
+        target: targetUrl,
+        error: err?.message || String(err),
+      }),
+      {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 }
 
