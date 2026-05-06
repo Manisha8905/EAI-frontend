@@ -312,6 +312,12 @@ function JobsTable({ rows, loading, error, onRetry }) {
 
 /* ─── Invoices table (Freight & Trade share same layout) ─────── */
 function InvoicesTable({ rows, loading, error, onRetry, title, subtitle, icon: Icon, accentColor = "sky" }) {
+  const [downloading, setDownloading] = useState(null);
+  const handleDownload = async (inv) => {
+    setDownloading(inv.id);
+    await downloadAttachment(inv.attachmentId ?? inv.id);
+    setDownloading(null);
+  };
   const iconBg  = accentColor === "purple" ? "bg-purple-50" : "bg-sky-50";
   const iconCls = accentColor === "purple" ? "text-purple-600" : "text-sky-600";
   const rowHover = accentColor === "purple" ? "hover:bg-purple-50/20" : "hover:bg-sky-50/20";
@@ -426,6 +432,12 @@ const vendorBadge = (name) => (
 
 /* ─── Trade Invoices table ───────────────────────────────────── */
 function TradeInvoicesTable({ rows, loading, error, onRetry }) {
+  const [downloading, setDownloading] = useState(null);
+  const handleDownload = async (inv) => {
+    setDownloading(inv.id);
+    await downloadAttachment(inv.attachmentId ?? inv.id);
+    setDownloading(null);
+  };
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-3">
