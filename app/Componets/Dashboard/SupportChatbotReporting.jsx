@@ -962,7 +962,7 @@ export default function SupportChatbotReporting() {
   // (Removed duplicate handleAddRuleInList. Only API-driven version remains.)
 
   const openAddRuleModal = (rule = null) => {
-    setIsBusinessRulesListOpen(false);
+    closeAllPopups();
     setIsRulesInlineAddOpen(false);
     if (rule) {
       setSelectedRuleId(rule.id);
@@ -974,7 +974,16 @@ export default function SupportChatbotReporting() {
     setIsAddRuleOpen(true);
   };
 
+  const closeAllPopups = () => {
+    setIsAgentsOpen(false);
+    setIsConvPanelAssignOpen(false);
+    setIsRightAssignOpen(false);
+    setIsStatusMenuOpen(false);
+    setIsBusinessRulesListOpen(false);
+  };
+
   const openBusinessRulesList = () => {
+    closeAllPopups();
     setSelectedRuleId(null);
     setIsBusinessRulesListOpen(true);
   };
@@ -1300,7 +1309,7 @@ export default function SupportChatbotReporting() {
           <div className="relative flex-1 sm:flex-none" ref={agentsDropdownRef}>
             <button
               type="button"
-              onClick={() => setIsAgentsOpen((p) => !p)}
+              onClick={() => { const next = !isAgentsOpen; closeAllPopups(); setIsAgentsOpen(next); }}
               className={`inline-flex w-full items-center justify-center gap-1.5 rounded-xl border bg-white px-3 py-2 text-[12px] font-[600] text-[#253b69] sm:px-4 ${isAgentsOpen ? "border-[#7c3aed]" : "border-gray-200"}`}
             >
               <UserCog className="h-3.5 w-3.5" /> Agents
@@ -1313,7 +1322,7 @@ export default function SupportChatbotReporting() {
                   </h3>
                   <button
                     type="button"
-                    onClick={() => setIsAddAgentOpen(true)}
+                    onClick={() => { closeAllPopups(); setIsAddAgentOpen(true); }}
                     className="inline-flex items-center gap-1.5 rounded-xl bg-[#7c3aed] px-4 py-2 text-[13px] font-[600] text-white"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add Agent
@@ -1388,7 +1397,7 @@ export default function SupportChatbotReporting() {
                 <div className="relative" ref={convAssignDropdownRef}>
                   <button
                     type="button"
-                    onClick={() => setIsConvPanelAssignOpen((v) => !v)}
+                    onClick={() => { const next = !isConvPanelAssignOpen; closeAllPopups(); setIsConvPanelAssignOpen(next); }}
                     className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[13px] font-[600] text-white transition-colors ${isConvPanelAssignOpen ? "border-[#6d28d9] bg-[#6d28d9]" : "border-[#7c3aed] bg-[#7c3aed] hover:bg-[#6d28d9]"}`}
                   >
                     <UserCog className="h-4 w-4" />
@@ -1626,7 +1635,7 @@ export default function SupportChatbotReporting() {
               <div className="relative" ref={rightAssignDropdownRef}>
                 <button
                   type="button"
-                  onClick={() => setIsRightAssignOpen((v) => !v)}
+                  onClick={() => { const next = !isRightAssignOpen; closeAllPopups(); setIsRightAssignOpen(next); }}
                   disabled={!selectedConversationId}
                   className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[12px] font-[600] text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 ${isRightAssignOpen ? "border-[#7c3aed] bg-[#f5f0ff]" : "border-gray-200 bg-white"}`}
                 >
@@ -1673,7 +1682,7 @@ export default function SupportChatbotReporting() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsStatusMenuOpen((v) => !v)}
+                onClick={() => { const next = !isStatusMenuOpen; closeAllPopups(); setIsStatusMenuOpen(next); }}
                 disabled={!selectedConversationId}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-[#253b69] hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                 title="Update status"
