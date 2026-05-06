@@ -211,7 +211,28 @@ const normalizeActivityTab = (tabValue) => {
 };
 
 const isPreviewEligibleCampaign = (campaign) => {
-  return [true, 1, "1", "true", "TRUE", "True"].includes(campaign?.preview_mode);
+  const previewModeEnabled = [true, 1, "1", "true", "TRUE", "True"].includes(
+    campaign?.preview_mode,
+  );
+
+  if (!previewModeEnabled) {
+    return false;
+  }
+
+  const order = Array.isArray(campaign?.channelOrder)
+    ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
+    : [];
+  const commType = String(campaign?.communicationType ?? campaign?.communication_type ?? "").toUpperCase();
+
+  if (commType) {
+    return commType === "EMAIL";
+  }
+
+  if (order.length > 0) {
+    return order.includes("EMAIL");
+  }
+
+  return false;
 };
 
 const getPreviewChannelKey = (campaign) => {
@@ -321,8 +342,8 @@ export default function CampaignPage() {
     // communication_type: "CALL",
     start_time: "00:00:00",
     end_time: "23:23:23",
-    reengage_days: "0",
-    max_attempts: "0",
+    reengage_days: "",
+    max_attempts: "",
     start_date: todayDate,
     channel_order: [],
     // Per-channel step config (keyed by channel name)
@@ -751,8 +772,9 @@ export default function CampaignPage() {
 
   const applyNumericRule = (raw) => {
     const stripped = raw.replace(/\D/g, "");
-    if (stripped === "") return { value: "", error: "Please enter a number." };
+    if (stripped === "") return { value: "", error: "Value must be at least 1." };
     const cleaned = String(Number(stripped)); // strips leading zeros
+    if (cleaned === "0") return { value: null, error: "Value must be at least 1." };
     return { value: cleaned, error: null };
   };
 
@@ -761,7 +783,7 @@ export default function CampaignPage() {
 
     if (NUMERIC_FIELDS.has(name)) {
       const { value: next, error } = applyNumericRule(value);
-      if (next === null) return;
+      if (next === null) return; // block zero as first char
       setForm((prev) => ({ ...prev, [name]: next }));
       setNumericErrors((prev) => {
         const n = { ...prev };
@@ -792,7 +814,7 @@ export default function CampaignPage() {
   const handleChannelStepNumericChange = (channel, field, rawValue) => {
     const errKey = `${channel}_${field}`;
     const { value: next, error } = applyNumericRule(rawValue);
-    if (next === null) return;
+    if (next === null) return; // block zero as first char
     setChannelStep(channel, field, next);
     setNumericErrors((prev) => {
       const n = { ...prev };
@@ -836,9 +858,9 @@ export default function CampaignPage() {
     };
     for (const [key, label] of Object.entries(numericFieldLabels)) {
       const v = Number(form[key]);
-      if (form[key] === "" || isNaN(v) || v < 0) {
-        toast.error(`${label} must be 0 or more.`);
-        setNumericErrors((prev) => ({ ...prev, [key]: "Value must be 0 or more." }));
+      if (!form[key] && form[key] !== 0 || isNaN(v) || v < 1) {
+        toast.error(`${label} must be at least 1.`);
+        setNumericErrors((prev) => ({ ...prev, [key]: "Value must be at least 1." }));
         return;
       }
     }
@@ -851,9 +873,9 @@ export default function CampaignPage() {
       };
       for (const [key, label] of Object.entries(liFields)) {
         const v = Number(form[key]);
-        if (form[key] === "" || isNaN(v) || v < 0) {
-          toast.error(`${label} must be 0 or more.`);
-          setNumericErrors((prev) => ({ ...prev, [key]: "Value must be 0 or more." }));
+        if (form[key] === "" || isNaN(v) || v < 1) {
+          toast.error(`${label} must be at least 1.`);
+          setNumericErrors((prev) => ({ ...prev, [key]: "Value must be at least 1." }));
           return;
         }
       }
@@ -866,14 +888,14 @@ export default function CampaignPage() {
       const minsKey = `${ch}_wait_duration_minutes`;
       const hoursVal = stepData.wait_duration_hours;
       const minsVal = stepData.wait_duration_minutes;
-      if (hoursVal !== undefined && (hoursVal === "" || isNaN(Number(hoursVal)) || Number(hoursVal) < 0)) {
-        toast.error(`${ch} Wait Duration Hours must be 0 or more.`);
-        setNumericErrors((prev) => ({ ...prev, [hoursKey]: "Value must be 0 or more." }));
+      if (hoursVal !== undefined && (hoursVal === "" || isNaN(Number(hoursVal)) || Number(hoursVal) < 1)) {
+        toast.error(`${ch} Wait Duration Hours must be at least 1.`);
+        setNumericErrors((prev) => ({ ...prev, [hoursKey]: "Value must be at least 1." }));
         return;
       }
-      if (upper !== "LINKEDIN" && minsVal !== undefined && (minsVal === "" || isNaN(Number(minsVal)) || Number(minsVal) < 0)) {
-        toast.error(`${ch} Wait Duration Minutes must be 0 or more.`);
-        setNumericErrors((prev) => ({ ...prev, [minsKey]: "Value must be 0 or more." }));
+      if (upper !== "LINKEDIN" && minsVal !== undefined && (minsVal === "" || isNaN(Number(minsVal)) || Number(minsVal) < 1)) {
+        toast.error(`${ch} Wait Duration Minutes must be at least 1.`);
+        setNumericErrors((prev) => ({ ...prev, [minsKey]: "Value must be at least 1." }));
         return;
       }
     }
@@ -984,7 +1006,6 @@ export default function CampaignPage() {
           setShowCreate(false);
           setForm(blankForm);
           setEditingCampaignId(null);
-          dispatch(listCampaigns(buildParams()));
         }),
       );
     } else {
@@ -992,7 +1013,6 @@ export default function CampaignPage() {
         createCampaign(payload, form.agent_id || undefined, () => {
           setShowCreate(false);
           setForm(blankForm);
-          dispatch(listCampaigns(buildParams()));
         }),
       );
       if (!createResult?.success) return;
@@ -2320,7 +2340,7 @@ export default function CampaignPage() {
             {/* Channel Order — multi-select ordered chips (spans full row) */}
             <div className="mt-4">
               <label className="block text-[12px] font-[600] text-[#1e293b] mb-1">
-                Channel Order<span className="text-red-400 ml-0.5">*</span>
+                Channel Order
               </label>
               <div className="rounded-xl border border-gray-200 bg-white px-3.5 py-3 min-h-[52px]">
                 {/* Selected chips showing step number */}
@@ -2484,7 +2504,7 @@ export default function CampaignPage() {
             <Field label="Campaign Prompt">
               <textarea
                 name="campaign_prompt"
-                value={form.campaign_prompt}
+                value={form.campaign_prompt || ""}
                 onChange={handleFormChange}
                 rows={4}
                 placeholder="Enter your campaign prompt here..."
@@ -2571,7 +2591,7 @@ export default function CampaignPage() {
                 />
               </Field>
           
-              <Field label="Lead List" required>
+              <Field label="Lead List">
                 <div className="relative">
                   <select
                     name="list_id"
@@ -2743,7 +2763,7 @@ export default function CampaignPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Meeting Invite Sender Email — for ALL channels */}
-                <Field label="Meeting Invite Sender Email" required>
+                <Field label="Meeting Invite Sender Email">
                   <input
                     type="email"
                     name="logged_in_user_email"
@@ -2757,7 +2777,7 @@ export default function CampaignPage() {
                 {/* Email Config fields — only for Email channel */}
                 {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
                   <>
-                    <Field label="SMTP Provider Name (Optional)" required>
+                    <Field label="SMTP Provider Name (Optional)">
                       <div className="relative">
                         <button
                           type="button"
@@ -2846,7 +2866,7 @@ export default function CampaignPage() {
                     </Field>
                     {/* Only show Email Template if provider is smartlead, and hide all other fields */}
                     {form.smtp_provider_name && form.smtp_provider_name.toLowerCase() === "smartlead" ? (
-                      <Field label="Email Template" required>
+                      <Field label="Email Template">
                         <div className="relative">
                           <select
                             name="template_id"
@@ -2875,7 +2895,7 @@ export default function CampaignPage() {
                       </Field>
                     ) : (
                       <>
-                        <Field label="Email Template" required>
+                        <Field label="Email Template">
                           <div className="relative">
                             <select
                               name="template_id"
@@ -2904,7 +2924,7 @@ export default function CampaignPage() {
                         </Field>
                         {emailSendingService !== "CRM" && (
                           <>
-                            <Field label="From Name" required>
+                            <Field label="From Name">
                               <input
                                 name="from_name"
                                 value={form.from_name ?? ""}
@@ -2913,7 +2933,7 @@ export default function CampaignPage() {
                                 className={inputCls}
                               />
                             </Field>
-                            <Field label="From Email" required>
+                            <Field label="From Email">
                               <input
                                 type="email"
                                 name="from_email"
@@ -2923,7 +2943,7 @@ export default function CampaignPage() {
                                 className={inputCls}
                               />
                             </Field>
-                            <Field label="Reply to Email" required>
+                            <Field label="Reply to Email">
                               <input
                                 type="email"
                                 name="reply_to_email"

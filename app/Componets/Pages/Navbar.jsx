@@ -15,6 +15,7 @@ const modules = [
   { name: "HR", path: "/hr" },
   { name: "Marketing", path: "/marketing" },
   { name: "Legal", path: "/legal" },
+  { name: "Tile Finder", path: "/tile-finder" },
 ];
 
 /* Role → allowed navbar module paths ─────────────────────────────

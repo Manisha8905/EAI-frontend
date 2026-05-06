@@ -460,12 +460,14 @@ export default function SupportChatbotMetrics() {
             Customer Support chatbot metrics can only be accessed by users with Support or Manager role.
           </p>
         </div>
+
+        
       </main>
     );
   }
 
   return (
-    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3 sm:p-4 space-y-3 sm:space-y-4">
+    <main className="min-h-[calc(100vh-60px)] bg-[#f4f5f7] p-3  sm:p-4 space-y-3 sm:space-y-4">
 
       {/* ── Header ── */}
       <section className="flex items-center justify-between gap-2 flex-wrap">

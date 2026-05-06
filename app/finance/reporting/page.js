@@ -741,6 +741,7 @@ function ReprocessPanel() {
   const [dragging,    setDragging]    = useState(false);
   const [invoiceType, setInvoiceType] = useState("trade");
   const [vendorName,  setVendorName]  = useState("");
+  const [email,       setEmail]       = useState("");
   const [uploading,   setUploading]   = useState(false);
 
   // History state
@@ -781,8 +782,14 @@ function ReprocessPanel() {
   const handleDragLeave = () => setDragging(false);
 
   const handleUpload = async () => {
-    if (!file || !vendorName.trim()) {
-      toast.error("Please select a file and enter a vendor name.");
+    if (!file || !vendorName.trim() || !email.trim()) {
+      toast.error("Please select a file, enter a vendor name, and provide your email.");
+      return;
+    }
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      toast.error("Please enter a valid email address.");
       return;
     }
     setUploading(true);
@@ -790,6 +797,7 @@ function ReprocessPanel() {
       const formData = new FormData();
       formData.append("invoice_type", invoiceType);
       formData.append("vendor_name",  vendorName.trim());
+      formData.append("email",        email.trim());
       formData.append("file",         file);
       const res = await axiosInstance.post(
         "/api/invoice-processing/reprocess/upload",
@@ -800,6 +808,7 @@ function ReprocessPanel() {
       toast.success(msg);
       setFile(null);
       setVendorName("");
+      setEmail("");
       fetchHistory();
     } catch (err) {
       const msg = err?.response?.data?.detail ?? err?.message ?? "Upload failed.";
@@ -856,6 +865,19 @@ function ReprocessPanel() {
               </div>
             </div>
 
+            {/* Email field */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-[600] text-gray-600">Email <span className="text-red-500">*</span></label>
+              <input
+                type="email"
+                placeholder="Email of the person uploading"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm"
+                required
+              />
+            </div>
+
             {/* Dropzone */}
             <label
               htmlFor="reprocess-file-input"
@@ -897,9 +919,9 @@ function ReprocessPanel() {
             <div className="flex justify-end">
               <button
                 onClick={handleUpload}
-                disabled={!file || !vendorName.trim() || uploading}
+                disabled={!file || !vendorName.trim() || !email.trim() || uploading}
                 className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-[600] shadow-sm transition-all ${
-                  file && vendorName.trim() && !uploading
+                  file && vendorName.trim() && email.trim() && !uploading
                     ? "bg-violet-500 text-white hover:bg-violet-600 active:bg-violet-700"
                     : "bg-violet-300 text-white cursor-not-allowed"
                 }`}

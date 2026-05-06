@@ -243,9 +243,32 @@ const FINANCE_SECTIONS = [
 //   },
 // ];
 
+const TILE_FINDER_SECTIONS = [
+  {
+    key: "tf_analytics",
+    label: "Analytics",
+    subtitle: "Usage and performance data",
+    icon: AnalyticsIcon,
+    activeRoutes: ["/tile-finder/analytics"],
+    links: [
+      { href: "/tile-finder/analytics/overview",  label: "Overview",  icon: AnalyticsIcon, exact: true },
+      // { href: "/tile-finder/analytics/catalogue", label: "Catalogue", icon: AnalyticsIcon, exact: true },
+    ],
+  },
+  // {
+  //   key: "tf_reporting",
+  //   label: "Reporting",
+  //   subtitle: "Reports and exports",
+  //   icon: null,
+  //   directHref: "/tile-finder/reporting",
+  //   activeRoutes: ["/tile-finder/reporting"],
+  //   links: [],
+  // },
+];
+
 /* ─── All sections combined (for SUPERADMIN) ─────────────────── */
 /* SUPERADMIN sees every module plus the full settings accordion */
-const SUPERADMIN_NAV_SECTIONS = [...SALES_SECTIONS, ...SUPPORT_SECTIONS, ...FINANCE_SECTIONS];
+const SUPERADMIN_NAV_SECTIONS = [...SALES_SECTIONS, ...SUPPORT_SECTIONS, ...FINANCE_SECTIONS, ...TILE_FINDER_SECTIONS];
 
 /* ─── Role helper ─────────────────────────────────────────────── */
 const isAdmin = (role) => {
@@ -287,8 +310,9 @@ const Sidebar = () => {
   // SUPERADMIN sees every section; plain ADMIN hides the nav (only User Management)
   const hideNav = userIsAdmin && !isSuperAdmin;
   // Determine active navbar module from pathname
-  const isOnSupportModule  = pathname.startsWith("/support");
-  const isOnFinanceModule  = pathname.startsWith("/finance");
+  const isOnSupportModule    = pathname.startsWith("/support");
+  const isOnFinanceModule    = pathname.startsWith("/finance");
+  const isOnTileFinderModule = pathname.startsWith("/tile-finder");
   const roleSections =
     isSuperAdmin
       ? SUPERADMIN_NAV_SECTIONS
@@ -300,9 +324,11 @@ const Sidebar = () => {
   const allowedKeys = ROLE_SECTION_KEYS[normalizedRole] ?? null; // null = all sections
   // For SUPERADMIN: show only sidebar sections belonging to the active navbar tab
   const visibleSections = isSuperAdmin
-    ? (isOnFinanceModule ? FINANCE_SECTIONS : isOnSupportModule ? SUPPORT_SECTIONS : SALES_SECTIONS)
+    ? (isOnTileFinderModule ? TILE_FINDER_SECTIONS : isOnFinanceModule ? FINANCE_SECTIONS : isOnSupportModule ? SUPPORT_SECTIONS : SALES_SECTIONS)
     : isFinanceRole
     ? FINANCE_SECTIONS
+    : isOnTileFinderModule
+    ? TILE_FINDER_SECTIONS
     : allowedKeys
     ? roleSections.filter((s) => allowedKeys.includes(s.key))
     : roleSections;
@@ -374,7 +400,9 @@ const Sidebar = () => {
       {/* ── Header ── */}
       <div className="px-5 pt-5 pb-4 border-b border-gray-100">
         <h2 className="font-poppins text-[14px] font-[700] text-[#0a0a0a]">
-          {isOnFinanceModule
+          {isOnTileFinderModule
+            ? "Tile Finder"
+            : isOnFinanceModule
             ? "Finance"
             : isOnSupportModule
             ? "Customer Support"
@@ -395,6 +423,33 @@ const Sidebar = () => {
             const isOpen = openSection === sec.key;
             const SIcon = sec.icon;
             if (!storedRole && !auth) return null;
+
+            // Direct link section (no accordion, no chevron)
+            if (sec.directHref) {
+              return (
+                <Link
+                  key={sec.key}
+                  href={sec.directHref}
+                  className={`sb-section-btn flex items-center gap-2 px-3 py-2.5 rounded-lg ${
+                    isParentActive
+                      ? "is-active bg-blue-50 sb-active-glow"
+                      : "hover:bg-blue-50/40 border-l-4 border-transparent"
+                  }`}
+                >
+                  {SIcon && (
+                    <span className={`sb-icon ${isParentActive ? "text-blue-600" : "text-gray-400"}`}>
+                      <SIcon />
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className={`text-[13px] font-[600] truncate ${isParentActive ? "text-blue-600" : "text-gray-700"}`}>
+                      {sec.label}
+                    </p>
+                    <p className="text-[11px] text-gray-400 truncate">{sec.subtitle}</p>
+                  </div>
+                </Link>
+              );
+            }
 
             return (
               <div key={sec.key}>
