@@ -11447,7 +11447,16 @@ export default function Setting() {
           setSMTP(defaultName);
         }
       } catch (err) {
-        console.error("Failed to fetch SMTP providers:", err);
+        const status = err?.response?.status;
+        if (status === 502 || status === 503 || status === 504) {
+          toast.error("SMTP service is temporarily unavailable. Please try again later.", { toastId: "smtp-providers-unavailable" });
+        } else {
+          toast.error(
+            err?.response?.data?.detail ?? err?.message ?? "Failed to fetch SMTP providers.",
+            { toastId: "smtp-providers-error" }
+          );
+        }
+        setSmtpProviderList([]);
       } finally {
         setSmtpProviderLoading(false);
     }
