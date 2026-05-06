@@ -1915,7 +1915,7 @@ function BusinessRulesPage({ onBack }) {
     if (!editRuleText.trim()) return;
     setUpdating(true);
     try {
-      await axiosInstance.patch(`/api/chatbot/business-rules/${editRule.id}/`, {
+      await axiosInstance.patch(`/api/chatbot/business-rules/${editRule.id}`, {
         rule_text: editRuleText.trim(),
         is_active: editRuleActive,
       });

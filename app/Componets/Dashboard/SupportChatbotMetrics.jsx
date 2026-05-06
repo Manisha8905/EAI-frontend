@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -287,7 +287,7 @@ const mapStatsResponse = (payload, fallback) => {
 /* ─── Gradient KPI Card (matches Sales KpiCard style) ────────── */
 function StatCard({ icon: Icon, title, value, sub, gradient, shadow, badge }) {
   return (
-    <article className={`rounded-2xl ${gradient} ${shadow ?? ""} p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between min-h-[150px]`}>
+    <article className={`rounded-2xl ${gradient} ${shadow ?? ""} p-4 xl:p-5 text-white flex flex-col justify-between h-full`}>
       <div className="flex items-center justify-between mb-3 xl:mb-4">
         <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
           <Icon className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
@@ -314,7 +314,7 @@ function FeedbackStatCard({ thumbsUp, thumbsDown }) {
   const total = thumbsUp + thumbsDown;
   const upPct = total > 0 ? Math.round((thumbsUp / total) * 100) : 0;
   return (
-    <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-5 lg:p-3 xl:p-5 text-white flex flex-col justify-between min-h-[150px]">
+    <article className="rounded-2xl border bg-gradient-to-br from-teal-500 to-teal-600 text-white border-none shadow-lg shadow-sky-400/25 p-4 xl:p-5 text-white flex flex-col justify-between h-full">
       <div className="flex items-center justify-between mb-3 xl:mb-4">
         <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
           <MessageSquare className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
@@ -381,14 +381,11 @@ export default function SupportChatbotMetrics() {
   const role = typeof window === "undefined" ? "" : normalizeRole(localStorage.getItem("userRole"));
   const canAccessSupportMetrics = role === "SUPPORT" || role === "MANAGER" || role === "SUPERADMIN";
 
-  const fetchMetrics = useCallback(
-    async ({ isManualRefresh = false } = {}) => {
-      if (isManualRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+  useEffect(() => {
+    const controller = new AbortController();
 
+    const fetchMetrics = async () => {
+      setLoading(true);
       setErrorText("");
 
       try {
@@ -397,15 +394,15 @@ export default function SupportChatbotMetrics() {
 
         const res = await axiosInstance.get("/api/chatbot/stats", {
           params,
+          signal: controller.signal,
         });
 
         setData(mapStatsResponse(res?.data, CHANNEL_DATA.webchat));
         const successMessage =
-          res?.data?.message ||
-          res?.data?.detail ||
-          "Chatbot stats loaded successfully.";
+          res?.data?.message || res?.data?.detail || "Chatbot stats loaded successfully.";
         toast.success(successMessage);
       } catch (error) {
+        if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED") return;
         setErrorText("Unable to load latest stats. Showing fallback data.");
         setData(CHANNEL_DATA.webchat);
         const apiErrorMessage =
@@ -415,18 +412,40 @@ export default function SupportChatbotMetrics() {
         toast.error(apiErrorMessage);
       } finally {
         setLoading(false);
-        setRefreshing(false);
       }
-    },
-    [selectedFilter],
-  );
+    };
 
-  useEffect(() => {
     fetchMetrics();
-  }, [fetchMetrics]);
+
+    return () => controller.abort();
+  }, [selectedFilter]);
 
   const onRefresh = () => {
-    fetchMetrics({ isManualRefresh: true });
+    setRefreshing(true);
+    const controller = new AbortController();
+
+    const params = { channel: "webchat" };
+    if (selectedFilter) params.filter = selectedFilter;
+
+    axiosInstance
+      .get("/api/chatbot/stats", { params, signal: controller.signal })
+      .then((res) => {
+        setData(mapStatsResponse(res?.data, CHANNEL_DATA.webchat));
+        const successMessage =
+          res?.data?.message || res?.data?.detail || "Chatbot stats refreshed successfully.";
+        toast.success(successMessage);
+      })
+      .catch((error) => {
+        if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED") return;
+        setErrorText("Unable to load latest stats. Showing fallback data.");
+        setData(CHANNEL_DATA.webchat);
+        const apiErrorMessage =
+          error?.response?.data?.message ||
+          error?.response?.data?.detail ||
+          "Failed to load chatbot stats.";
+        toast.error(apiErrorMessage);
+      })
+      .finally(() => setRefreshing(false));
   };
 
   if (!canAccessSupportMetrics) {

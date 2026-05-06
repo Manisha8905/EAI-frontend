@@ -47,7 +47,7 @@ export const deleteBusinessRule = (ruleId) => async (dispatch, getState) => {
 
   try {
     const res = await axiosInstance.delete(
-      `/api/chatbot/business-rules/${ruleId}/`,
+      `/api/chatbot/business-rules/${ruleId}`,
       { validateStatus: isDeleteSuccessStatus },
     );
 
@@ -57,46 +57,16 @@ export const deleteBusinessRule = (ruleId) => async (dispatch, getState) => {
     });
     dispatch(fetchBusinessRules());
     return { ok: true, status: res?.status ?? 200 };
-  } catch {
-    try {
-      const res = await axiosInstance.delete(`/chatbot/business-rules/${ruleId}/`, {
-        validateStatus: isDeleteSuccessStatus,
-      });
-
-      dispatch({
-        type: DELETE_BUSINESS_RULE_SUCCESS,
-        payload: { ruleId, status: res?.status ?? 200 },
-      });
-      dispatch(fetchBusinessRules());
-      return { ok: true, status: res?.status ?? 200, fallbackPath: true };
-    } catch (error) {
-      try {
-        const verify = await axiosInstance.get("/api/chatbot/business-rules/");
-        const rules = normalizeRules(verify?.data);
-        dispatch({ type: FETCH_BUSINESS_RULES_SUCCESS, payload: rules });
-        const deleted = !rules.some((r) => String(r?.id) === String(ruleId));
-        if (deleted) {
-          dispatch({
-            type: DELETE_BUSINESS_RULE_SUCCESS,
-            payload: { ruleId, status: 404 },
-          });
-          return { ok: true, status: 404, verifiedDeleted: true };
-        }
-      } catch {
-        // Ignore verify error and fail below.
-      }
-
-      const message =
-        error?.response?.data?.detail ||
-        error?.response?.data?.message ||
-        error?.message ||
-        "Failed to delete business rule.";
-      dispatch({
-        type: DELETE_BUSINESS_RULE_FAILURE,
-        payload: { ruleId, error: message },
-      });
-      dispatch(fetchBusinessRules());
-      throw error;
-    }
+  } catch (error) {
+    const message =
+      error?.response?.data?.detail ||
+      error?.response?.data?.message ||
+      error?.message ||
+      "Failed to delete business rule.";
+    dispatch({
+      type: DELETE_BUSINESS_RULE_FAILURE,
+      payload: { ruleId, error: message },
+    });
+    throw error;
   }
 };

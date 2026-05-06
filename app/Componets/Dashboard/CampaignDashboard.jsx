@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import axiosInstance from "../../Redux/axiosInstance";
+import Spinner from "../Spinner";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area,
@@ -337,6 +338,9 @@ function CampaignList({ campaigns, onViewDetails, onAddCampaign, search, setSear
             ))}
           </div>
         </div>
+
+        {/* Loading spinner */}
+        <Spinner loading={loading} />
 
         {/* ── summary KPI strip (all campaigns) ── */}
         <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">

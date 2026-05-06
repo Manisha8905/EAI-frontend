@@ -211,28 +211,7 @@ const normalizeActivityTab = (tabValue) => {
 };
 
 const isPreviewEligibleCampaign = (campaign) => {
-  const previewModeEnabled = [true, 1, "1", "true", "TRUE", "True"].includes(
-    campaign?.preview_mode,
-  );
-
-  if (!previewModeEnabled) {
-    return false;
-  }
-
-  const order = Array.isArray(campaign?.channelOrder)
-    ? campaign.channelOrder.map((v) => String(v ?? "").toUpperCase()).filter(Boolean)
-    : [];
-  const commType = String(campaign?.communicationType ?? campaign?.communication_type ?? "").toUpperCase();
-
-  if (commType) {
-    return commType === "EMAIL";
-  }
-
-  if (order.length > 0) {
-    return order.includes("EMAIL");
-  }
-
-  return false;
+  return [true, 1, "1", "true", "TRUE", "True"].includes(campaign?.preview_mode);
 };
 
 const getPreviewChannelKey = (campaign) => {
@@ -342,8 +321,8 @@ export default function CampaignPage() {
     // communication_type: "CALL",
     start_time: "00:00:00",
     end_time: "23:23:23",
-    reengage_days: 0,
-    max_attempts: 0,
+    reengage_days: "0",
+    max_attempts: "0",
     start_date: todayDate,
     channel_order: [],
     // Per-channel step config (keyed by channel name)
@@ -370,15 +349,16 @@ export default function CampaignPage() {
     // LinkedIn fields
     connection_note_template: "Hi {first_name}, I'd love to connect!",
     dm_body_template: "Hey {first_name}, thanks for connecting!",
-    linkedin_max_attempts: 3,
-    reply_wait_hours: 72,
-    reply_wait_minutes: 0,
+    linkedin_max_attempts: "",
+    reply_wait_hours: "",
+    reply_wait_minutes: "",
     preview_mode: false,
     campaign_prompt:""
   };
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(blankForm);
   const [timeError, setTimeError] = useState("");
+  const [numericErrors, setNumericErrors] = useState({});
   const [creating, setCreating] = useState(false);
   const [editingCampaignId, setEditingCampaignId] = useState(null); // null = create, string = edit
 
@@ -764,8 +744,33 @@ export default function CampaignPage() {
     setEmailDetailLoading(false);
   };
 
+  const NUMERIC_FIELDS = new Set([
+    "reengage_days", "max_attempts",
+    "reply_wait_hours", "reply_wait_minutes", "linkedin_max_attempts",
+  ]);
+
+  const applyNumericRule = (raw) => {
+    const stripped = raw.replace(/\D/g, "");
+    if (stripped === "") return { value: "", error: "Please enter a number." };
+    const cleaned = String(Number(stripped)); // strips leading zeros
+    return { value: cleaned, error: null };
+  };
+
   const handleFormChange = (e) => {
     const { name, value, type, checked } = e.target;
+
+    if (NUMERIC_FIELDS.has(name)) {
+      const { value: next, error } = applyNumericRule(value);
+      if (next === null) return;
+      setForm((prev) => ({ ...prev, [name]: next }));
+      setNumericErrors((prev) => {
+        const n = { ...prev };
+        if (error) n[name] = error; else delete n[name];
+        return n;
+      });
+      return;
+    }
+
     setForm((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
@@ -781,6 +786,19 @@ export default function CampaignPage() {
         [channel]: { ...(p.channel_steps[channel] || {}), [field]: value },
       },
     }));
+  };
+
+  /* helper: numeric-validated channel_steps update */
+  const handleChannelStepNumericChange = (channel, field, rawValue) => {
+    const errKey = `${channel}_${field}`;
+    const { value: next, error } = applyNumericRule(rawValue);
+    if (next === null) return;
+    setChannelStep(channel, field, next);
+    setNumericErrors((prev) => {
+      const n = { ...prev };
+      if (error) n[errKey] = error; else delete n[errKey];
+      return n;
+    });
   };
 
   const handleCreate = async (mode = "run") => {
@@ -809,6 +827,55 @@ export default function CampaignPage() {
     if (!form.list_id) {
       toast.error("Please select a lead list.");
       return;
+    }
+
+    // Validate numeric fields
+    const numericFieldLabels = {
+      reengage_days: "Re-engage Days",
+      max_attempts: "Max Attempts",
+    };
+    for (const [key, label] of Object.entries(numericFieldLabels)) {
+      const v = Number(form[key]);
+      if (form[key] === "" || isNaN(v) || v < 0) {
+        toast.error(`${label} must be 0 or more.`);
+        setNumericErrors((prev) => ({ ...prev, [key]: "Value must be 0 or more." }));
+        return;
+      }
+    }
+    const hasLinkedIn = form.channel_order.map((c) => c.toUpperCase()).includes("LINKEDIN");
+    if (hasLinkedIn) {
+      const liFields = {
+        linkedin_max_attempts: "LinkedIn Max Attempts",
+        reply_wait_hours: "Reply Wait Hours",
+        reply_wait_minutes: "Reply Wait Minutes",
+      };
+      for (const [key, label] of Object.entries(liFields)) {
+        const v = Number(form[key]);
+        if (form[key] === "" || isNaN(v) || v < 0) {
+          toast.error(`${label} must be 0 or more.`);
+          setNumericErrors((prev) => ({ ...prev, [key]: "Value must be 0 or more." }));
+          return;
+        }
+      }
+    }
+    // Validate channel step numeric fields
+    for (const ch of form.channel_order) {
+      const stepData = form.channel_steps[ch] || {};
+      const upper = ch.toUpperCase();
+      const hoursKey = `${ch}_wait_duration_hours`;
+      const minsKey = `${ch}_wait_duration_minutes`;
+      const hoursVal = stepData.wait_duration_hours;
+      const minsVal = stepData.wait_duration_minutes;
+      if (hoursVal !== undefined && (hoursVal === "" || isNaN(Number(hoursVal)) || Number(hoursVal) < 0)) {
+        toast.error(`${ch} Wait Duration Hours must be 0 or more.`);
+        setNumericErrors((prev) => ({ ...prev, [hoursKey]: "Value must be 0 or more." }));
+        return;
+      }
+      if (upper !== "LINKEDIN" && minsVal !== undefined && (minsVal === "" || isNaN(Number(minsVal)) || Number(minsVal) < 0)) {
+        toast.error(`${ch} Wait Duration Minutes must be 0 or more.`);
+        setNumericErrors((prev) => ({ ...prev, [minsKey]: "Value must be 0 or more." }));
+        return;
+      }
     }
     if (hasEmailChannel) {
       // if (!form.logged_in_user_email?.trim()) {
@@ -917,6 +984,7 @@ export default function CampaignPage() {
           setShowCreate(false);
           setForm(blankForm);
           setEditingCampaignId(null);
+          dispatch(listCampaigns(buildParams()));
         }),
       );
     } else {
@@ -924,6 +992,7 @@ export default function CampaignPage() {
         createCampaign(payload, form.agent_id || undefined, () => {
           setShowCreate(false);
           setForm(blankForm);
+          dispatch(listCampaigns(buildParams()));
         }),
       );
       if (!createResult?.success) return;
@@ -938,6 +1007,7 @@ export default function CampaignPage() {
 
   /* ── Open edit form — fetch single campaign then pre-populate ── */
   const handleEdit = async (campaignId) => {
+    if (loadingEdit) return; // prevent duplicate calls while fetch is in-flight
     setLoadingEdit(true);
     try {
       const res = await axiosInstance.get(`/get-campaigns/${campaignId}`);
@@ -957,7 +1027,18 @@ export default function CampaignPage() {
       const channelSteps = {};
       channelOrder.forEach((ch, idx) => {
         const key = String(idx + 1);
-        if (rawSteps[key]) channelSteps[ch] = rawSteps[key];
+        if (rawSteps[key]) {
+          const step = rawSteps[key];
+          channelSteps[ch] = {
+            ...step,
+            ...(step.wait_duration_hours != null && {
+              wait_duration_hours: String(step.wait_duration_hours),
+            }),
+            ...(step.wait_duration_minutes != null && {
+              wait_duration_minutes: String(step.wait_duration_minutes),
+            }),
+          };
+        }
       });
 
       // Extract LinkedIn step data (if present)
@@ -968,8 +1049,8 @@ export default function CampaignPage() {
         campaign_name: c.campaign_name ?? "",
         start_time: c.start_time ?? "",
         end_time: c.end_time ?? "",
-        reengage_days: c.reengage_days ?? 7,
-        max_attempts: c.max_attempts ?? 3,
+        reengage_days: c.reengage_days != null ? String(c.reengage_days) : "",
+        max_attempts: c.max_attempts != null ? String(c.max_attempts) : "",
         start_date: c.start_date
           ? new Date(c.start_date).toISOString().split("T")[0]
           : "",
@@ -999,9 +1080,9 @@ export default function CampaignPage() {
         dm_body_template:
           liData.dm_body_template ??
           "Hey {first_name}, thanks for connecting!",
-        linkedin_max_attempts: liData.max_attempts ?? 3,
-        reply_wait_hours: liData.reply_wait_hours ?? 72,
-        reply_wait_minutes: liData.reply_wait_minutes ?? 0,
+        linkedin_max_attempts: liData.max_attempts != null ? String(liData.max_attempts) : "",
+        reply_wait_hours: liData.reply_wait_hours != null ? String(liData.reply_wait_hours) : "",
+        reply_wait_minutes: liData.reply_wait_minutes != null ? String(liData.reply_wait_minutes) : "",
         preview_mode: c.preview_mode ?? true,
         campaign_prompt: c.campaign_prompt ?? "",
       });
@@ -2196,26 +2277,36 @@ export default function CampaignPage() {
                   <p className="text-[11px] text-red-500 font-[500] mt-0.5">{timeError}</p>
                 )}
               </div>
-              <Field label="Re-engage Days">
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-[600] text-[#1e293b]">Re-engage Days</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   name="reengage_days"
                   value={form.reengage_days}
                   onChange={handleFormChange}
-                  min={0}
-                  className={inputCls}
+                  placeholder="e.g. 7"
+                  className={inputCls + (numericErrors.reengage_days ? " border-red-400 focus:border-red-400 focus:ring-red-400/20" : "")}
                 />
-              </Field>
-              <Field label="Max Attempts">
+                {numericErrors.reengage_days && (
+                  <p className="text-[11px] text-red-500 font-[500]">{numericErrors.reengage_days}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[12px] font-[600] text-[#1e293b]">Max Attempts</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   name="max_attempts"
                   value={form.max_attempts}
                   onChange={handleFormChange}
-                  min={1}
-                  className={inputCls}
+                  placeholder="e.g. 3"
+                  className={inputCls + (numericErrors.max_attempts ? " border-red-400 focus:border-red-400 focus:ring-red-400/20" : "")}
                 />
-              </Field>
+                {numericErrors.max_attempts && (
+                  <p className="text-[11px] text-red-500 font-[500]">{numericErrors.max_attempts}</p>
+                )}
+              </div>
               <Field label="Start Date" required>
                 <input
                   type="date"
@@ -2229,7 +2320,7 @@ export default function CampaignPage() {
             {/* Channel Order — multi-select ordered chips (spans full row) */}
             <div className="mt-4">
               <label className="block text-[12px] font-[600] text-[#1e293b] mb-1">
-                Channel Order
+                Channel Order<span className="text-red-400 ml-0.5">*</span>
               </label>
               <div className="rounded-xl border border-gray-200 bg-white px-3.5 py-3 min-h-[52px]">
                 {/* Selected chips showing step number */}
@@ -2351,41 +2442,35 @@ export default function CampaignPage() {
                       </span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Field label="Wait Duration Hours">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[12px] font-[600] text-[#1e293b]">Wait Duration Hours</label>
                         <input
-                          type="number"
-                          value={
-                            stepData.wait_duration_hours ??
-                            (upper === "LINKEDIN" ? 48 : 24)
-                          }
-                          onChange={(e) =>
-                            setChannelStep(
-                              ch,
-                              "wait_duration_hours",
-                              e.target.value,
-                            )
-                          }
-                          min={0}
-                          className={inputCls}
+                          type="text"
+                          inputMode="numeric"
+                          value={stepData.wait_duration_hours ?? ""}
+                          placeholder={upper === "LINKEDIN" ? "e.g. 48" : "e.g. 24"}
+                          onChange={(e) => handleChannelStepNumericChange(ch, "wait_duration_hours", e.target.value)}
+                          className={inputCls + (numericErrors[`${ch}_wait_duration_hours`] ? " border-red-400 focus:border-red-400 focus:ring-red-400/20" : "")}
                         />
-                      </Field>
+                        {numericErrors[`${ch}_wait_duration_hours`] && (
+                          <p className="text-[11px] text-red-500 font-[500]">{numericErrors[`${ch}_wait_duration_hours`]}</p>
+                        )}
+                      </div>
                       {upper !== "LINKEDIN" && (
-                        <Field label="Wait Duration Minutes">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[12px] font-[600] text-[#1e293b]">Wait Duration Minutes</label>
                           <input
-                            type="number"
-                            value={stepData.wait_duration_minutes ?? 0}
-                            onChange={(e) =>
-                              setChannelStep(
-                                ch,
-                                "wait_duration_minutes",
-                                e.target.value,
-                              )
-                            }
-                            min={0}
-                            max={59}
-                            className={inputCls}
+                            type="text"
+                            inputMode="numeric"
+                            value={stepData.wait_duration_minutes ?? ""}
+                            placeholder="e.g. 30"
+                            onChange={(e) => handleChannelStepNumericChange(ch, "wait_duration_minutes", e.target.value)}
+                            className={inputCls + (numericErrors[`${ch}_wait_duration_minutes`] ? " border-red-400 focus:border-red-400 focus:ring-red-400/20" : "")}
                           />
-                        </Field>
+                          {numericErrors[`${ch}_wait_duration_minutes`] && (
+                            <p className="text-[11px] text-red-500 font-[500]">{numericErrors[`${ch}_wait_duration_minutes`]}</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2486,7 +2571,7 @@ export default function CampaignPage() {
                 />
               </Field>
           
-              <Field label="Lead List">
+              <Field label="Lead List" required>
                 <div className="relative">
                   <select
                     name="list_id"
@@ -2544,37 +2629,51 @@ export default function CampaignPage() {
                   />
                 </Field>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Field label="Max Attempts">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[12px] font-[600] text-[#1e293b]">Max Attempts</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       name="linkedin_max_attempts"
                       value={form.linkedin_max_attempts}
                       onChange={handleFormChange}
-                      min={1}
-                      className={inputCls}
+                      placeholder="e.g. 3"
+                      className={inputCls + (numericErrors.linkedin_max_attempts ? " border-red-400 focus:border-red-400 focus:ring-red-400/20" : "")}
                     />
-                  </Field>
-                  <Field label="Reply Wait Hours">
+                    {numericErrors.linkedin_max_attempts && (
+                      <p className="text-[11px] text-red-500 font-[500]">{numericErrors.linkedin_max_attempts}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[12px] font-[600] text-[#1e293b]">Reply Wait Hours</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       name="reply_wait_hours"
                       value={form.reply_wait_hours}
                       onChange={handleFormChange}
-                      min={0}
-                      className={inputCls}
+                      placeholder="e.g. 72"
+                      className={inputCls + (numericErrors.reply_wait_hours ? " border-red-400 focus:border-red-400 focus:ring-red-400/20" : "")}
                     />
-                  </Field>
-                  <Field label="Reply Wait Minutes">
+                    {numericErrors.reply_wait_hours && (
+                      <p className="text-[11px] text-red-500 font-[500]">{numericErrors.reply_wait_hours}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[12px] font-[600] text-[#1e293b]">Reply Wait Minutes</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       name="reply_wait_minutes"
                       value={form.reply_wait_minutes}
                       onChange={handleFormChange}
-                      min={0}
-                      max={59}
-                      className={inputCls}
+                      placeholder="e.g. 30"
+                      className={inputCls + (numericErrors.reply_wait_minutes ? " border-red-400 focus:border-red-400 focus:ring-red-400/20" : "")}
                     />
-                  </Field>
+                    {numericErrors.reply_wait_minutes && (
+                      <p className="text-[11px] text-red-500 font-[500]">{numericErrors.reply_wait_minutes}</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </section>
@@ -2644,7 +2743,7 @@ export default function CampaignPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Meeting Invite Sender Email — for ALL channels */}
-                <Field label="Meeting Invite Sender Email">
+                <Field label="Meeting Invite Sender Email" required>
                   <input
                     type="email"
                     name="logged_in_user_email"
@@ -2658,7 +2757,7 @@ export default function CampaignPage() {
                 {/* Email Config fields — only for Email channel */}
                 {form.channel_order.map((c) => c.toUpperCase()).includes("EMAIL") && emailSendingService !== "CRM" && (
                   <>
-                    <Field label="SMTP Provider Name (Optional)">
+                    <Field label="SMTP Provider Name (Optional)" required>
                       <div className="relative">
                         <button
                           type="button"
@@ -2747,7 +2846,7 @@ export default function CampaignPage() {
                     </Field>
                     {/* Only show Email Template if provider is smartlead, and hide all other fields */}
                     {form.smtp_provider_name && form.smtp_provider_name.toLowerCase() === "smartlead" ? (
-                      <Field label="Email Template">
+                      <Field label="Email Template" required>
                         <div className="relative">
                           <select
                             name="template_id"
@@ -2776,7 +2875,7 @@ export default function CampaignPage() {
                       </Field>
                     ) : (
                       <>
-                        <Field label="Email Template">
+                        <Field label="Email Template" required>
                           <div className="relative">
                             <select
                               name="template_id"
@@ -2805,7 +2904,7 @@ export default function CampaignPage() {
                         </Field>
                         {emailSendingService !== "CRM" && (
                           <>
-                            <Field label="From Name">
+                            <Field label="From Name" required>
                               <input
                                 name="from_name"
                                 value={form.from_name ?? ""}
@@ -2814,7 +2913,7 @@ export default function CampaignPage() {
                                 className={inputCls}
                               />
                             </Field>
-                            <Field label="From Email">
+                            <Field label="From Email" required>
                               <input
                                 type="email"
                                 name="from_email"
@@ -2824,7 +2923,7 @@ export default function CampaignPage() {
                                 className={inputCls}
                               />
                             </Field>
-                            <Field label="Reply to Email">
+                            <Field label="Reply to Email" required>
                               <input
                                 type="email"
                                 name="reply_to_email"

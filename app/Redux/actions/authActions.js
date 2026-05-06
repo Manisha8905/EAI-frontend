@@ -625,42 +625,33 @@ const patchCreatedCampaignUntilLeads = async (dispatch, campaignId) => {
   const id = String(campaignId ?? "").trim();
   if (!id) return;
 
-  const maxAttempts = 8;
+  const maxAttempts = 3;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (attempt > 0) await wait(2000);
     try {
       const detail = await axiosInstance.get(`/get-campaigns/${id}`);
       const normalized = normalizeCampaign(detail?.data ?? {});
       dispatch({ type: CAMPAIGN_PATCH_SUCCESS, payload: normalized });
-
       const leadCount = Number(detail?.data?.total_leads ?? 0);
-      if (leadCount > 0) break;
+      if (leadCount > 0) return; // stop as soon as leads are ready
     } catch (_err) {
-      // Retry until max attempts is reached.
-    }
-
-    if (attempt < maxAttempts - 1) {
-      await wait(2000);
+      // ignore and retry
     }
   }
 };
 
-// � Poll campaign detail after activation to pick up async lead count changes
+// Single delayed fetch after activation to pick up status change
 const patchCampaignAfterActivation = async (dispatch, campaignId) => {
   const id = String(campaignId ?? "").trim();
   if (!id) return;
 
-  const maxAttempts = 5;
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      const detail = await axiosInstance.get(`/get-campaigns/${id}`);
-      const normalized = normalizeCampaign(detail?.data ?? {});
-      dispatch({ type: CAMPAIGN_PATCH_SUCCESS, payload: normalized });
-    } catch (_err) {
-      // Retry silently
-    }
-    if (attempt < maxAttempts - 1) {
-      await wait(2000);
-    }
+  await wait(1500);
+  try {
+    const detail = await axiosInstance.get(`/get-campaigns/${id}`);
+    const normalized = normalizeCampaign(detail?.data ?? {});
+    dispatch({ type: CAMPAIGN_PATCH_SUCCESS, payload: normalized });
+  } catch (_err) {
+    // ignore
   }
 };
 
@@ -677,7 +668,6 @@ export const createCampaign = (formData, agent_id, onSuccess) => async (dispatch
       res?.data?.data?.id ??
       null;
     toast.success(res?.data?.detail ?? "Campaign created successfully!");
-    dispatch(listCampaigns({ page: 1, page_size: 20 }));
     if (createdCampaignId) {
       patchCreatedCampaignUntilLeads(dispatch, createdCampaignId);
     }
@@ -1160,7 +1150,6 @@ export const updateCampaign = (campaignId, formData, agent_id, onSuccess) => asy
     const res = await axiosInstance.patch(`/update-campaign/${campaignId}`, formData, { headers });
     dispatch({ type: UPDATE_CAMPAIGN_SUCCESS });
     toast.success(res?.data?.detail ?? "Campaign updated successfully!");
-    dispatch(listCampaigns({ page: 1, page_size: 20 }));
     if (onSuccess) onSuccess();
   } catch (err) {
     dispatch({ type: UPDATE_CAMPAIGN_FAILURE, payload: err?.response?.data?.detail || err?.response?.data?.detail || "Failed to update campaign." });

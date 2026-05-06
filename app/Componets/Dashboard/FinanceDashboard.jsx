@@ -164,38 +164,37 @@ const CARD_GRADIENTS = {
 
 function KpiCard({ icon: Icon, tone, title, main, trend, badge, subItems }) {
   const { grad, shadow } = CARD_GRADIENTS[tone] ?? CARD_GRADIENTS.blue;
+  const hasSubItems = Array.isArray(subItems) && subItems.length > 0;
+
   return (
-    <div className={`rounded-2xl bg-gradient-to-br ${grad} p-6 text-white shadow-lg ${shadow} flex flex-col gap-3`}>
+    <article className={`rounded-2xl bg-gradient-to-br ${grad} p-4 xl:p-5 text-white shadow-lg ${shadow} flex flex-col justify-between h-full`}>
       {/* Row 1: icon pill + trend/badge */}
-      <div className="flex items-center justify-between">
-        <span className="inline-flex items-center justify-center rounded-xl bg-white/20 p-3">
-          <Icon className="h-5 w-5 text-white" />
-        </span>
+      <div className="flex items-center justify-between mb-3 xl:mb-4">
+        <div className="flex h-10 w-10 lg:h-8 lg:w-8 xl:h-10 xl:w-10 items-center justify-center rounded-xl bg-white/20 shrink-0">
+          <Icon className="h-5 w-5 lg:h-4 lg:w-4 xl:h-5 xl:w-5 text-white" />
+        </div>
         {(trend !== undefined || badge) && (
-          <span className="flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-[12px] font-[600] text-white">
-            {trend !== undefined && <TrendingUp className="h-3 w-3" />}
+          <span className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold shrink-0">
             {trend !== undefined ? `+${trend}%` : badge}
           </span>
         )}
       </div>
-      {/* Row 2: uppercase label + big value */}
-      <div className="mt-1">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70 mb-2">{title}</p>
-        <p className="text-[42px] font-bold leading-none tracking-tight">{main}</p>
-      </div>
-      {/* Row 3: sub-items */}
-      {subItems && subItems.length > 0 && (
-        <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1 pt-3 border-t border-white/20">
-          {subItems.map((item, i) => (
-            <span key={i} className="flex items-center gap-1 text-[12px] text-white/80">
-              {item.icon && <item.icon className="h-3.5 w-3.5 text-white/70" />}
-              <span className="font-[700] text-white">{item.count}</span>
-              {item.label && <span>{item.label}</span>}
-            </span>
-          ))}
+      {/* Row 2: uppercase label */}
+      <p className="text-[12px] lg:text-[11px] xl:text-[12px] font-semibold uppercase tracking-widest text-white/70 mb-4 truncate">{title}</p>
+      {/* Row 3: main value + sub-items */}
+      <div className="flex flex-nowrap items-center w-full divide-x divide-white/25">
+        <div className="min-w-0 flex-1 px-2 first:pl-0 last:pr-0">
+          <p className="text-[19px] sm:text-[22px] lg:text-[15px] xl:text-[20px] font-bold leading-none truncate">{main}</p>
+          <p className="text-[11px] lg:text-[10px] xl:text-[11px] text-white/60 mt-1.5 truncate">Total</p>
         </div>
-      )}
-    </div>
+        {hasSubItems && subItems.map((item, i) => (
+          <div key={i} className="min-w-0 flex-1 px-2 first:pl-0 last:pr-0">
+            <p className="text-[19px] sm:text-[22px] lg:text-[15px] xl:text-[20px] font-bold leading-none truncate">{item.count}</p>
+            <p className="text-[11px] lg:text-[10px] xl:text-[11px] text-white/60 mt-1.5 truncate">{item.label ?? ""}</p>
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 
@@ -791,7 +790,7 @@ export default function FinanceDashboard() {
       </div>
 
       {/* ── KPI Cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
         {/* 1 — Total Jobs Processed — blue */}
         <KpiCard
