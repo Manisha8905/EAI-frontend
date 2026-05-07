@@ -9522,9 +9522,9 @@ function LeadsPage({ onBack }) {
                           {/* <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
                             {lead?.industry || "—"}
                           </td> */}
-                          <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                          {/* <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
                             {lead?.company_size || "—"}
-                          </td>
+                          </td> */}
                           {/* <td className="px-3 py-2 text-[12px] whitespace-nowrap">
                             {linkedinUrl ? (
                               <a
