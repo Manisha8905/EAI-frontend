@@ -112,7 +112,17 @@ const TABS = [
 ];
 
 const STATUS_OPTIONS = ["All Status", "Success", "Partial", "Failed"];
-const DATE_OPTIONS   = ["Last 30 Days", "Last 7 Days", "Last 90 Days", "This Year"];
+const DATE_OPTIONS = [
+  // { label: "All",          value: "All"          },
+  // { label: "Today",        value: "Today"        },
+  // { label: "This Week",   value: "This Week"    },
+  // { label: "This Month",  value: "This Month"   },
+  // { label: "Last 7 Days", value: "Last 7 Days"  },
+  { label: "Last 30 Days",value: "Last 30 Days" },
+  { label: "Last 90 Days",value: "Last 90 Days" },
+  { label: "This Year",   value: "This Year"    },
+  { label: "Custom",      value: "Custom"       },
+];
 
 /* ─── Status badge ───────────────────────────────────────────── */
 const statusBadge = (status) => {
@@ -234,6 +244,18 @@ function Td({ children, className = "" }) {
 
 /* ─── Jobs table ─────────────────────────────────────────────── */
 function JobsTable({ rows, loading, error, onRetry }) {
+  const [downloading, setDownloading] = useState(null);
+
+  const handleDownload = async (job, kind) => {
+    const urlPath = kind === "processing" ? job.processingReportUrl : job.errorLogUrl;
+    const fallback = kind === "processing"
+      ? `job_${job.id}_processing_report`
+      : `job_${job.id}_error_log`;
+    setDownloading(`${job.id}-${kind}`);
+    await downloadFromApiUrl(urlPath, fallback);
+    setDownloading(null);
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-6 pt-6 pb-4 flex items-center justify-between gap-3">
@@ -267,6 +289,8 @@ function JobsTable({ rows, loading, error, onRetry }) {
               <Th>Type</Th>
               <Th>Carrier / Vendor</Th>
               <Th>Attachments</Th>
+              <Th>Processing Report</Th>
+              <Th>Error Log</Th>
               <Th>Status</Th>
               <Th>Created At</Th>
             </tr>
@@ -274,20 +298,20 @@ function JobsTable({ rows, loading, error, onRetry }) {
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={8} className="py-16 text-center text-[13px] text-gray-400">
+                <td colSpan={10} className="py-16 text-center text-[13px] text-gray-400">
                   <RefreshCw className="inline h-5 w-5 animate-spin mr-2 text-indigo-400" />
                   Loading jobs…
                 </td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={8} className="py-16 text-center text-[13px] text-red-400">
+                <td colSpan={10} className="py-16 text-center text-[13px] text-red-400">
                   {error} —{" "}
                   <button onClick={onRetry} className="text-indigo-500 underline">retry</button>
                 </td>
               </tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={8} className="py-16 text-center text-[13px] text-gray-400">No jobs match your filters.</td></tr>
+              <tr><td colSpan={10} className="py-16 text-center text-[13px] text-gray-400">No jobs match your filters.</td></tr>
             ) : rows.map((job) => (
               <tr key={job.id} className="hover:bg-indigo-50/30 transition-colors">
                 <Td><span className="font-[700] text-indigo-600">#{job.id}</span></Td>
@@ -298,6 +322,34 @@ function JobsTable({ rows, loading, error, onRetry }) {
                 <Td>
                   <span className="font-[600] text-gray-800">{job.attachments}</span>
                   {job.failed > 0 && <span className="ml-1.5 text-[12px] text-red-500 font-[600]">({job.failed} failed)</span>}
+                </Td>
+                <Td>
+                  {job.processingReportUrl ? (
+                    <button
+                      onClick={() => handleDownload(job, "processing")}
+                      disabled={downloading === `${job.id}-processing`}
+                      title="Download processing report"
+                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-[600] text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {downloading === `${job.id}-processing`
+                        ? <RefreshCw className="h-4 w-4 animate-spin" />
+                        : <Download className="h-4 w-4" />}
+                    </button>
+                  ) : <span className="text-[13px] text-gray-400">—</span>}
+                </Td>
+                <Td>
+                  {job.errorLogUrl ? (
+                    <button
+                      onClick={() => handleDownload(job, "error")}
+                      disabled={downloading === `${job.id}-error`}
+                      title="Download error log"
+                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-[600] text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {downloading === `${job.id}-error`
+                        ? <RefreshCw className="h-4 w-4 animate-spin" />
+                        : <Download className="h-4 w-4" />}
+                    </button>
+                  ) : <span className="text-[13px] text-gray-400">—</span>}
                 </Td>
                 <Td>{statusBadge(job.status)}</Td>
                 <Td><span className="text-gray-500 whitespace-pre-line leading-snug">{job.createdAt}</span></Td>
@@ -1088,17 +1140,40 @@ async function downloadAttachment(attachmentId) {
   }
 }
 
+async function downloadFromApiUrl(urlPath, fallbackName) {
+  if (!urlPath) { toast.error("File is not available."); return; }
+  try {
+    const res = await axiosInstance.get(urlPath, { responseType: "blob" });
+    const contentDisposition = res.headers["content-disposition"] ?? "";
+    const match = contentDisposition.match(/filename[^;=\n]*=(["']?)([^\n"']+)\1/);
+    const filename = match?.[2] ?? fallbackName;
+    const url = URL.createObjectURL(new Blob([res.data]));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to download file.";
+    toast.error(msg);
+  }
+}
+
 /* ─── Helper: convert UI date-filter label → API date_from/date_to ── */
-function getDateRange(label) {
+function getDateRange(label, customFrom, customTo) {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const today = fmt(now);
-  if (label === "Last 7 Days")  { const f = new Date(now); f.setDate(f.getDate() - 7);  return { date_from: fmt(f), date_to: today }; }
-  if (label === "Last 30 Days") { const f = new Date(now); f.setDate(f.getDate() - 30); return { date_from: fmt(f), date_to: today }; }
-  if (label === "Last 90 Days") { const f = new Date(now); f.setDate(f.getDate() - 90); return { date_from: fmt(f), date_to: today }; }
-  if (label === "This Year")    { return { date_from: `${now.getFullYear()}-01-01`, date_to: today }; }
-  return { date_from: null, date_to: null };
+  // if (label === "Today")       { return { date_from: today, date_to: today }; }
+  // if (label === "This Week")   { const f = new Date(now); f.setDate(f.getDate() - f.getDay()); return { date_from: fmt(f), date_to: today }; }
+  if (label === "This Month")  { return { date_from: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`, date_to: today }; }
+  if (label === "Last 7 Days") { const f = new Date(now); f.setDate(f.getDate() - 7);  return { date_from: fmt(f), date_to: today }; }
+  if (label === "Last 30 Days"){ const f = new Date(now); f.setDate(f.getDate() - 30); return { date_from: fmt(f), date_to: today }; }
+  if (label === "Last 90 Days"){ const f = new Date(now); f.setDate(f.getDate() - 90); return { date_from: fmt(f), date_to: today }; }
+  if (label === "This Year")   { return { date_from: `${now.getFullYear()}-01-01`, date_to: today }; }
+  if (label === "Custom")      { return { date_from: customFrom || null, date_to: customTo || null }; }
+  return { date_from: null, date_to: null }; // "All" — no date filter
 }
 
 export default function FinanceReportingPage() {
@@ -1106,6 +1181,8 @@ export default function FinanceReportingPage() {
   const [search,       setSearch]       = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [dateFilter,   setDateFilter]   = useState("Last 30 Days");
+  const [dateFrom,     setDateFrom]     = useState("");
+  const [dateTo,       setDateTo]       = useState("");
 
   /* ── Jobs API state ── */
   const [apiJobs,        setApiJobs]        = useState([]);
@@ -1126,10 +1203,11 @@ export default function FinanceReportingPage() {
   const [tradeSummary,   setTradeSummary]   = useState(null);
 
   const fetchJobs = useCallback(async () => {
+    if (dateFilter === "Custom" && (!dateFrom || !dateTo)) return;
     setJobsLoading(true);
     setJobsError(null);
     try {
-      const { date_from, date_to } = getDateRange(dateFilter);
+      const { date_from, date_to } = getDateRange(dateFilter, dateFrom, dateTo);
       const params = { page: 1, page_size: 100 };
       if (search.trim())               params.search    = search.trim();
       if (statusFilter !== "All Status") params.status  = statusFilter.toLowerCase();
@@ -1148,6 +1226,8 @@ export default function FinanceReportingPage() {
         failed:      j.failed_attachments,
         status:      normaliseStatus(j.status),
         createdAt:   formatCreatedAt(j.created_at),
+        processingReportUrl: j.processing_report_url,
+        errorLogUrl: j.error_log_url,
       }));
       setApiJobs(mapped);
       // Use API summary directly; fall back to counting results if absent
@@ -1173,13 +1253,14 @@ export default function FinanceReportingPage() {
     } finally {
       setJobsLoading(false);
     }
-  }, [search, statusFilter, dateFilter]);
+  }, [search, statusFilter, dateFilter, dateFrom, dateTo]);
 
   const fetchFreight = useCallback(async () => {
+    if (dateFilter === "Custom" && (!dateFrom || !dateTo)) return;
     setFreightLoading(true);
     setFreightError(null);
     try {
-      const { date_from, date_to } = getDateRange(dateFilter);
+      const { date_from, date_to } = getDateRange(dateFilter, dateFrom, dateTo);
       const params = { page: 1, page_size: 100 };
       if (search.trim())               params.search    = search.trim();
       if (statusFilter !== "All Status") params.status  = statusFilter.toLowerCase();
@@ -1218,13 +1299,14 @@ export default function FinanceReportingPage() {
     } finally {
       setFreightLoading(false);
     }
-  }, [search, statusFilter, dateFilter]);
+  }, [search, statusFilter, dateFilter, dateFrom, dateTo]);
 
   const fetchTrade = useCallback(async () => {
+    if (dateFilter === "Custom" && (!dateFrom || !dateTo)) return;
     setTradeLoading(true);
     setTradeError(null);
     try {
-      const { date_from, date_to } = getDateRange(dateFilter);
+      const { date_from, date_to } = getDateRange(dateFilter, dateFrom, dateTo);
       const params = { page: 1, page_size: 100 };
       if (search.trim())               params.search    = search.trim();
       if (statusFilter !== "All Status") params.status  = statusFilter.toLowerCase();
@@ -1281,7 +1363,7 @@ export default function FinanceReportingPage() {
     } finally {
       setTradeLoading(false);
     }
-  }, [search, statusFilter, dateFilter]);
+  }, [search, statusFilter, dateFilter, dateFrom, dateTo]);
 
   /* ── Re-fetch when tab OR any filter changes ── */
   useEffect(() => {
@@ -1451,13 +1533,41 @@ export default function FinanceReportingPage() {
               <Calendar className="pointer-events-none absolute left-3 h-4 w-4 text-gray-400 shrink-0" />
               <select
                 value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+                onChange={(e) => { setDateFilter(e.target.value); setDateFrom(""); setDateTo(""); }}
                 className="appearance-none rounded-xl bg-transparent pl-9 pr-8 py-2 text-[13px] text-gray-700 font-[500] focus:outline-none cursor-pointer"
               >
-                {DATE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                {DATE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             </div>
+            {dateFilter === "Custom" && (
+              <>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm"
+                />
+                <span className="text-[12px] text-gray-400">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm"
+                />
+                <button
+                  onClick={() => {
+                    if (activeTab === "Jobs") fetchJobs();
+                    else if (activeTab === "FreightInvoices") fetchFreight();
+                    else if (activeTab === "TradeInvoices") fetchTrade();
+                  }}
+                  disabled={!dateFrom || !dateTo}
+                  className="rounded-xl bg-indigo-600 px-4 py-2 text-[13px] font-[600] text-white shadow-sm hover:bg-indigo-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Apply
+                </button>
+              </>
+            )}
             <button
               onClick={handleExport}
               className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-[13px] font-[600] text-white shadow-sm hover:bg-indigo-700 active:bg-indigo-800 transition"

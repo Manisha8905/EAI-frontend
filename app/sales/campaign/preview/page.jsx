@@ -1143,10 +1143,21 @@ export default function CampaignPreviewPage() {
                                 </div>
                               );
                             };
-                            const personalSection = renderSection("Personal Details", ai.personalDetails);
-                            const businessSection = renderSection("Business Details", ai.businessDetails);
+                            // Support both legacy {personalDetails, businessDetails} shape
+                            // and the actual API shape { groq: { person, company, pain_points, ... }, apollo: {...} }
+                            const groqData  = ai.groq  ?? null;
+                            const apolloData = ai.apollo ?? null;
 
-                            if (!personalSection && !businessSection) {
+                            const personalSection  = renderSection("Personal Details",        ai.personalDetails ?? groqData?.person);
+                            const businessSection  = renderSection("Business Details",         ai.businessDetails ?? groqData?.company);
+                            const painSection      = renderSection("Pain Points",              Array.isArray(groqData?.pain_points) ? { pain_points: groqData.pain_points } : null);
+                            const hooksSection     = renderSection("Personalization Hooks",    Array.isArray(groqData?.personalization_hooks) ? { hooks: groqData.personalization_hooks } : null);
+                            const insightsSection  = groqData?.key_insights
+                              ? renderSection("Key Insights", { key_insights: groqData.key_insights })
+                              : null;
+                            const apolloSection    = renderSection("Apollo Data",              apolloData);
+
+                            if (!personalSection && !businessSection && !painSection && !hooksSection && !insightsSection && !apolloSection) {
                               return (
                                 <div className="flex items-center justify-center py-8">
                                   <p className="text-[13px] text-gray-400">No AI enrichment data available.</p>
@@ -1158,6 +1169,10 @@ export default function CampaignPreviewPage() {
                               <>
                                 {personalSection}
                                 {businessSection}
+                                {painSection}
+                                {hooksSection}
+                                {insightsSection}
+                                {apolloSection}
                               </>
                             );
                           })()}

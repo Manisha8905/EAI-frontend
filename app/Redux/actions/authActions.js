@@ -616,7 +616,7 @@ const normalizeCampaign = (c) => ({
                    })),
   preview:           c.preview          ?? false,
   preview_mode:      c.preview_mode     ?? false,
-  campaign_prompt
+  campaign_prompt:   c.campaign_prompt  ?? "",
 });
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -671,6 +671,8 @@ export const createCampaign = (formData, agent_id, onSuccess) => async (dispatch
     if (createdCampaignId) {
       patchCreatedCampaignUntilLeads(dispatch, createdCampaignId);
     }
+    // Refresh the campaign list so the new campaign appears without a manual refresh
+    dispatch(listCampaigns({ page: 1, page_size: 20 }));
     if (onSuccess) onSuccess(res?.data);
     return { success: true, campaignId: createdCampaignId, data: res?.data };
   } catch (err) {

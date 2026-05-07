@@ -212,7 +212,7 @@ const normalizeActivityTab = (tabValue) => {
 
 const isPreviewEligibleCampaign = (campaign) => {
   const previewModeEnabled = [true, 1, "1", "true", "TRUE", "True"].includes(
-    campaign?.preview_mode,
+    campaign?.preview,
   );
 
   if (!previewModeEnabled) {
@@ -772,9 +772,8 @@ export default function CampaignPage() {
 
   const applyNumericRule = (raw) => {
     const stripped = raw.replace(/\D/g, "");
-    if (stripped === "") return { value: "", error: "Value must be at least 1." };
+    if (stripped === "") return { value: "", error: null };
     const cleaned = String(Number(stripped)); // strips leading zeros
-    if (cleaned === "0") return { value: null, error: "Value must be at least 1." };
     return { value: cleaned, error: null };
   };
 
@@ -783,7 +782,6 @@ export default function CampaignPage() {
 
     if (NUMERIC_FIELDS.has(name)) {
       const { value: next, error } = applyNumericRule(value);
-      if (next === null) return; // block zero as first char
       setForm((prev) => ({ ...prev, [name]: next }));
       setNumericErrors((prev) => {
         const n = { ...prev };
@@ -814,7 +812,6 @@ export default function CampaignPage() {
   const handleChannelStepNumericChange = (channel, field, rawValue) => {
     const errKey = `${channel}_${field}`;
     const { value: next, error } = applyNumericRule(rawValue);
-    if (next === null) return; // block zero as first char
     setChannelStep(channel, field, next);
     setNumericErrors((prev) => {
       const n = { ...prev };
