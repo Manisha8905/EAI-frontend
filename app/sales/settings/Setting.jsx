@@ -96,6 +96,12 @@ function formatApolloFiltersForApi(filters) {
     out[key] = normalizeValue(out[key]);
   });
 
+  ["has_email", "has_phone"].forEach((key) => {
+    if (out[key] == null || out[key] === "") {
+      delete out[key];
+    }
+  });
+
   // Backend expects industry_keywords, not industries.
   if (Array.isArray(out.industries) && !out.industry_keywords) {
     out.industry_keywords = out.industries;
@@ -116,18 +122,184 @@ function formatApolloFiltersForApi(filters) {
   }
 
   // Ensure expected fields are arrays
-  [
-    "company_sizes",
-    "job_titles",
-    "locations",
-    "seniorities",
-  ].forEach((k) => {
+  ["company_sizes", "job_titles", "locations", "seniorities"].forEach((k) => {
     if (out[k] && !Array.isArray(out[k])) {
       out[k] = [out[k]];
     }
   });
 
   return out;
+}
+
+function extractApolloPreviewLeads(preview) {
+  if (!preview) return [];
+  if (Array.isArray(preview)) return preview;
+
+  const candidates = [
+    preview.sample_leads,
+    preview.leads,
+    preview.data,
+    preview.results,
+    preview.items,
+    preview.preview,
+    preview.preview_leads,
+    preview.contacts,
+    preview.people,
+    preview.records,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+    if (candidate && typeof candidate === "object") {
+      const nested = [
+        candidate.sample_leads,
+        candidate.leads,
+        candidate.data,
+        candidate.results,
+        candidate.items,
+        candidate.contacts,
+        candidate.people,
+        candidate.records,
+      ];
+      for (const value of nested) {
+        if (Array.isArray(value)) return value;
+      }
+    }
+  }
+
+  // Deep search fallback: find first array that looks like lead records.
+  const seen = new Set();
+  const queue = [preview];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || seen.has(current)) continue;
+    seen.add(current);
+
+    for (const value of Object.values(current)) {
+      if (Array.isArray(value)) {
+        if (value.length === 0) continue;
+        const first = value[0];
+        if (first && typeof first === "object") {
+          return value;
+        }
+      } else if (value && typeof value === "object") {
+        queue.push(value);
+      }
+    }
+  }
+
+  return [];
+}
+
+function pickPreviewLeadValue(lead, keys) {
+  if (!lead || typeof lead !== "object") return "-";
+  const source =
+    lead.lead_data && typeof lead.lead_data === "object"
+      ? lead.lead_data
+      : lead;
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value);
+    }
+  }
+  return "-";
+}
+
+function getPreviewLeadAvailability(lead, type) {
+  if (!lead || typeof lead !== "object") return null;
+  const source =
+    lead.lead_data && typeof lead.lead_data === "object"
+      ? lead.lead_data
+      : lead;
+
+  const raw =
+    source._raw && typeof source._raw === "object" ? source._raw : null;
+  const org =
+    raw?.organization && typeof raw.organization === "object"
+      ? raw.organization
+      : null;
+
+  const toBool = (value) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value > 0;
+    if (typeof value === "string") {
+      const v = value.trim().toLowerCase();
+      if (["true", "yes", "y", "1", "available"].includes(v)) return true;
+      if (
+        ["false", "no", "n", "0", "none", "na", "n/a", "unavailable"].includes(
+          v,
+        )
+      )
+        return false;
+    }
+    return null;
+  };
+
+  if (type === "email") {
+    const boolCandidates = [source.has_email, raw?.has_email];
+    for (const candidate of boolCandidates) {
+      const parsed = toBool(candidate);
+      if (parsed !== null) return parsed;
+    }
+    const emailValue = pickPreviewLeadValue(source, [
+      "email",
+      "email_address",
+      "primary_email",
+    ]);
+    return emailValue !== "-";
+  }
+
+  if (type === "phone") {
+    const boolCandidates = [
+      source.has_phone,
+      raw?.has_phone,
+      org?.has_phone,
+      raw?.has_direct_phone,
+    ];
+    for (const candidate of boolCandidates) {
+      const parsed = toBool(candidate);
+      if (parsed !== null) return parsed;
+    }
+    const phoneValue = pickPreviewLeadValue(source, [
+      "phone",
+      "contact_number",
+      "phone_number",
+    ]);
+    return phoneValue !== "-";
+  }
+
+  return null;
+}
+
+function getApolloPreviewCount(preview) {
+  if (!preview) return 0;
+
+  const candidates = [
+    preview.estimated_count,
+    preview.count,
+    preview.total,
+    preview.total_count,
+    preview?.data?.estimated_count,
+    preview?.data?.count,
+    preview?.data?.total,
+    preview?.meta?.estimated_count,
+    preview?.meta?.count,
+    preview?.meta?.total,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (
+      typeof value === "string" &&
+      value.trim() !== "" &&
+      !Number.isNaN(Number(value))
+    ) {
+      return Number(value);
+    }
+  }
+
+  return 0;
 }
 import React, { useState, useRef, useEffect, useCallback, memo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -6024,6 +6196,8 @@ function LeadsPage({ onBack }) {
   /* ── Apollo wizard ── */
   const apolloEmptyFilters = {
     company_sizes: [],
+    has_email: null,
+    has_phone: null,
     industries: [],
     job_titles: [],
     keywords: [],
@@ -6044,6 +6218,9 @@ function LeadsPage({ onBack }) {
   const [apolloPreview, setApolloPreview] = useState(null);
   const [apolloPreviewing, setApolloPreviewLoading] = useState(false);
   const [apolloFetching, setApolloFetching] = useState(false);
+  const [showApolloPreviewModal, setShowApolloPreviewModal] = useState(false);
+  const apolloPreviewLeads = extractApolloPreviewLeads(apolloPreview);
+  const apolloPreviewCount = getApolloPreviewCount(apolloPreview);
 
   /* ── Detail view ── */
   const [viewList, setViewList] = useState(null);
@@ -6184,7 +6361,10 @@ function LeadsPage({ onBack }) {
     if (contentType.includes("application/vnd.ms-excel")) {
       return `${fallbackBaseName}.xls`;
     }
-    if (contentType.includes("text/csv") || contentType.includes("application/csv")) {
+    if (
+      contentType.includes("text/csv") ||
+      contentType.includes("application/csv")
+    ) {
       return `${fallbackBaseName}.csv`;
     }
 
@@ -6324,6 +6504,7 @@ function LeadsPage({ onBack }) {
       technologies: "",
     });
     setApolloPreview(null);
+    setShowApolloPreviewModal(false);
   };
 
   /* ── POST /lead-lists (wizard step 1 — Continue button) ── */
@@ -6397,7 +6578,14 @@ function LeadsPage({ onBack }) {
     try {
       const filters = formatApolloFiltersForApi(apolloFilters);
       const res = await axiosInstance.post("/apollo/preview", { filters });
-      setApolloPreview(res.data?.data ?? res.data);
+      const previewPayload = res.data;
+      setApolloPreview(previewPayload);
+      const previewLeads = extractApolloPreviewLeads(previewPayload);
+      if (previewLeads.length > 0) {
+        setShowApolloPreviewModal(true);
+      } else {
+        toast.info("Preview complete. No sample leads returned by the API.");
+      }
     } catch (err) {
       toast.error(getApiError(err) || "Apollo preview failed.");
     } finally {
@@ -6416,11 +6604,7 @@ function LeadsPage({ onBack }) {
       const filters = formatApolloFiltersForApi(apolloFilters);
       await axiosInstance.post("/apollo/fetch", {
         confirmed: true,
-        estimated_count:
-          apolloPreview?.estimated_count ??
-          apolloPreview?.count ??
-          apolloPreview?.total ??
-          0,
+        estimated_count: apolloPreviewCount,
         filters,
         list_name: form.name.trim(),
       });
@@ -6664,14 +6848,10 @@ function LeadsPage({ onBack }) {
               ...l.lead_data,
               name: payload.name,
               contact_number: payload.contact_number,
-              email_address: payload.email_address,
               company: payload.company,
-              title: payload.title,
               lead_source: payload.lead_source,
-              lead_status: payload.lead_status,
               lead_rating: payload.lead_rating,
               address_street: payload.address_street,
-              address_city: payload.address_city,
               address_state: payload.address_state,
               address_zip_code: payload.address_zip_code,
               address_country: payload.address_country,
@@ -8260,10 +8440,7 @@ function LeadsPage({ onBack }) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const filename = inferDownloadFilename(
-        res.headers,
-        "lead-list-template",
-      );
+      const filename = inferDownloadFilename(res.headers, "lead-list-template");
       a.download = filename;
       a.click();
       window.URL.revokeObjectURL(url);
@@ -8936,24 +9113,23 @@ function LeadsPage({ onBack }) {
                   </div>
                 ))}
 
-                {/* Multi-select for seniorities, technologies, company_sizes */}
+                {/* Multi-select for seniorities and company_sizes */}
                 {[
                   {
                     key: "seniorities",
                     label: "Seniorities",
                     options: [
                       "Intern",
-                      "Junior",
+                      // "Junior",
                       "Manager",
-                      "Mid",
+                      // "Mid",
                       "Senior",
-                      "Lead",
+                      // "Lead",
                       "Director",
                       "VP",
-                      "C-Level",
+                      // "C-Level",
                     ],
                   },
-                  // Technologies field hidden for now
                   {
                     key: "company_sizes",
                     label: "Company Sizes",
@@ -9037,6 +9213,45 @@ function LeadsPage({ onBack }) {
                     )}
                   </div>
                 ))}
+
+                {/* Boolean filters */}
+                {[
+                  { key: "has_email", label: "Has Email" },
+                  { key: "has_phone", label: "Has Phone" },
+                ].map(({ key, label }) => (
+                  <div key={key}>
+                    <label className="block text-[11px] font-[600] uppercase tracking-wide text-gray-500 mb-2">
+                      {label}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: true, label: "True" },
+                        { value: false, label: "False" },
+                      ].map((opt) => {
+                        const selected = apolloFilters[key] === opt.value;
+                        return (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            onClick={() =>
+                              setApolloFilters((f) => ({
+                                ...f,
+                                [key]: f[key] === opt.value ? null : opt.value,
+                              }))
+                            }
+                            className={`px-3 py-1 rounded-full text-[12px] font-[600] border transition ${
+                              selected
+                                ? "bg-violet-100 text-violet-700 border-violet-300"
+                                : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Preview result banner */}
@@ -9045,19 +9260,21 @@ function LeadsPage({ onBack }) {
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
                   <div>
                     <p className="text-[13px] font-[700] text-emerald-800">
-                      ~
-                      {(
-                        apolloPreview.estimated_count ??
-                        apolloPreview.count ??
-                        apolloPreview.total ??
-                        0
-                      ).toLocaleString()}{" "}
-                      leads found
+                      ~{apolloPreviewCount.toLocaleString()} leads found
                     </p>
                     <p className="text-[11px] text-emerald-600">
                       Refine your filters above or click Fetch Leads to import.
                     </p>
                   </div>
+                  {apolloPreviewLeads.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowApolloPreviewModal(true)}
+                      className="ml-auto px-3 py-1.5 rounded-lg border border-emerald-300 bg-white text-[12px] font-[600] text-emerald-700 hover:bg-emerald-50 transition"
+                    >
+                      View Leads
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -9109,6 +9326,279 @@ function LeadsPage({ onBack }) {
               </div>
             </div>
           )}
+        </Modal>
+      )}
+
+      {showCreate && showApolloPreviewModal && (
+        <Modal
+          title="Preview Leads"
+          onClose={() => setShowApolloPreviewModal(false)}
+          width="max-w-5xl"
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
+              <p className="text-[12px] text-gray-700">
+                Showing{" "}
+                <span className="font-[700]">{apolloPreviewLeads.length}</span>{" "}
+                preview lead{apolloPreviewLeads.length > 1 ? "s" : ""}
+              </p>
+              <p className="text-[12px] text-gray-500">
+                Estimated total:{" "}
+                <span className="font-[700] text-gray-700">
+                  {apolloPreviewCount.toLocaleString()}
+                </span>
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+              <div className="max-h-[50vh] overflow-auto">
+                <table className="w-full text-left">
+                  <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      {[
+                        "#",
+                        "Name",
+                        "First Name",
+                        "Last Name",
+                        "Job Title",
+                        "Company",
+                        // "Email",
+                        "Has Email",
+                        // "Phone",
+                        "Has Phone",
+                        "Direct Phone",
+                        // "Location",
+                        "Has City",
+                        "Has State",
+                        "Has Country",
+                        // "Seniority",
+                        // "Industry",
+                        // "Company Size",
+                        // "LinkedIn",
+                        // "Last Refreshed",
+                        "Org Industry",
+                        "Org Phone",
+                        "Org Revenue",
+                        "Org Employees",
+                        "Org Zip",
+                      ].map((head) => (
+                        <th
+                          key={head}
+                          className="px-3 py-2 text-[10px] font-[700] uppercase tracking-wide text-gray-500 whitespace-nowrap"
+                        >
+                          {head}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {apolloPreviewLeads.map((lead, idx) => {
+                      const raw =
+                        lead?._raw && typeof lead._raw === "object"
+                          ? lead._raw
+                          : null;
+                      const org =
+                        raw?.organization &&
+                        typeof raw.organization === "object"
+                          ? raw.organization
+                          : null;
+                      // const apolloId = lead?.apollo_id ?? lead?.id ?? raw?.id ?? null;
+                      const emailVal = lead?.email ?? null;
+                      const phoneVal = lead?.phone ?? null;
+                      const hasEmail =
+                        lead?.has_email ?? raw?.has_email ?? null;
+                      const hasPhone =
+                        lead?.has_phone ??
+                        raw?.has_phone ??
+                        org?.has_phone ??
+                        null;
+                      const directPhone = raw?.has_direct_phone ?? null;
+                      const linkedinUrl =
+                        lead?.linkedin_url ?? lead?.linkedin ?? null;
+                      const lastRefreshed = raw?.last_refreshed_at ?? null;
+
+                      const BoolBadge = ({ value }) => {
+                        if (value === true || value === "true" || value === 1)
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[700] border bg-emerald-50 text-emerald-700 border-emerald-200">
+                              Yes
+                            </span>
+                          );
+                        if (value === false || value === "false" || value === 0)
+                          return (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[700] border bg-red-50 text-red-500 border-red-200">
+                              No
+                            </span>
+                          );
+                        return <span className="text-gray-400">—</span>;
+                      };
+
+                      return (
+                        <tr className="border-b border-gray-50 hover:bg-gray-50/40 transition">
+                          {/* <tr key={apolloId ?? idx} className="border-b border-gray-50 hover:bg-gray-50/40 transition"> */}
+                          <td className="px-3 py-2 text-[11px] text-gray-400 whitespace-nowrap">
+                            {idx + 1}
+                          </td>
+                          {/* <td className="px-3 py-2 text-[10px] text-gray-400 font-mono whitespace-nowrap max-w-[110px] truncate" title={apolloId ?? ""}>
+                            {apolloId ?? "—"}
+                          </td> */}
+                          <td className="px-3 py-2 text-[12px] text-gray-800 font-[600] whitespace-nowrap">
+                            {lead?.lead_name ||
+                              lead?.name ||
+                              lead?.full_name ||
+                              "—"}
+                          </td>
+                          <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {raw?.first_name || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {raw?.last_name_obfuscated || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {lead?.job_title ||
+                              lead?.title ||
+                              raw?.title ||
+                              "—"}
+                          </td>
+                          <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {lead?.company_name ||
+                              lead?.company ||
+                              org?.name ||
+                              "—"}
+                          </td>
+                          {/* <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {emailVal ?? "—"}
+                          </td> */}
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={hasEmail} />
+                          </td>
+                          {/* <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {phoneVal ?? "—"}
+                          </td> */}
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={hasPhone} />
+                          </td>
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            {directPhone !== null ? (
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-[700] border ${
+                                  String(directPhone).toLowerCase() === "yes"
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : String(directPhone)
+                                          .toLowerCase()
+                                          .startsWith("maybe")
+                                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                                      : "bg-gray-100 text-gray-500 border-gray-200"
+                                }`}
+                                title={directPhone}
+                              >
+                                {String(directPhone).toLowerCase() === "yes"
+                                  ? "Yes"
+                                  : String(directPhone)
+                                        .toLowerCase()
+                                        .startsWith("maybe")
+                                    ? "Maybe"
+                                    : directPhone}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          {/* <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {lead?.location || "—"}
+                          </td> */}
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={raw?.has_city ?? null} />
+                          </td>
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={raw?.has_state ?? null} />
+                          </td>
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={raw?.has_country ?? null} />
+                          </td>
+                          {/* <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap capitalize">
+                            {lead?.seniority || "—"}
+                          </td> */}
+                          {/* <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {lead?.industry || "—"}
+                          </td> */}
+                          <td className="px-3 py-2 text-[12px] text-gray-700 whitespace-nowrap">
+                            {lead?.company_size || "—"}
+                          </td>
+                          {/* <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            {linkedinUrl ? (
+                              <a
+                                href={linkedinUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-indigo-600 hover:text-indigo-800 underline text-[11px]"
+                              >
+                                View
+                              </a>
+                            ) : (
+                              "—"
+                            )}
+                          </td> */}
+                          {/* <td className="px-3 py-2 text-[11px] text-gray-500 whitespace-nowrap">
+                            {lastRefreshed
+                              ? new Date(lastRefreshed).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  },
+                                )
+                              : "—"}
+                          </td> */}
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={org?.has_industry ?? null} />
+                          </td>
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={org?.has_phone ?? null} />
+                          </td>
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={org?.has_revenue ?? null} />
+                          </td>
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge
+                              value={org?.has_employee_count ?? null}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-[12px] whitespace-nowrap">
+                            <BoolBadge value={org?.has_zip_code ?? null} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setShowApolloPreviewModal(false)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-[13px] font-[500] text-gray-600 hover:bg-gray-50 transition"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={handleApolloFetch}
+                disabled={apolloFetching || apolloPreviewing}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#0a0a0a] text-[13px] font-[600] text-white hover:bg-gray-800 transition disabled:opacity-50"
+              >
+                {apolloFetching ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Zap className="h-3.5 w-3.5" />
+                )}
+                {apolloFetching ? "Fetching…" : "Fetch Leads Now"}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
@@ -9631,11 +10121,13 @@ function GlobalIntegrationsPage({
   smtpProviderLoading: smtpProviderLoadingProp = false,
 }) {
   // Derive access locally so the fetch isn't blocked by prop-timing issues
-  const effectiveCanAccess = canAccess || (
-    typeof window !== "undefined" && isAdminRole(localStorage.getItem("userRole") || "")
-  );
+  const effectiveCanAccess =
+    canAccess ||
+    (typeof window !== "undefined" &&
+      isAdminRole(localStorage.getItem("userRole") || ""));
   // Local SMTP provider state (fetched directly from /api/smtp/saved-providers)
-  const [smtpProviderList, setSmtpProviderList] = useState(smtpProviderListProp);
+  const [smtpProviderList, setSmtpProviderList] =
+    useState(smtpProviderListProp);
   const [smtpProvider, setSMTPLocal] = useState(smtpProviderProp);
   const [smtpProviderLoading, setSmtpProviderLoading] = useState(false);
   // keep a ref so campaign-email-settings fetch can always read the latest value
@@ -9757,9 +10249,7 @@ function GlobalIntegrationsPage({
         setSmtpProviderList(providers);
 
         const defaultName =
-          currentSelected ||
-          providers.find((p) => p.is_selected)?.name ||
-          "";
+          currentSelected || providers.find((p) => p.is_selected)?.name || "";
 
         currentSelectedProviderRef.current = defaultName;
 
@@ -9780,7 +10270,7 @@ function GlobalIntegrationsPage({
       }
     };
     fetchSavedProviders();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger]);
   const [whatsappMetrics, setWhatsappMetrics] = useState({
     delivery_status_distribution: [],
@@ -10140,7 +10630,9 @@ function GlobalIntegrationsPage({
           next.campaign_email_settings = {
             ...prev.campaign_email_settings,
             from_email:
-              d.from_email ?? d.email ?? prev.campaign_email_settings.from_email,
+              d.from_email ??
+              d.email ??
+              prev.campaign_email_settings.from_email,
             reply_to_email:
               d.reply_to_email ?? prev.campaign_email_settings.reply_to_email,
             from_name: d.from_name ?? prev.campaign_email_settings.from_name,
@@ -10835,7 +11327,9 @@ function GlobalIntegrationsPage({
                         campaign_email_settings: {
                           ...prev.campaign_email_settings,
                           template_id: e.target.value,
-                          ...(selected?.from_email && { from_email: selected.from_email }),
+                          ...(selected?.from_email && {
+                            from_email: selected.from_email,
+                          }),
                           ...(selected?.reply_to_email && {
                             reply_to_email: selected.reply_to_email,
                           }),
@@ -10888,18 +11382,29 @@ function GlobalIntegrationsPage({
                     className="w-full appearance-none rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-[13px] text-gray-800 outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 pr-9 cursor-pointer disabled:opacity-50"
                   >
                     <option value="" disabled>
-                      {smtpProviderLoading ? "Loading providers…" : "— Select SMTP Provider —"}
+                      {smtpProviderLoading
+                        ? "Loading providers…"
+                        : "— Select SMTP Provider —"}
                     </option>
-                    {[...smtpProviderList].sort((a, b) => (b.is_selected ? 1 : 0) - (a.is_selected ? 1 : 0)).map((p) => (
-                      <option key={p.id ?? p.name} value={p.name}>
-                        {p.label || p.name}{p.is_selected ? " ✓ (Global Active)" : ""}
-                      </option>
-                    ))}
+                    {[...smtpProviderList]
+                      .sort(
+                        (a, b) =>
+                          (b.is_selected ? 1 : 0) - (a.is_selected ? 1 : 0),
+                      )
+                      .map((p) => (
+                        <option key={p.id ?? p.name} value={p.name}>
+                          {p.label || p.name}
+                          {p.is_selected ? " ✓ (Global Active)" : ""}
+                        </option>
+                      ))}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                 </div>
                 {smtpProviderList.length === 0 && !smtpProviderLoading && (
-                  <p className="text-[11px] text-gray-400 mt-1">No saved SMTP providers found. Add one in Global Integrations.</p>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    No saved SMTP providers found. Add one in Global
+                    Integrations.
+                  </p>
                 )}
               </div>
               {/* <Field
@@ -11346,7 +11851,9 @@ export default function Setting() {
       setEmailPlatformLoading(false);
     }
   };
-  useEffect(() => { fetchEmailPlatforms(); }, []);
+  useEffect(() => {
+    fetchEmailPlatforms();
+  }, []);
   const [emailPlatformSaving, setEmailPlatformSaving] = useState(false);
   const [smtpProvider, setSMTP] = useState("");
   const [smtpProviderList, setSmtpProviderList] = useState([]); // [{name, description, ready}]
@@ -11384,7 +11891,9 @@ export default function Setting() {
       setCrmStatusLoading(false);
     }
   };
-  useEffect(() => { fetchCrmStatus(); }, []);
+  useEffect(() => {
+    fetchCrmStatus();
+  }, []);
 
   const handleCrmDisconnect = async () => {
     setCrmDisconnecting(true);
@@ -11415,53 +11924,62 @@ export default function Setting() {
 
   // Fetch available SMTP providers + currently selected provider on mount
   const fetchSmtpProviders = async () => {
-      setSmtpProviderLoading(true);
-      try {
-        const res = await axiosInstance.get("/api/smtp/saved-providers");
-        const d = res.data;
-        const raw = d?.providers ?? (Array.isArray(d) ? d : []);
+    setSmtpProviderLoading(true);
+    try {
+      const res = await axiosInstance.get("/api/smtp/saved-providers");
+      const d = res.data;
+      const raw = d?.providers ?? (Array.isArray(d) ? d : []);
 
-        const currentSelected = d?.current_selected_provider ?? null;
+      const currentSelected = d?.current_selected_provider ?? null;
 
-        const providers = raw.map((p) => ({
-          id: p.id,
-          name: p.provider ?? p.name ?? String(p),
-          label: p.label ?? null,
-          description: p.description ?? "",
-          ready: p.ready ?? true,
-          is_selected:
-            currentSelected
-              ? (p.provider ?? p.name) === currentSelected
-              : (p.is_selected === true || p.is_active === true || p.is_current === true || p.selected === true),
-          verified: p.verified ?? false,
-        }));
+      const providers = raw.map((p) => ({
+        id: p.id,
+        name: p.provider ?? p.name ?? String(p),
+        label: p.label ?? null,
+        description: p.description ?? "",
+        ready: p.ready ?? true,
+        is_selected: currentSelected
+          ? (p.provider ?? p.name) === currentSelected
+          : p.is_selected === true ||
+            p.is_active === true ||
+            p.is_current === true ||
+            p.selected === true,
+        verified: p.verified ?? false,
+      }));
 
-        setSmtpProviderList(providers);
+      setSmtpProviderList(providers);
 
-        const defaultName =
-          currentSelected ||
-          providers.find((p) => p.is_selected)?.name ||
-          (providers.length > 0 ? providers[0].name : "");
+      const defaultName =
+        currentSelected ||
+        providers.find((p) => p.is_selected)?.name ||
+        (providers.length > 0 ? providers[0].name : "");
 
-        if (defaultName) {
-          setSMTP(defaultName);
-        }
-      } catch (err) {
-        const status = err?.response?.status;
-        if (status === 502 || status === 503 || status === 504) {
-          toast.error("SMTP service is temporarily unavailable. Please try again later.", { toastId: "smtp-providers-unavailable" });
-        } else {
-          toast.error(
-            err?.response?.data?.detail ?? err?.message ?? "Failed to fetch SMTP providers.",
-            { toastId: "smtp-providers-error" }
-          );
-        }
-        setSmtpProviderList([]);
-      } finally {
-        setSmtpProviderLoading(false);
+      if (defaultName) {
+        setSMTP(defaultName);
+      }
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 502 || status === 503 || status === 504) {
+        toast.error(
+          "SMTP service is temporarily unavailable. Please try again later.",
+          { toastId: "smtp-providers-unavailable" },
+        );
+      } else {
+        toast.error(
+          err?.response?.data?.detail ??
+            err?.message ??
+            "Failed to fetch SMTP providers.",
+          { toastId: "smtp-providers-error" },
+        );
+      }
+      setSmtpProviderList([]);
+    } finally {
+      setSmtpProviderLoading(false);
     }
   };
-  useEffect(() => { fetchSmtpProviders(); }, [emailPlatform]);
+  useEffect(() => {
+    fetchSmtpProviders();
+  }, [emailPlatform]);
 
   const handleSelectEmailPlatform = async (platform) => {
     setEP(platform);

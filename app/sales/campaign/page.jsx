@@ -503,27 +503,25 @@ export default function CampaignPage() {
       setShowEmailConfig(true);
       setEmailConfigLoading(true);
       try {
-        // Fetch both email config settings and SMTP providers in parallel
-        const [emailConfigRes, smtpProvidersRes] = await Promise.all([
-          axiosInstance.get("/campaign-email-settings"),
-          axiosInstance.get("/api/smtp/saved-providers"),
-        ]);
+        // In edit mode, keep values from /get-campaigns/{id} and avoid campaign-email-settings.
+        const smtpProvidersRes = await axiosInstance.get("/api/smtp/saved-providers");
 
-        const d = emailConfigRes?.data ?? {};
-        setForm((prev) => ({
-          ...prev,
-          logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
-          // smtp_provider_name is NOT from /campaign-email-settings - it comes only from /api/smtp/saved-providers
-          template_id: d.template_id ?? prev.template_id ?? "",
-          from_name: d.from_name ?? prev.from_name ?? "",
-          from_email: d.from_email ?? prev.from_email ?? "",
-          reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
-          emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
-          campaign_prompt: editingCampaignId
-            ? (prev.campaign_prompt ?? "")
-            : (d.campaign_prompt ?? prev.campaign_prompt ?? ""),
-          delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
-        }));
+        if (!editingCampaignId) {
+          const emailConfigRes = await axiosInstance.get("/campaign-email-settings");
+          const d = emailConfigRes?.data ?? {};
+          setForm((prev) => ({
+            ...prev,
+            logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
+            // smtp_provider_name is NOT from /campaign-email-settings - it comes only from /api/smtp/saved-providers
+            template_id: d.template_id ?? prev.template_id ?? "",
+            from_name: d.from_name ?? prev.from_name ?? "",
+            from_email: d.from_email ?? prev.from_email ?? "",
+            reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
+            emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
+            campaign_prompt: d.campaign_prompt ?? prev.campaign_prompt ?? "",
+            delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
+          }));
+        }
 
         // Process SMTP providers from /api/smtp/saved-providers
         const smtpData = smtpProvidersRes?.data ?? {};
@@ -1246,26 +1244,26 @@ export default function CampaignPage() {
         }
       })
       .catch(() => {});
-    axiosInstance
-      .get("/campaign-email-settings")
-      .then((res) => {
-        const d = res?.data ?? {};
-        setForm((prev) => ({
-          ...prev,
-          logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
-          // smtp_provider_name is NOT from this API - it comes only from /api/smtp/saved-providers
-          template_id: d.template_id ?? prev.template_id ?? "",
-          from_name: d.from_name ?? prev.from_name ?? "",
-          from_email: d.from_email ?? prev.from_email ?? "",
-          reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
-          emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
-          campaign_prompt: isEditing
-            ? (prev.campaign_prompt ?? "")
-            : (d.campaign_prompt ?? prev.campaign_prompt ?? ""),
-          delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
-        }));
-      })
-      .catch(() => {});
+    if (!isEditing) {
+      axiosInstance
+        .get("/campaign-email-settings")
+        .then((res) => {
+          const d = res?.data ?? {};
+          setForm((prev) => ({
+            ...prev,
+            logged_in_user_email: d.logged_in_user_email ?? d.meeting_invite_sender_email ?? prev.logged_in_user_email ?? "",
+            // smtp_provider_name is NOT from this API - it comes only from /api/smtp/saved-providers
+            template_id: d.template_id ?? prev.template_id ?? "",
+            from_name: d.from_name ?? prev.from_name ?? "",
+            from_email: d.from_email ?? prev.from_email ?? "",
+            reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
+            emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
+            campaign_prompt: d.campaign_prompt ?? prev.campaign_prompt ?? "",
+            delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
+          }));
+        })
+        .catch(() => {});
+    }
   }, [showCreate, editingCampaignId]);
 
   // Email fields are intentionally not pre-filled from localStorage so placeholder-only behavior is preserved.
