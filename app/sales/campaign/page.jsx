@@ -495,7 +495,8 @@ export default function CampaignPage() {
         from_email: null,
         reply_to_email: null,
         emails_per_batch: null,
-        campaign_prompt: null,
+        // In edit mode keep campaign prompt from campaign details.
+        campaign_prompt: editingCampaignId ? prev.campaign_prompt : null,
         delay_between_batches_seconds: null,
       }));
     } else {
@@ -518,7 +519,9 @@ export default function CampaignPage() {
           from_email: d.from_email ?? prev.from_email ?? "",
           reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
           emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
-          campaign_prompt: d.campaign_prompt ?? prev.campaign_prompt ?? "",
+          campaign_prompt: editingCampaignId
+            ? (prev.campaign_prompt ?? "")
+            : (d.campaign_prompt ?? prev.campaign_prompt ?? ""),
           delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
         }));
 
@@ -1101,7 +1104,6 @@ export default function CampaignPage() {
         reply_wait_hours: liData.reply_wait_hours != null ? String(liData.reply_wait_hours) : "",
         reply_wait_minutes: liData.reply_wait_minutes != null ? String(liData.reply_wait_minutes) : "",
         preview_mode: c.preview_mode ?? true,
-        campaign_prompt: c.campaign_prompt ?? "",
       });
       setEditingCampaignId(campaignId);
       setShowCreate(true);
@@ -1142,6 +1144,7 @@ export default function CampaignPage() {
   // After successful create, poll list briefly so async lead generation updates card counts.
   useEffect(() => {
     if (!showCreate) return;
+    const isEditing = !!editingCampaignId;
     // Fetch agents from backend so we always use real agent_id
     axiosInstance
       .get("/my-agents")
@@ -1229,7 +1232,7 @@ export default function CampaignPage() {
         setSmtpProvidersList(normalizedProviders);
 
         // Auto-select the active provider (is_selected: true) as default when creating a new campaign
-        if (!editingCampaignId) {
+        if (!isEditing) {
           const selectedProvider =
             normalizedProviders.find((p) => p.is_current)?.name ??
             (d?.current_selected_provider
@@ -1256,12 +1259,14 @@ export default function CampaignPage() {
           from_email: d.from_email ?? prev.from_email ?? "",
           reply_to_email: d.reply_to_email ?? prev.reply_to_email ?? "",
           emails_per_batch: d.emails_per_batch ?? prev.emails_per_batch ?? 100,
-          campaign_prompt: d.campaign_prompt ?? prev.campaign_prompt ?? "",
+          campaign_prompt: isEditing
+            ? (prev.campaign_prompt ?? "")
+            : (d.campaign_prompt ?? prev.campaign_prompt ?? ""),
           delay_between_batches_seconds: d.delay_between_batches_seconds ?? prev.delay_between_batches_seconds ?? 60,
         }));
       })
       .catch(() => {});
-  }, [showCreate]);
+  }, [showCreate, editingCampaignId]);
 
   // Email fields are intentionally not pre-filled from localStorage so placeholder-only behavior is preserved.
   // NOTE: selectedCampaign and activeTab are intentionally excluded from the dep array.
