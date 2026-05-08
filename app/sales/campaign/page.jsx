@@ -1040,24 +1040,47 @@ export default function CampaignPage() {
           return upper.charAt(0) + upper.slice(1).toLowerCase();
         });
 
-      // Reverse-map channel_steps_config back into per-channel form state
-      const rawSteps = c.channel_steps_config ?? {};
+      // Map channel_steps array back into per-channel form state
+      const rawSteps = c.channel_steps ?? [];
       const channelSteps = {};
-      channelOrder.forEach((ch, idx) => {
-        const key = String(idx + 1);
-        if (rawSteps[key]) {
-          const step = rawSteps[key];
-          channelSteps[ch] = {
-            ...step,
-            ...(step.wait_duration_hours != null && {
-              wait_duration_hours: String(step.wait_duration_hours),
-            }),
-            ...(step.wait_duration_minutes != null && {
-              wait_duration_minutes: String(step.wait_duration_minutes),
-            }),
-          };
-        }
-      });
+      
+      if (Array.isArray(rawSteps)) {
+        rawSteps.forEach((step) => {
+          const stepOrder = step.step_order ?? step.stepOrder ?? 1;
+          const chIdx = stepOrder - 1;
+          
+          if (chIdx >= 0 && chIdx < channelOrder.length) {
+            const ch = channelOrder[chIdx];
+            channelSteps[ch] = {
+              channel_type: step.channel_type ?? "",
+              wait_duration_hours: step.wait_duration_hours != null ? String(step.wait_duration_hours) : "",
+              wait_duration_minutes: step.wait_duration_minutes != null ? String(step.wait_duration_minutes) : "",
+              max_attempts: step.max_attempts != null ? String(step.max_attempts) : "",
+              success_criteria: step.success_criteria ?? "",
+              failure_criteria: step.failure_criteria ?? "",
+              status: step.status ?? "NOT_STARTED",
+            };
+          }
+        });
+      } else {
+        // Fallback to old format for backward compatibility
+        const oldSteps = c.channel_steps_config ?? {};
+        channelOrder.forEach((ch, idx) => {
+          const key = String(idx + 1);
+          if (oldSteps[key]) {
+            const step = oldSteps[key];
+            channelSteps[ch] = {
+              ...step,
+              ...(step.wait_duration_hours != null && {
+                wait_duration_hours: String(step.wait_duration_hours),
+              }),
+              ...(step.wait_duration_minutes != null && {
+                wait_duration_minutes: String(step.wait_duration_minutes),
+              }),
+            };
+          }
+        });
+      }
 
       // Extract LinkedIn step data (if present)
       const liIdx = channelOrder.indexOf("Linkedin");
