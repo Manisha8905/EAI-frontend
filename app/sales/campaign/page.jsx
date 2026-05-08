@@ -1061,7 +1061,15 @@ export default function CampaignPage() {
 
       // Extract LinkedIn step data (if present)
       const liIdx = channelOrder.indexOf("Linkedin");
-      const liData = liIdx !== -1 ? (rawSteps[String(liIdx + 1)] ?? {}) : {};
+      let liData = {};
+      if (liIdx !== -1 && Array.isArray(c.channel_steps)) {
+        const liStep = c.channel_steps.find((s) => (s.step_order ?? 1) === liIdx + 1);
+        if (liStep) {
+          liData = liStep;
+        }
+      } else if (liIdx !== -1 && c.channel_steps_config) {
+        liData = c.channel_steps_config[String(liIdx + 1)] ?? {};
+      }
 
       setForm({
         campaign_name: c.campaign_name ?? "",
